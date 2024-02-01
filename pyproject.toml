@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = []
+dependencies = ["fibsem-tools>=6.0", "matplotlib"]
 
 [project.urls]
 Documentation = "https://github.com/saalfeldlab/fly-organelles#readme"
