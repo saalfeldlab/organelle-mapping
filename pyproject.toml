@@ -27,18 +27,22 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Documentation = "https://github.com/unknown/fly-organelles#readme"
-Issues = "https://github.com/unknown/fly-organelles/issues"
-Source = "https://github.com/unknown/fly-organelles"
+Documentation = "https://github.com/saalfeldlab/fly-organelles#readme"
+Issues = "https://github.com/saalfeldlab/fly-organelles/issues"
+Source = "https://github.com/saalfeldlab/fly-organelles"
 
 [tool.hatch.version]
 path = "src/fly_organelles/__about__.py"
 
 [tool.hatch.envs.default]
+type = "conda"
+command = "mamba"
+conda-forge = true
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
 ]
+
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -54,6 +58,15 @@ cov = [
 [[tool.hatch.envs.all.matrix]]
 python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
 
+
+[tool.hatch.envs.dev]
+type = "conda"
+command = "mamba"
+conda-forge = true
+detached = false
+dependencies = ["jupyter"]
+
+
 [tool.hatch.envs.lint]
 detached = true
 dependencies = [
@@ -61,6 +74,7 @@ dependencies = [
   "mypy>=1.0.0",
   "ruff>=0.0.243",
 ]
+
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive {args:src/fly_organelles tests}"
 style = [
