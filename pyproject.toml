@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "fly-organelles"
 dynamic = ["version"]
-description = 'Segmenting fly organelles'
+description = "Segmenting fly organelles"
 readme = "README.md"
 requires-python = ">=3.7"
 license = "MIT"
@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["fibsem-tools>=6.0", "matplotlib"]
+dependencies = ["fibsem-tools>=6.0", "matplotlib", "gunpowder"]
 
 [project.urls]
 Documentation = "https://github.com/saalfeldlab/fly-organelles#readme"
@@ -38,10 +38,7 @@ path = "src/fly_organelles/__about__.py"
 type = "conda"
 command = "mamba"
 conda-forge = true
-dependencies = [
-  "coverage[toml]>=6.5",
-  "pytest",
-]
+dependencies = []
 
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
@@ -64,7 +61,7 @@ type = "conda"
 command = "mamba"
 conda-forge = true
 detached = false
-dependencies = ["jupyter"]
+dependencies = ["jupyter", "pytest", "coverage[toml]>=6.5"]
 
 
 [tool.hatch.envs.lint]
