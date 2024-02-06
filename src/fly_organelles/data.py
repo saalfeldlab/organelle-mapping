@@ -115,3 +115,34 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         timing.stop()
         batch.profiling_stats.add(timing)
         return batch
+
+
+def data_pipeline(
+    labels,
+    label_stores,
+    raw_stores,
+    pad_width,
+    sampling
+):
+    raw = gp.ArrayKey("RAW")
+    label_keys = {}
+    for label in labels:
+        label_keys[label] = gp.ArrayKey(label.upper())
+    srcs = []
+    probs = []
+    for label_store, raw_store in zip(label_stores, raw_stores):
+        src = CellMapCropSource(
+            label_store,
+            raw_store,
+            label_keys,
+            raw,
+            sampling
+        )
+        probs.append(src.get_size())
+        for label_key in label_keys.values():
+            src += gp.Pad(label_key, pad_width)
+        src += gp.Normalize(raw)
+        # TODO CONTRAST ADJUSTMENT
+        srcs.append(src)
+    pipeline = tuple(srcs) + gp.RandomProvider(probs) + gp.RandomLocation()
+    return pipeline
