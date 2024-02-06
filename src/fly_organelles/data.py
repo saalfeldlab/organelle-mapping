@@ -3,6 +3,7 @@ import fibsem_tools as fst
 import logging
 from pathlib import Path
 import xarray as xr
+import numpy as np
 logger = logging.getLogger(__name__)
 
 def spatial_spec_from_xarray(xarr) -> tuple[gp.Roi, gp.Coordinate]:
@@ -19,31 +20,78 @@ def spatial_spec_from_xarray(xarr) -> tuple[gp.Roi, gp.Coordinate]:
     roi = gp.Roi(offset, shape)
     return roi, voxel_size
 
+def get_scale_info(zarr_grp):
+    attrs = zarr_grp.attrs
+    resolutions = {}
+    offsets = {}
+    shapes = {}
+    # making a ton of assumptions here, hopefully triggering KeyErrors though if they don't apply
+    for scale in attrs["multiscales"][0]["datasets"]:
+        resolutions[scale["path"]] = scale["coordinateTransformations"][0]["scale"]
+        offsets[scale["path"]] = scale["coordinateTransformations"][1]["translation"]
+        shapes[scale["path"]] = zarr_grp[scale["path"]].shape
+    offset = min(offsets.values())
+    return offset, resolutions, shapes
+
+
+def find_target_scale(zarr_grp, target_resolution):
+    offset, resolutions, shapes = get_scale_info(zarr_grp)
+    target_scale = None
+    for scale, res in resolutions.items():
+        if gp.Coordinate(res) == gp.Coordinate(target_resolution):
+            target_scale = scale
+            break
+    if target_scale is None:
+        msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array with sampling {target_resolution}"
+        raise ValueError(msg)
+    return target_scale, offset, shapes[target_scale]
+
+def construct_roi(shape, offset, voxel_size):
+    voxel_size = gp.Coordinate(voxel_size)
+    offset = gp.Coordinate(offset)
+    shape = voxel_size * gp.Coordinate(shape)
+    roi = gp.Roi(offset, shape)
+    return roi
+
 class CellMapCropSource(gp.batch_provider.BatchProvider):
     def __init__(
         self,
-        label_store,
-        raw_store,
+        label_store: str,
+        raw_store: str,
         labels: dict[str,gp.array.ArrayKey],
-        raw_arraykey
+        raw_arraykey: gp.ArrayKey,
+        sampling: list[int]
     ):
         super().__init__()
         self.stores = {}
-        self.stores[raw_arraykey] = fst.read_xarray(raw_store)
+        raw_grp = fst.read(raw_store)
+        raw_scale, raw_offset, raw_shape = find_target_scale(raw_grp, sampling)
+        self.stores[raw_arraykey] = fst.read(Path(raw_store) / raw_scale)
         self.labels = labels
         self.specs = {}
-        raw_roi, raw_voxel_size = spatial_spec_from_xarray(self.stores[raw_arraykey])
+        raw_roi = construct_roi(raw_shape, raw_offset, sampling)
+        raw_voxel_size = gp.Coordinate(sampling)
+        #raw_roi, raw_voxel_size = spatial_spec_from_xarray(self.stores[raw_arraykey])
         self.specs[raw_arraykey] = gp.array_spec.ArraySpec(roi=raw_roi,
                                                            voxel_size=raw_voxel_size,
                                                            interpolatable=True,
                                                            dtype=self.stores[raw_arraykey].dtype)
         for label, labelkey in self.labels.items():
-            self.stores[labelkey] = fst.read_xarray(Path(label_store) / label / "s1")
-            label_roi, label_voxel_size = spatial_spec_from_xarray(self.stores[labelkey])
+            label_grp = fst.read(Path(label_store)/label)
+            label_scale, label_offset, label_shape = find_target_scale(label_grp, sampling)
+            self.stores[labelkey] = fst.read_xarray(Path(label_store) / label / label_scale)
+            #label_roi, label_voxel_size = spatial_spec_from_xarray(self.stores[labelkey])
+            label_roi = construct_roi(label_shape, label_offset, sampling)
+            label_voxel_size = gp.Coordinate(sampling)
             self.specs[labelkey] = gp.array_spec.ArraySpec(roi = label_roi,
                                                            voxel_size=label_voxel_size,
                                                            interpolatable=False,
                                                            dtype=self.stores[labelkey].dtype)
+        self.sampling = sampling
+
+    def get_size(self):
+        label = next(iter(self.labels.values()))
+        return self.stores[label].size
 
     def setup(self):
         for key, spec in self.specs.items():
@@ -55,8 +103,11 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         batch = gp.batch.Batch()
         for ak, rs in request.array_specs.items():
             vs = self.specs[ak].voxel_size
-            loc = {axis:slice(b, e, None) for b, e, axis in zip(rs.roi.get_begin(), rs.roi.get_end()-vs/2., "zyx")}
-            arr = self.stores[ak].sel(loc).to_numpy()
+            dataset_roi = rs.roi/vs
+            dataset_roi = dataset_roi - self.spec[ak].roi.offset / vs
+            #loc = {axis:slice(b, e, None) for b, e, axis in zip(rs.roi.get_begin(), rs.roi.get_end()-vs/2., "zyx")}
+            #arr = self.stores[ak].sel(loc).to_numpy()
+            arr = np.asarray(self.stores[ak][dataset_roi.to_slices()])
             array_spec = self.specs[ak].copy()
             array_spec.roi = rs.roi
             batch.arrays[ak] = gp.Array(arr, array_spec)
