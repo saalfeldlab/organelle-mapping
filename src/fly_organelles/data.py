@@ -4,6 +4,9 @@ import logging
 from pathlib import Path
 import xarray as xr
 import numpy as np
+import corditea
+import math
+
 logger = logging.getLogger(__name__)
 
 def spatial_spec_from_xarray(xarr) -> tuple[gp.Roi, gp.Coordinate]:
@@ -140,9 +143,24 @@ def data_pipeline(
         )
         probs.append(src.get_size())
         for label_key in label_keys.values():
-            src += gp.Pad(label_key, pad_width)
+            src += gp.Pad(label_key, pad_width, value=255)
         src += gp.Normalize(raw)
         # TODO CONTRAST ADJUSTMENT
         srcs.append(src)
     pipeline = tuple(srcs) + gp.RandomProvider(probs) + gp.RandomLocation()
+    return pipeline
+
+def add_augmentation(pipeline, raw_key):
+    pipeline += corditea.GaussianNoiseAugment(raw_key, noise_prob=0.75)
+    pipeline += gp.IntensityAugment(raw_key, 0.75, 1.5, -0.15, 0.15)
+    pipeline += corditea.GammaAugment([raw_key], 0.75, 4/3.)
+    pipeline += gp.SimpleAugment()
+    pipeline += corditea.ElasticAugment(
+        control_point_spacing = gp.Coordinate((100,100,100)),
+        control_point_displacement_sigma = gp.Coordinate((12,12,12)),
+        rotation_interval = (0, math.pi / 2.0),
+        subsample=8,
+        uniform_3d_rotation=True,
+    )
+
     return pipeline

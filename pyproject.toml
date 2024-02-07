@@ -10,9 +10,7 @@ readme = "README.md"
 requires-python = ">=3.7"
 license = "MIT"
 keywords = []
-authors = [
-  { name = "Larissa Heinrich", email = "heinrichl@janelia.hhmi.org" },
-]
+authors = [{ name = "Larissa Heinrich", email = "heinrichl@janelia.hhmi.org" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
@@ -24,7 +22,12 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["fibsem-tools>=6.0", "matplotlib", "gunpowder"]
+dependencies = [
+  "fibsem-tools>=6.0",
+  "matplotlib",
+  "gunpowder",
+  "corditea@git+ssh://git@github.com/saalfeldlab/corditea.git@main",
+]
 
 [project.urls]
 Documentation = "https://github.com/saalfeldlab/fly-organelles#readme"
@@ -33,6 +36,9 @@ Source = "https://github.com/saalfeldlab/fly-organelles"
 
 [tool.hatch.version]
 path = "src/fly_organelles/__about__.py"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.envs.default]
 type = "conda"
@@ -43,14 +49,8 @@ dependencies = []
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
-cov-report = [
-  "- coverage combine",
-  "coverage report",
-]
-cov = [
-  "test-cov",
-  "cov-report",
-]
+cov-report = ["- coverage combine", "coverage report"]
+cov = ["test-cov", "cov-report"]
 
 [[tool.hatch.envs.all.matrix]]
 python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
@@ -66,27 +66,13 @@ dependencies = ["jupyter", "pytest", "coverage[toml]>=6.5"]
 
 [tool.hatch.envs.lint]
 detached = true
-dependencies = [
-  "black>=23.1.0",
-  "mypy>=1.0.0",
-  "ruff>=0.0.243",
-]
+dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive {args:src/fly_organelles tests}"
-style = [
-  "ruff {args:.}",
-  "black --check --diff {args:.}",
-]
-fmt = [
-  "black {args:.}",
-  "ruff --fix {args:.}",
-  "style",
-]
-all = [
-  "style",
-  "typing",
-]
+style = ["ruff {args:.}", "black --check --diff {args:.}"]
+fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
+all = ["style", "typing"]
 
 [tool.black]
 target-version = ["py37"]
@@ -129,9 +115,15 @@ ignore = [
   # Allow boolean positional values in function calls, like `dict.get(... True)`
   "FBT003",
   # Ignore checks for possible passwords
-  "S105", "S106", "S107",
+  "S105",
+  "S106",
+  "S107",
   # Ignore complexity
-  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+  "C901",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -152,17 +144,11 @@ ban-relative-imports = "all"
 source_pkgs = ["fly_organelles", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/fly_organelles/__about__.py",
-]
+omit = ["src/fly_organelles/__about__.py"]
 
 [tool.coverage.paths]
 fly_organelles = ["src/fly_organelles", "*/fly-organelles/src/fly_organelles"]
 tests = ["tests", "*/fly-organelles/tests"]
 
 [tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
