@@ -122,52 +122,6 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         return batch
 
 
-def data_pipeline(
-    labels,
-    label_stores,
-    raw_stores,
-    pad_width,
-    sampling
-):
-    raw = gp.ArrayKey("RAW")
-    label_keys = {}
-    for label in labels:
-        label_keys[label] = gp.ArrayKey(label.upper())
-    srcs = []
-    probs = []
-    for label_store, raw_store in zip(label_stores, raw_stores):
-        src = CellMapCropSource(
-            label_store,
-            raw_store,
-            label_keys,
-            raw,
-            sampling
-        )
-        probs.append(src.get_size())
-        for label_key in label_keys.values():
-            src += gp.Pad(label_key, pad_width, value=255)
-        src += gp.Normalize(raw)
-        # TODO CONTRAST ADJUSTMENT
-        srcs.append(src)
-    pipeline = tuple(srcs) + gp.RandomProvider(probs) + gp.RandomLocation()
-    return pipeline
-
-def add_augmentation(pipeline, raw_key):
-    pipeline += corditea.GaussianNoiseAugment(raw_key, noise_prob=0.75)
-    pipeline += gp.IntensityAugment(raw_key, 0.75, 1.5, -0.15, 0.15)
-    pipeline += corditea.GammaAugment([raw_key], 0.75, 4/3.)
-    pipeline += gp.SimpleAugment()
-    pipeline += corditea.ElasticAugment(
-        control_point_spacing = gp.Coordinate((100,100,100)),
-        control_point_displacement_sigma = gp.Coordinate((12,12,12)),
-        rotation_interval = (0, math.pi / 2.0),
-        subsample=8,
-        uniform_3d_rotation=True,
-    )
-
-    return pipeline
-
-
 class ExtractMask(gp.BatchFilter):
     def __init__(self, label_key, mask_key, mask_value=255):
         super().__init__()
