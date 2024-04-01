@@ -2,3 +2,4 @@
 #
 # SPDX-License-Identifier: MIT
 from fly_organelles.data import CellMapCropSource, ExtractMask
+from fly_organelles.model import MaskedMultiLabelBCEwithLogits
