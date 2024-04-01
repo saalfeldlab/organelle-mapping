@@ -166,3 +166,30 @@ def add_augmentation(pipeline, raw_key):
     )
 
     return pipeline
+
+
+class ExtractMask(gp.BatchFilter):
+    def __init__(self, label_key, mask_key, mask_value=255):
+        super().__init__()
+        self.mask_key = mask_key
+        self.mask_value = 255
+        self.label_key = label_key
+
+    def setup(self):
+        assert self.label_key in self.spec, f"Need {self.label_key}"
+        spec = self.spec[self.label_key].copy()
+        self.provides(self.mask_key, spec)
+
+    def prepare(self, request):
+        deps = gp.BatchRequest()
+        deps[self.label_key] = request[self.mask_key].copy()
+        return deps
+
+    def process(self, batch, request):
+        outputs = gp.Batch()
+        label_arr = batch[self.label_key].data
+        mask = label_arr != self.mask_value
+        spec = self.spec[self.label_key].copy()
+        spec.roi = request[self.label_key].roi
+        outputs.arrays[self.mask_key] = gp.Array(mask.astype(spec.dtype), spec)
+        return outputs
