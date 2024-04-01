@@ -1,0 +1,187 @@
+nuc:
+  - ne_mem
+  - ne_lum
+  - np_out
+  - np_in
+  - hchrom
+  - nhchrom
+  - echrom
+  - nechrom
+  - nucpl
+  - nucleo
+
+golgi:
+  - golgi_mem
+  - golgi_lum
+
+ves:
+  - ves_mem
+  - ves_lum
+
+endo:
+  - endo_mem
+  - endo_lum
+
+lyso:
+  - lyso_mem
+  - lyso_lum
+
+ld:
+  - ld_mem
+  - ld_lum
+
+eres:
+  - eres_mem
+  - eres_lum
+
+perox:
+  - perox_mem
+  - perox_lum
+
+mito:
+  - mito_mem
+  - mito_lum
+  - mito_ribo
+
+
+ne:
+  - ne_mem
+  - ne_lum
+  - np_out
+  - np_in
+
+np:
+  - np_out
+  - np_in
+
+chrom:
+  - hchrom
+  - nhchrom
+  - echrom
+  - nechrom
+
+mt:
+  - mt_out
+  - mt_in
+
+isg:
+  - isg_mem
+  - isg_lum
+  - isg_ins
+
+er_mem_all:
+  - er_mem
+  - eres_mem
+  - ne_mem
+
+ne_mem_all:
+  - ne_mem
+  - np_out
+  - np_in
+
+cent_all:
+  - cent
+  - cent_dapp
+  - cent_sdapp
+
+chloroplast:
+  - chloroplast_lum
+  - chloroplast_mem
+  - chloroplast_sg
+
+vacuole:
+  - vacuole_lum
+  - vacuole_mem
+
+er:
+  - er_mem
+  - er_lum
+  - eres_mem
+  - eres_lum
+  - ne_mem
+  - ne_lum
+  - np_out
+  - np_in
+  - er_mem_all
+  - ne_mem_all
+
+cell:
+  - pm
+  - mito_mem
+  - mito_lum
+  - mito_ribo
+  - golgi_mem
+  - golgi_lum
+  - ves_mem
+  - ves_lum
+  - endo_mem
+  - endo_lum
+  - lyso_mem
+  - lyso_lum
+  - ld_mem
+  - ld_lum
+  - er_mem
+  - er_lum
+  - eres_mem
+  - eres_lum
+  - ne_mem
+  - ne_lum
+  - np_out
+  - np_in
+  - hchrom
+  - nhchrom
+  - echrom
+  - nechrom
+  - nucpl
+  - nucleo
+  - mt_out
+  - cent
+  - cent_dapp
+  - cent_sdapp
+  - ribo
+  - cyto
+  - mt_in
+  - nuc
+  - vim
+  - glyco
+  - golgi
+  - ves
+  - endo
+  - lyso
+  - ld
+  - eres
+  - perox_mem
+  - perox_lum
+  - perox
+  - mito
+  - er
+  - ne
+  - np
+  - chrom
+  - mt
+  - isg_mem
+  - isg_lum
+  - isg_ins
+  - isg
+  - actin
+  - tbar
+  - er_mem_all
+  - ne_mem_all
+  - cent_all
+  - chloroplast_mem
+  - chloroplast_lum
+  - chloroplast_sg
+  - chloroplast
+  - vacuole_mem
+  - vacuole_lum
+  - vacuole
+
+
+
+
+
+
+
+
+
+
