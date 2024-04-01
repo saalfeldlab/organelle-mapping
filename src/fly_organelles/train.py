@@ -1,5 +1,6 @@
 import gunpowder as gp
 from fly_organelles.data import CellMapCropSource, ExtractMask
+from fly_organelles.model import MaskedMultiLabelBCEwithLogits
 import torch
 import corditea
 import math
@@ -50,3 +51,40 @@ def make_data_pipeline(
 
     return pipeline
 
+
+def make_train_pipeline(
+    model,
+    labels: list[str],
+    label_weights: list[float],
+    label_stores: list[str],
+    raw_stores: list[str],
+    pad_width: gp.Coordinate,
+    sampling: tuple[int],
+    batch_size: int = 5,
+):
+    pipeline = make_data_pipeline(
+        labels,
+        label_stores,
+        raw_stores,
+        pad_width,
+        sampling,
+        batch_size,
+    )
+    pipeline += gp.torch.Train(
+        model=model,
+        loss=MaskedMultiLabelBCEwithLogits(label_weights),
+        optimizer=torch.optim.Adam(lr=0.5e-4, params=model.parameters()),
+        inputs={"raw": gp.ArrayKey("RAW")},
+        loss_inputs={"output": gp.ArrayKey("OUTPUT"), "target": gp.ArrayKey("LABELS"), "mask": gp.ArrayKey("MASK")},
+        outputs={0: gp.ArrayKey("OUTPUT")},
+        device="cuda:1",
+    )
+    pipeline += gp.Snapshot(
+        {
+            gp.ArrayKey("LABELS"): "labels",
+            gp.ArrayKey("RAW"): "raw",
+            gp.ArrayKey("MASK"): "mask",
+            gp.ArrayKey("OUTPUT"): "output",
+        }
+    )
+    return pipeline
