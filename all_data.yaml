@@ -1,10 +1,10 @@
 tissue/other/jrc_22ak351-leaf-3m:
-  raw: /nrs/cellmap/data/jrc_22ak351-leaf-3m/jrc_22ak351-leaf-3m.n5/em/fibsem-uint8
+  raw: /nrs/cellmap/data/jrc_22ak351-leaf-3m/jrc_22ak351-leaf-3m.zarr/recon-1/em/fibsem-uint8
   crops:
     - crop352
     - crop385
 tissue/other/jrc_22ak351-leaf-3r:
-  raw: /nrs/cellmap/data/jrc_22ak351-leaf-3r/jrc_22ak351-leaf-3r.n5/em/fibsem-uint8
+  raw: /nrs/cellmap/data/jrc_22ak351-leaf-3r/jrc_22ak351-leaf-3r.zarr/recon-1/em/fibsem-uint8
   crops:
     - crop361
 culture/jrc_cos7-1a:
