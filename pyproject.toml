@@ -28,13 +28,17 @@ dependencies = [
   "funlib.learn.torch@git+ssh://git@github.com/funkelab/funlib.learn.torch.git",
   "gunpowder @ file:///home/heinrichl@hhmi.org/libraries/gunpowder",
   "corditea @ file:///home/heinrichl@hhmi.org/code/corditea",
-  "torch"
+  "torch",
+  "click",
 ]
 
 [project.urls]
 Documentation = "https://github.com/saalfeldlab/fly-organelles#readme"
 Issues = "https://github.com/saalfeldlab/fly-organelles/issues"
 Source = "https://github.com/saalfeldlab/fly-organelles"
+
+[project.scripts]
+data_prep = "fly_organelles.data_preparation:cli"
 
 [tool.hatch.version]
 path = "src/fly_organelles/__about__.py"
