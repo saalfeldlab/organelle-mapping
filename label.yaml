@@ -1,3 +1,75 @@
+ecs:
+  - ecs
+pm: 
+  - pm
+mito_mem:
+  - mito_mem
+mito_lum:
+  - mito_lum
+mito_ribo:
+  - mito_ribo
+golgi_mem:
+  - golgi_mem
+golgi_lum:
+  - golgi_lum
+ves_mem:
+  - ves_mem
+ves_lum:
+  - ves_lum
+endo_mem:
+  - endo_mem
+endo_lum:
+  - endo_lum
+lyso_mem:
+  - lyso_mem
+lyso_lum:
+  - lyso_lum
+ld_mem:
+  - ld_mem
+ld_lum:
+  - ld_lum
+er_mem:
+  - er_mem
+er_lum:
+  - er_lum
+eres_mem:
+  - eres_mem
+eres_lum:
+  - eres_lum
+ne_mem:
+  - ne_mem
+ne_lum:
+  - ne_lum
+np_out:
+  - np_out
+np_in:
+  - np_in
+hchrom:
+  - hchrom
+nhchrom:
+  - nhchrom
+echrom:
+  - echrom
+nechrom:
+  - nechrom
+nucpl:
+  - nucpl
+nucleo:
+  - nucleo
+mt_out:
+  - mt_out
+cent:
+  - cent
+cent_dapp:
+  - cent_dapp
+cent_sdapp:
+  - cent_sdapp
+ribo:
+  - ribo
+cyto:
+  - cyto
+mt_in:
+  - mt_in
 nuc:
   - ne_mem
   - ne_lum
@@ -9,7 +81,10 @@ nuc:
   - nechrom
   - nucpl
   - nucleo
-
+vim:
+  - vim
+glyco:
+  - glyco
 golgi:
   - golgi_mem
   - golgi_lum
@@ -29,11 +104,15 @@ lyso:
 ld:
   - ld_mem
   - ld_lum
-
+rbc:
+  - rbc
 eres:
   - eres_mem
   - eres_lum
-
+perox_mem:
+  - perox_mem
+perox_lum:
+  - perox_lum
 perox:
   - perox_mem
   - perox_lum
@@ -42,8 +121,15 @@ mito:
   - mito_mem
   - mito_lum
   - mito_ribo
-
-
+er:
+  - er_mem
+  - er_lum
+  - eres_mem
+  - eres_lum
+  - ne_mem
+  - ne_lum
+  - np_out
+  - np_in
 ne:
   - ne_mem
   - ne_lum
@@ -63,49 +149,18 @@ chrom:
 mt:
   - mt_out
   - mt_in
-
+isg_mem:
+  - isg_mem
+isg_lum:
+  - isg_lum
+isg_ins:
+  - isg_ins
 isg:
   - isg_mem
   - isg_lum
   - isg_ins
-
-er_mem_all:
-  - er_mem
-  - eres_mem
-  - ne_mem
-
-ne_mem_all:
-  - ne_mem
-  - np_out
-  - np_in
-
-cent_all:
-  - cent
-  - cent_dapp
-  - cent_sdapp
-
-chloroplast:
-  - chloroplast_lum
-  - chloroplast_mem
-  - chloroplast_sg
-
-vacuole:
-  - vacuole_lum
-  - vacuole_mem
-
-er:
-  - er_mem
-  - er_lum
-  - eres_mem
-  - eres_lum
-  - ne_mem
-  - ne_lum
-  - np_out
-  - np_in
-  - er_mem_all
-  - ne_mem_all
-
 cell:
+  - ecs
   - pm
   - mito_mem
   - mito_lum
@@ -129,9 +184,9 @@ cell:
   - np_out
   - np_in
   - hchrom
-  - nhchrom
   - echrom
   - nechrom
+  - nhchrom
   - nucpl
   - nucleo
   - mt_out
@@ -141,47 +196,100 @@ cell:
   - ribo
   - cyto
   - mt_in
-  - nuc
   - vim
   - glyco
-  - golgi
-  - ves
-  - endo
-  - lyso
-  - ld
-  - eres
   - perox_mem
   - perox_lum
-  - perox
-  - mito
-  - er
-  - ne
-  - np
-  - chrom
-  - mt
   - isg_mem
   - isg_lum
   - isg_ins
-  - isg
   - actin
   - tbar
-  - er_mem_all
-  - ne_mem_all
-  - cent_all
+actin:
+  - actin
+tbar:
+  - tbar
+bm:
+  - bm
+
+er_mem_all:
+  - er_mem
+  - eres_mem
+  - ne_mem
+
+ne_mem_all:
+  - ne_mem
+  - np_out
+  - np_in
+
+cent_all:
+  - cent
+  - cent_dapp
+  - cent_sdapp
+chloroplast_mem:
   - chloroplast_mem
+chloroplast_lum:
   - chloroplast_lum
+chloroplast_sg:
   - chloroplast_sg
-  - chloroplast
+chloroplast:
+  - chloroplast_lum
+  - chloroplast_mem
+  - chloroplast_sg
+vacuole_mem:
   - vacuole_mem
+vacuole_lum:
   - vacuole_lum
-  - vacuole
+vacuole:
+  - vacuole_lum
+  - vacuole_mem
+plasmodesmata:
+  - plasmodesmata
 
-
-
-
-
-
-
-
-
-
+all_mem:
+  - pm
+  - mito_mem
+  - golgi_mem
+  - ves_mem
+  - endo_mem
+  - lyso_mem
+  - ld_mem
+  - er_mem
+  - eres_mem
+  - ne_mem
+  - perox_mem
+  - np_out
+  - np_in
+  #- isg_mem
+  #- chloroplast_mem
+  #- vacuole_mem
+  
+organelle:
+  - mito_mem
+  - mito_lum
+  - mito_ribo
+  - golgi_lum
+  - golgi_mem
+  - ves_lum
+  - ves_mem
+  - endo_lum
+  - endo_mem
+  - lyso_lum
+  - lyso_mem
+  - ld_lum
+  - ld_mem
+  - er_lum
+  - er_mem
+  - eres_lum
+  - eres_mem
+  - ne_lum
+  - ne_mem
+  - perox_mem
+  - perox_lum
+  #- isg_mem
+  #- isg_lum
+  #- chloroplast_lum
+  #- chloroplast_mem
+  #- chloroplast_sg
+  #- vacuole_mem
+  #- vacuole_lum

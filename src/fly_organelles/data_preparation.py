@@ -5,6 +5,15 @@ import numcodecs
 import yaml
 import click
 import fibsem_tools as fst
+from typing import BinaryIO, Optional
+import os
+import xarray as xr
+import itertools
+from xarray_multiscale import multiscale, windowed_mode
+import numcodecs
+from pydantic_zarr import ArraySpec, GroupSpec
+from cellmap_schemas.annotation import AnnotationGroupAttrs, wrap_attributes, SemanticSegmentation, AnnotationArrayAttrs
+
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -13,93 +22,190 @@ logger.setLevel(logging.INFO)
 def cli():
     pass
 
-def create_label(crop_full_path: str, new_label_name: str, atomic_labels: list[str]):
-    logger.info(f"Exporting {new_label_name} in {crop_full_path} by combining {atomic_labels}")
-    crop = zarr.open(crop_full_path)
-    levels: set | None = None
-    shape: tuple | None = None
-    multiscales: list | None = None
-    if new_label_name in crop:
-        assert crop[new_label_name]["s0"].attrs["cellmap"]["annotation"]["complement_counts"]["absent"] == np.prod(crop[new_label_name]["s0"].shape), f"{new_label_name} exists, not empty"
-        logger.warning(f"Will overwrite {crop_full_path}/{new_label_name}")
-    class_list = crop.attrs["cellmap"]["annotation"]["class_names"]    
-    for atomic_label in atomic_labels:
-        assert atomic_label in class_list, f"{atomic_label} not in list of classes ({class_list})"
-        assert atomic_label in crop, f"Did not find {atomic_label} in {crop_full_path}"
-        if levels is None:
-            levels = set(crop[atomic_label].keys())
-        else:
-            levels = levels.intersection(crop[atomic_label].keys())
-        if multiscales is None:
-            multiscales = crop[atomic_label].attrs["multiscales"]
-        else:
-            assert multiscales == crop[atomic_label].attrs["multiscales"], f"Multiscales attribute of {atomic_label} does not match others"
-    new_group = crop.create_group(new_label_name, overwrite=True)
-    new_group.attrs["multiscales"] = multiscales
-    #assert set(new_group.keys()).issubset(levels), f"There are more levels in {new_group} than in sources from {atomic_labels}"
-    for level in sorted(levels):
-        logger.info(f"Exporting {new_label_name}/{level}")
-        for atomic_label in atomic_labels:
-            if shape is None:
-                shape = crop[atomic_label][level].shape
-            else:
-                assert (
-                    shape == crop[atomic_label][level].shape
-                ), f"Shape of {atomic_label}/{level} ({crop[atomic_label][level].shape})does not match other label shapes ({shape})"
-        new_arr = np.zeros(shape, dtype=np.bool_)
-        new_mask = np.ones(shape, dtype=np.bool_)
-        cellmap_attrs = {
+UNKNOWN = 255
+PRESENT = 1
+ABSENT = 0
 
-                "annotation": {
-                    "annotation_type": {"encoding": {"absent": 0, "present": 1}, "type": "semantic_segmentation"},
-                    "class_name": new_label_name,
-                    "complement_counts": {},
-                }
-            }
+def all_combinations(iterable):
+    for r in range(1,len(iterable)+1):
+        yield from itertools.combinations(iterable, r)
+        
+def verify_classes(classes: dict[str, set[str]]) -> tuple[bool, int]:
+    atoms = []
+    for k, v in classes.items():
+        if len(v) < 1:
+            return False, 1 # empty label
+        elif len(v) == 1:
+            if k != next(iter(v)):
+                return False, 2 # atomic label with label not matching atom
+            atoms.append(k)
+    if len(atoms) != len(set(atoms)):
+        return False, 3 # atom defined twice
+    atoms = set(atoms)
+    for k, v in classes.items():
+        if any(vv not in atoms for vv in v):
+            return False, 4 # label composed of non-atomic labels
+    hashable_values = [tuple(v) for v in classes.values()]
+    if len(hashable_values) != len(set(hashable_values)):
+        return False, 5 # several labels with same atoms
+    return True, 0
+    
+def read_label_yaml(yaml_file: BinaryIO) -> dict[str,set[str]]:
+    classes = yaml.safe_load(yaml_file)
+    for lbl, atoms in classes.items():
+        classes[lbl] = set(atoms)
+    return classes    
 
-        present_sum = 0
-        for atomic_label in atomic_labels:
-            present_id = crop[atomic_label][level].attrs["cellmap"]["annotation"]["annotation_type"]["encoding"][
-                "present"
-            ]
-            if "unkown" in crop[atomic_label][level].attrs["cellmap"]["annotation"]["annotation_type"]["encoding"]:
-                unknown_id = crop[atomic_label][level].attrs["cellmap"]["annotation"]["annotation_type"]["encoding"][
-                    "unknown"
-                ]
-                bin_mask = np.array(crop[atomic_label][level]) == unknown_id
-                np.logical_and(new_mask, bin_mask, out=new_mask)
-            else:
-                np.logical_and(new_mask, np.zeros(shape, dtype=np.bool_), out=new_mask)
-            bin_atomic_label = np.array(crop[atomic_label][level]) == present_id
-            logger.debug(f"Adding {atomic_label} with {np.sum(bin_atomic_label)}")
-            np.logical_or(new_arr, bin_atomic_label, out=new_arr)
-            logger.debug(f"After adding sum is {np.sum(new_arr)}")
-            present_sum += np.prod(shape) - sum(
-                v for k, v in crop[atomic_label][level].attrs["cellmap"]["annotation"]["complement_counts"].items()
+class Crop:
+    def __init__(self, classes: dict[str, set[str]], crop_path):
+        if not verify_classes(classes)[0]:
+            msg = "Classes dictionary is faulty"
+            raise ValueError(msg)
+        self.classes: dict[str,set[str]] = classes
+        self.crop_path = crop_path
+        self.crop_root = fst.access(self.crop_path, mode="r+")
+                                
+    def get_shape(self, scale_level="s0") -> tuple[int]:
+        some_label = next(iter(self.get_annotated_classes()))
+        return self.crop_root[some_label][scale_level].shape
+    
+    def get_chunking(self, scale_level="s0") -> tuple[int]:
+        some_label = next(iter(self.get_annotated_classes()))
+        return self.crop_root[some_label][scale_level].chunks
+
+    def get_coords(self, scale_level="s0"):
+        some_label = next(iter(self.get_annotated_classes()))
+        some_xarr = fst.read_xarray(os.path.join(self.crop_path, some_label, scale_level))
+        return some_xarr.coords
+    
+    def get_annotated_classes(self) -> set[str]:
+        return set(self.crop_root.attrs["cellmap"]["annotation"]["class_names"])
+        
+    def get_array(self, label: str, scale_level="s0") -> np.ndarray:
+        return np.array(self.crop_root[label][scale_level])
+    
+    def create_new_class(self, atoms: set[str]):
+        n_arr = UNKNOWN * np.ones(self.get_shape(), dtype=np.uint8)
+        subcombos = []
+        for l in self.get_annotated_classes():
+            l_set = self.classes[l]
+            if l_set == atoms:
+                raise ValueError("combination is already an annotated class")    
+            if l_set < atoms:
+                n_arr[self.get_array(l) == PRESENT] = PRESENT
+                if len(l_set) > 1:
+                    subcombos.append(l)
+            elif atoms.isdisjoint(l_set):    
+                n_arr[self.get_array(l) == PRESENT] = ABSENT
+        if atoms <= self.get_annotated_classes():
+            n_arr[np.logical_and.reduce([self.get_array(a) == ABSENT for a in atoms])] = ABSENT
+        for combo in all_combinations(subcombos):
+            if not np.any(n_arr == UNKNOWN):
+                break
+            missing = atoms - set().union(*(self.classes[c] for c in combo))
+            if missing <= self.get_annotated_classes():
+                n_arr[np.logical_and.reduce([self.get_array(c) == ABSENT for c in missing.union(combo)])] = ABSENT
+        return n_arr.astype(np.uint8)
+    
+    def save_class(self, name: str, arr: np.ndarray):
+        xarr = xr.DataArray(arr, coords=self.get_coords())
+        multi = {m.name: m for m in multiscale(xarr, windowed_mode, (2,2,2), chunks=self.get_chunking())}
+        label_array_specs = dict()
+        # intialize some stuff for reuse
+        annotation_type = SemanticSegmentation(
+            encoding={"absent": ABSENT,
+                      "present": PRESENT,
+                      "unknown": UNKNOWN}
+        )
+        compressor = numcodecs.Zstd(level=3)
+        for mslvl, msarr in multi.items():
+            # get complement counts for annotation metadata
+            ids, coutns = np.unique(msarr, return_counts=True)
+            histo = dict()
+            if UNKNOWN in ids:
+                histo["unknown"] = counts[list(ids).index(UNKNOWN)]
+            if ABSENT in ids:
+                histo["absent"] = counts[list(ids).index(ABSENT)]
+            # initialize array wise metadata
+            annotation_array_attrs = AnnotationArrayAttrs(
+                class_name = name,
+                complement_counts=histo,
+                annotation_type= annotation_type
             )
-        assert present_sum == np.sum(
-            new_arr
-        ), f"Sum of present values from attributes ({present_sum})and in data ({np.sum(new_arr)}) do not match. Overlapping atomic labels?"
-        new_arr = new_arr.astype(np.uint8)
-        if np.sum(new_mask) != 0:
-            logger.info(f"Mask is non-zero, setting to 255.")
-            new_arr[new_mask] = 255
-            cellmap_attrs["annotation"]["annotation_type"]["encoding"]["unknown"] = 255
-            cellmap_attrs["annotation"]["complement_counts"]["unknown"] = np.sum(new_mask)
-        cellmap_attrs["annotation"]["complement_counts"]["absent"] = np.sum(new_arr == 0)
-        new_group.create_dataset(level, data=new_arr, fill_value=0, dimension_separator="/", compressor = numcodecs.Blosc(cname="zstd", clevel=5,shuffle=1), chunks=(64,64,64), overwrite=True)
-        new_group[level].attrs["cellmap"] = cellmap_attrs
-        shape = None
-    del cellmap_attrs["annotation"]["complement_counts"]
-    new_group.attrs["cellmap"] = cellmap_attrs
-    class_list = crop.attrs["cellmap"]["annotation"]["class_names"]
-    group_attrs = crop.attrs["cellmap"]
-    if new_label_name not in class_list:
-        class_list.append(new_label_name)
-        group_attrs["annotation"]["class_names"] = class_list
-        crop.attrs["cellmap"] = group_attrs
-        crop.attrs.refresh()
-        logger.info(f"check new class list: {crop.attrs['cellmap']['annotation']['class_names']}")
+            label_array_specs[mslvl] = ArraySpec.from_array(
+                msarr,
+                chunks=self.get_chunking(),
+                compressor=compressor,
+                attrs=wrap_attributes(annotation_array_attrs).dict()
+            )
+        # intialize group attributes for annotation
+        annotation_group_attrs = AnnotationGroupAttrs(class_name=name,
+                                                      description="",
+                                                      annotation_type=annotation_type)
+        # intialize group attributes for multiscale
+        ms_group = multiscale_group(
+            list(multi.values()),
+            metadata_types=("ome-ngff@0.4"),
+            array_paths=list(multi.keys()),
+            chunks=self.get_chunking(),
+            compressor=compressor
+        )
+        # combine multiscale and annotation attributes
+        group_spec = GroupSpec(attrs=wrap_attributes(annotation_group_attrs).dict() | ms_group.attrs,
+                               members=label_array_specs)
+        
+        # save metadata
+        store = zarr.NestedDirectoryStore(self.crop_path)
+        group_spec.to_zarr(store, path=name, overwrite=True)
+        
+        for mslvl, msarr in multi.items():
+            mszarr = zarr.Array(
+                store,
+                path=f"{name}/{mslvl}",
+                write_empty_chunks=False
+            )
+            mszarr[:] = msarr.to_numpy()
+        
+        if name not in self.get_annotated_classes():    
+            atts = self.crop_root.attrs
+            atts["cellmap"]["annotation"]["class_names"] = atts["cellmap"]["annotation"]["class_names"] + [name]
+            self.crop_root.attrs.update(atts)
+
+    def add_new_class(name: str, atoms: Optional[set[str]]):
+        if atoms is None:
+            atoms = self.classes[name]
+        else:
+            if name in self.classes and self.classes[name] != atoms:
+                msg = "A class with name {name} exists in the configured set of classes, but the atoms do not match."
+                raise ValueError(msg)
+        arr = self.create_new_class(atoms)
+        self.save_class(name, arr)
+
+@cli.command()
+@click.argument("label-config", type=click.File("rb"))
+@click.argument("data-config": type=click.File("rb"))
+@click.argument("new-label", type=click.STRING)
+@click.option("--gt_path", type=str, help="path to groundtruth crops", default="/nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/", show_default=True)
+def add_class_to_all_crops(label_config: BinaryIO,
+                           data_config: BinaryIO,
+                           new_label: str,
+                           gt_path: str = "/nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/"):
+    add_class_to_all_crops_func(label_config, data_config, new_label, gt_path=gt_path)
+
+def add_class_to_all_crops_func(label_config: BinaryIO,
+                                data_config: BinaryIO,
+                                new_label: str,
+                                gt_path: str = "/nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/"):
+    datas = yaml.safe_load(data_config)
+    classes = read_label_yaml(label_config)
+    for key, ds_info in data.items():
+        logger.info(f"Processing {key}")
+        for crop in ds_info["crops"]:
+            c = Crop(
+                classes,
+                f"{gt_path}{key}/groundtruth.zarr/{crop}"
+            )
+            c.add_new_class(new_label)
 
 def corner_offset(center_off_arr, raw_res_arr, crop_res_arr):
     return (center_off_arr + raw_res_arr/2. - crop_res_arr/2.)

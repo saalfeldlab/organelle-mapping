@@ -30,6 +30,12 @@ dependencies = [
   "corditea @ file:///home/heinrichl@hhmi.org/code/corditea",
   "torch",
   "click",
+  "xarray",
+  "zarr",
+  "xarray-multiscale",
+  "cellmap-schemas",
+  "pydantic-zarr",
+  "numcodecs"  
 ]
 
 [project.urls]
