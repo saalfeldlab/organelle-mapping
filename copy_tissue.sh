@@ -1,0 +1,13 @@
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_22ak351-leaf-3m.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_22ak351-leaf-3m/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_22ak351-leaf-3r.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_22ak351-leaf-3r/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_mus-heart-1.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_mus-heart-1/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_mus-kidney.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_mus-kidney/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_mus-kidney-3.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_mus-kidney-3/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_mus-kidney-glomerulus-2.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_mus-kidney-glomerulus-2/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_mus-liver.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_mus-liver/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_mus-liver-3.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_mus-liver-3/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_mus-liver-zon-1.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_mus-liver-zon-1/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_mus-liver-zon-2.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_mus-liver-zon-2/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_mus-pancreas-1.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_mus-pancreas-1/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_ut21-1413-003.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_ut21-1413-003/groundtruth.zarr/
+rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_zf-cardiac-1.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/tissue/other/jrc_zf-cardiac-1/groundtruth.zarr/
