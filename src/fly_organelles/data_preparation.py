@@ -5,6 +5,7 @@ import numcodecs
 import yaml
 import click
 import fibsem_tools as fst
+from fibsem_tools.io.multiscale import multiscale_group
 from typing import BinaryIO, Optional
 import os
 import xarray as xr
@@ -120,7 +121,7 @@ class Crop:
         compressor = numcodecs.Zstd(level=3)
         for mslvl, msarr in multi.items():
             # get complement counts for annotation metadata
-            ids, coutns = np.unique(msarr, return_counts=True)
+            ids, counts = np.unique(msarr, return_counts=True)
             histo = dict()
             if UNKNOWN in ids:
                 histo["unknown"] = counts[list(ids).index(UNKNOWN)]
@@ -145,7 +146,7 @@ class Crop:
         # intialize group attributes for multiscale
         ms_group = multiscale_group(
             list(multi.values()),
-            metadata_types=("ome-ngff@0.4"),
+            metadata_types=("ome-ngff@0.4",),
             array_paths=list(multi.keys()),
             chunks=self.get_chunking(),
             compressor=compressor
@@ -171,7 +172,7 @@ class Crop:
             atts["cellmap"]["annotation"]["class_names"] = atts["cellmap"]["annotation"]["class_names"] + [name]
             self.crop_root.attrs.update(atts)
 
-    def add_new_class(name: str, atoms: Optional[set[str]]):
+    def add_new_class(self, name: str, atoms: Optional[set[str]] = None):
         if atoms is None:
             atoms = self.classes[name]
         else:
@@ -183,7 +184,7 @@ class Crop:
 
 @cli.command()
 @click.argument("label-config", type=click.File("rb"))
-@click.argument("data-config": type=click.File("rb"))
+@click.argument("data-config", type=click.File("rb"))
 @click.argument("new-label", type=click.STRING)
 @click.option("--gt_path", type=str, help="path to groundtruth crops", default="/nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/", show_default=True)
 def add_class_to_all_crops(label_config: BinaryIO,
@@ -198,7 +199,7 @@ def add_class_to_all_crops_func(label_config: BinaryIO,
                                 gt_path: str = "/nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/"):
     datas = yaml.safe_load(data_config)
     classes = read_label_yaml(label_config)
-    for key, ds_info in data.items():
+    for key, ds_info in datas.items():
         logger.info(f"Processing {key}")
         for crop in ds_info["crops"]:
             c = Crop(
