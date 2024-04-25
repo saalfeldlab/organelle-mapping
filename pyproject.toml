@@ -35,7 +35,9 @@ dependencies = [
   "xarray-multiscale",
   "cellmap-schemas",
   "pydantic-zarr",
-  "numcodecs"  
+  "numcodecs",
+  "neuroglancer",
+  "dask"
 ]
 
 [project.urls]

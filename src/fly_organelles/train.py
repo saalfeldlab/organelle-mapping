@@ -107,6 +107,8 @@ def make_train_pipeline(
             gp.ArrayKey("RAW"): "raw",
             gp.ArrayKey("MASK"): "mask",
             gp.ArrayKey("OUTPUT"): "output",
-        }
+        },
+        store_value_range=True,
+        output_filename="{iteration}.zarr"
     )
     return pipeline
