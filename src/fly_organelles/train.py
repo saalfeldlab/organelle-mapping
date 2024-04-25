@@ -35,6 +35,8 @@ def make_data_pipeline(
                     sampling
                 )
                 src_pipe = src
+                if src.needs_downsampling:
+                    src_pipe += corditea.AverageDownSample(raw,sampling)
                 probs.append(src.get_size()/len(crops.split(",")))
                 for label_key in label_keys.values():
                     src_pipe += gp.Pad(label_key, pad_width_out, value=255)

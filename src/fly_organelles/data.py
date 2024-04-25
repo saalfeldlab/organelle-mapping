@@ -41,26 +41,56 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
     ):
         super().__init__()
         self.stores = {}
+        self.specs = {}
         raw_grp = fst.read(raw_store)
         raw_scale, raw_offset, raw_shape = find_target_scale(raw_grp, sampling)
+        raw_offset = gp.Coordinate((0,)* len(sampling)) # tuple(np.array(raw_offset) - np.array(sampling)/2.)
+        raw_native_scale = get_scale_info(raw_grp)[1]["s0"]
         self.stores[raw_arraykey] = fst.read(Path(raw_store) / raw_scale)
         self.labels = labels
         raw_roi = gp.Roi(raw_offset, gp.Coordinate(sampling) * gp.Coordinate(raw_shape))
         raw_voxel_size = gp.Coordinate(sampling)
         # raw_roi, raw_voxel_size = spatial_spec_from_xarray(self.stores[raw_arraykey])
-        self.specs[raw_arraykey] = gp.array_spec.ArraySpec(
+        raw_spec = gp.array_spec.ArraySpec(
             roi=raw_roi, voxel_size=raw_voxel_size, interpolatable=True, dtype=self.stores[raw_arraykey].dtype
         )
         for label, labelkey in self.labels.items():
             label_grp = fst.read(Path(label_store) / label)
             label_scale, label_offset, label_shape = find_target_scale(label_grp, sampling)
+            label_offset = gp.Coordinate(corner_offset(np.array(label_offset), np.array(raw_native_scale), np.array(sampling)))
+            if label_offset % raw_voxel_size == gp.Coordinate((0,)* len(sampling)):
+                self.needs_downsampling = False
+                self.secret_raw_offset = gp.Coordinate((0,) * len(sampling))
+            else:
+                self.needs_downsampling = True
+                logger.debug(f"Need to downsample raw for {label_store} to accomodate offset {label_offset}.")
+                raw_scale, raw_offset, raw_res, raw_shape = find_target_scale_by_offset(raw_grp, label_offset)
+                logger.debug(f"Reading raw from {raw_store}/ {raw_scale} with voxel_size {raw_res}")
+                self.stores[raw_arraykey] = fst.read(Path(raw_store)/ raw_scale)
+                raw_roi = gp.Roi(gp.Coordinate((0,)* len(sampling)), gp.Coordinate(raw_shape)* gp.Coordinate(raw_res) - gp.Coordinate(sampling))
+                
+                raw_spec = gp.array_spec.ArraySpec(roi=raw_roi, 
+                                                   voxel_size=raw_res, 
+                                                   interpolatable=True, 
+                                                   dtype=self.stores[raw_arraykey].dtype)
+                self.secret_raw_offset = label_offset % gp.Coordinate(sampling)
+                label_offset -= self.secret_raw_offset
+                    
+            #label_offset = tuple(np.array(label_offset) - np.array(sampling)/2.)
             self.stores[labelkey] = fst.read_xarray(Path(label_store) / label / label_scale)
             # label_roi, label_voxel_size = spatial_spec_from_xarray(self.stores[labelkey])
             label_roi = gp.Roi(label_offset, gp.Coordinate(label_shape)*gp.Coordinate(sampling))
             label_voxel_size = gp.Coordinate(sampling)
             self.specs[labelkey] = gp.array_spec.ArraySpec(
-                roi=label_roi, voxel_size=label_voxel_size, interpolatable=False, dtype=self.stores[labelkey].dtype
+                roi=label_roi, 
+                voxel_size=label_voxel_size, 
+                interpolatable=False, 
+                dtype=self.stores[labelkey].dtype
             )
+            self.raw_arraykey = raw_arraykey
+
+
+        self.specs[raw_arraykey] = raw_spec
         self.sampling = sampling
 
     def get_size(self):
@@ -76,16 +106,24 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         timing.start()
         batch = gp.batch.Batch()
         for ak, rs in request.array_specs.items():
+            logger.debug(f"Requesting {ak} with {rs}")
             vs = self.specs[ak].voxel_size
-            dataset_roi = rs.roi / vs
+            
+            if ak == self.raw_arraykey:
+                dataset_roi = rs.roi + self.secret_raw_offset
+                logger.debug(f"Shifting {ak} dataset_roi by secret raw offset {dataset_roi}")
+            else:
+                dataset_roi = rs.roi
+            dataset_roi = dataset_roi / vs
             dataset_roi = dataset_roi - self.spec[ak].roi.offset / vs
+            logger.debug(f"Reading {ak} with dataset_roi {dataset_roi} ({dataset_roi.to_slices()})")
             # loc = {axis:slice(b, e, None) for b, e, axis in zip(rs.roi.get_begin(), rs.roi.get_end()-vs/2., "zyx")}
             # arr = self.stores[ak].sel(loc).to_numpy()
             arr = np.asarray(self.stores[ak][dataset_roi.to_slices()])
+            logger.debug(f"Read array of shape {arr.shape}")
             array_spec = self.specs[ak].copy()
             array_spec.roi = rs.roi
             batch.arrays[ak] = gp.Array(arr, array_spec)
-        logger.debug("done")
         timing.stop()
         batch.profiling_stats.add(timing)
         return batch
