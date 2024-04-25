@@ -26,6 +26,7 @@ def make_data_pipeline(
         label_keys[label] = gp.ArrayKey(label.upper())
     srcs = []
     probs = []
+    factors = {np.dtype("uint8"): 255, np.dtype("uint16"): 2**16-1}
     for dataset, ds_info in datasets["datasets"].items():
         for crops in ds_info["crops"]:
             for crop in crops.split(","):
@@ -42,6 +43,10 @@ def make_data_pipeline(
                 probs.append(src.get_size()/len(crops.split(",")))
                 for label_key in label_keys.values():
                     src_pipe += gp.Pad(label_key, pad_width_out, value=255)
+                factor = factors[src.specs[raw].dtype]
+                src_pipe += gp.Normalize(raw, factor=1./factor)
+                minc, maxc = ds_info["contrast"]
+                src_pipe += gp.IntensityScaleShift(raw, scale= (maxc-minc)/factor, shift = minc/factor)
                 src_pipe += gp.Pad(raw, pad_width_in, value=0)
                 src_pipe += gp.RandomLocation()
                 srcs.append(src_pipe)
@@ -57,6 +62,7 @@ def make_data_pipeline(
         subsample=8,
         uniform_3d_rotation=True,
     )
+    pipeline += gp.IntensityScaleShift(raw, 2, -1)
     pipeline += gp.Unsqueeze(list(label_keys.values()))
     pipeline += corditea.Concatenate(list(label_keys.values()), gp.ArrayKey("LABELS"))
     pipeline += ExtractMask(gp.ArrayKey("LABELS"), gp.ArrayKey("MASK"))
