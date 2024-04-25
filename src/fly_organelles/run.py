@@ -32,10 +32,10 @@ def run(labels, label_weights, datasets):
     with gp.build(pipeline) as pp:
         for i in range(50):
             request = gp.BatchRequest()
-            request.add(gp.ArrayKey("OUTPUT"), output_size)
-            request.add(gp.ArrayKey("RAW"), input_size)
-            request.add(gp.ArrayKey("LABELS"), output_size)
-            request.add(gp.ArrayKey("MASK"), output_size)
+            request.add(gp.ArrayKey("OUTPUT"), output_size, voxel_size=gp.Coordinate(voxel_size))
+            request.add(gp.ArrayKey("RAW"), input_size, voxel_size= gp.Coordinate(voxel_size))
+            request.add(gp.ArrayKey("LABELS"), output_size, voxel_size=gp.Coordinate(voxel_size))
+            request.add(gp.ArrayKey("MASK"), output_size, voxel_size = gp.Coordinate(voxel_size))
             pp.request_batch(request)
 
 
