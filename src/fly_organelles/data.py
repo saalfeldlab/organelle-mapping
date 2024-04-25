@@ -95,7 +95,7 @@ class ExtractMask(gp.BatchFilter):
     def __init__(self, label_key, mask_key, mask_value=255):
         super().__init__()
         self.mask_key = mask_key
-        self.mask_value = 255
+        self.mask_value = mask_value
         self.label_key = label_key
 
     def setup(self):
