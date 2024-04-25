@@ -179,25 +179,24 @@ class Crop:
 @click.argument("label-config", type=click.File("rb"))
 @click.argument("data-config", type=click.File("rb"))
 @click.argument("new-label", type=click.STRING)
-@click.option("--gt_path", type=str, help="path to groundtruth crops", default="/nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/", show_default=True)
 def add_class_to_all_crops(label_config: BinaryIO,
                            data_config: BinaryIO,
-                           new_label: str,
-                           gt_path: str = "/nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/"):
-    add_class_to_all_crops_func(label_config, data_config, new_label, gt_path=gt_path)
+                           new_label: str
+                           ):
+    add_class_to_all_crops_func(label_config, data_config, new_label)
 
 def add_class_to_all_crops_func(label_config: BinaryIO,
                                 data_config: BinaryIO,
-                                new_label: str,
-                                gt_path: str = "/nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/"):
+                                new_label: str
+                                ):
     datas = yaml.safe_load(data_config)
     classes = read_label_yaml(label_config)
-    for key, ds_info in datas.items():
+    for key, ds_info in datas["datasets"].items():
         logger.info(f"Processing {key}")
         for crop in ds_info["crops"]:
             c = Crop(
                 classes,
-                f"{gt_path}{key}/groundtruth.zarr/{crop}"
+                f"{datas['gt_path']}{key}/groundtruth.zarr/{crop}"
             )
             c.add_new_class(new_label)
 
@@ -228,8 +227,7 @@ def edit_offset_func(crop_path, orig_offset, new_offset, round: bool=False):
 @cli.command()
 @click.argument("data-config", type=click.File("rb"))
 @click.option("-n", "--dry-run", is_flag=True)
-@click.option("--gt_path", type=str, help="path to groundtruth crops", default="/nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/", show_default=True)
-def fix_offset(data_config, gt_path: str = "/nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/", dry_run: bool = False):
+def fix_offset(data_config, dry_run: bool = False):
     datas = yaml.safe_load(data_config)
     summary = {
         "valid": [], 
@@ -239,7 +237,7 @@ def fix_offset(data_config, gt_path: str = "/nrs/saalfeld/heinrichl/data/cellmap
         summary["correctable"] = []
     else:
         summary["corrected"] = []
-    for key, ds_info in datas.items():
+    for key, ds_info in datas["datasets"].items():
         logger.info(f"Processing {key}")
         root_raw = fst.read(ds_info["raw"])
         try: 
@@ -252,8 +250,8 @@ def fix_offset(data_config, gt_path: str = "/nrs/saalfeld/heinrichl/data/cellmap
                 raw_res = ds["coordinateTransformations"][0]["scale"]
         raw_res_arr = np.array(raw_res)
         for crop in ds_info["crops"]:
-            print(f"{gt_path}{key}/groundtruth.zarr/{crop}")
-            crop_path = f"{gt_path}{key}/groundtruth.zarr/{crop}"
+            print(f"{datas['gt_path']}{key}/groundtruth.zarr/{crop}")
+            crop_path = f"{datas['gt_path']}{key}/groundtruth.zarr/{crop}"
             crop_root = fst.read(crop_path)
             lbl = list(crop_root.keys())[0]
             crop_datasets = crop_root[lbl].attrs["multiscales"][0]["datasets"]

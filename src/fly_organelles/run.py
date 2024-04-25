@@ -2,29 +2,32 @@ from fly_organelles.model import StandardUnet
 from fly_organelles.train import make_train_pipeline
 import gunpowder as gp
 import logging
+import yaml
 
 # logging.basicConfig(level=logging.DEBUG)
 # loggp = logging.getLogger("gunpowder.nodes.pad")
 # loggp.setLevel(logging.DEBUG)
 
 
-def run(labels, label_weights, label_stores, raw_stores):
+def run(labels, label_weights, datasets):
     model = StandardUnet(len(labels))
-    voxel_size = (4, 4, 4)
-    pipeline = make_train_pipeline(
-        model,
-        labels,
-        label_weights,
-        label_stores,
-        raw_stores,
-        gp.Coordinate(40, 40, 40) * gp.Coordinate(voxel_size),
-        voxel_size,
-    )
+    
+    voxel_size = (8, 8, 8)
     input_size = gp.Coordinate((178, 178, 178)) * gp.Coordinate(voxel_size)
     output_size = gp.Coordinate((56, 56, 56)) * gp.Coordinate(voxel_size)
-    for i in range(10):
-        with gp.build(pipeline) as pp:
+    pad_width_out = output_size/2.
+    pipeline = make_train_pipeline(
+        model,
+        labels=labels,
+        label_weights=label_weights,
+        datasets=datasets,
+        pad_width_out=pad_width_out,
+        sampling=voxel_size,
+    )
+    
 
+    with gp.build(pipeline) as pp:
+        for i in range(50):
             request = gp.BatchRequest()
             request.add(gp.ArrayKey("OUTPUT"), output_size)
             request.add(gp.ArrayKey("RAW"), input_size)
@@ -33,20 +36,15 @@ def run(labels, label_weights, label_stores, raw_stores):
             pp.request_batch(request)
 
 
-def main1():
-    labels = ["pm", "ecs", "golgi_lum", "er_lum", "endo_lum", "ves_lum", "mito_lum", "ne_lum", "lyso_lum"]
+def main(yaml_file):
+    labels = ["organelle", "all_mem"]
     label_weights = [
         1.0 / len(labels),
     ] * len(labels)
-    label_stores = [""]
-    label_stores = [
-        "/nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/jrc_mb-1a/groundtruth.zarr/crop120",
-    ]
-    raw_stores = [
-        "/nrs/cellmap/data/jrc_mb-1a/jrc_mb-1a.zarr/recon-1/em/fibsem-uint8",
-    ]
-    run(labels, label_weights, label_stores, raw_stores)
-
+    with open(yaml_file, "r") as data_yaml:
+        datasets = yaml.safe_load(data_yaml)
+        #label_stores, raw_stores, crop_copies = read_data_yaml(data_yaml)
+    run(labels, label_weights, datasets)
 
 if __name__ == "__main__":
-    main1()
+    main("selected_data.yaml")

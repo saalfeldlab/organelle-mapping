@@ -4,34 +4,44 @@ from fly_organelles.model import MaskedMultiLabelBCEwithLogits
 import torch
 import corditea
 import math
+import logging
+import os
+import numpy as np
+
+logger = logging.getLogger("__name__")
 
 
 def make_data_pipeline(
     labels: list[str],
-    label_stores: list[str],
-    raw_stores: list[str],
-    pad_width: gp.Coordinate,
+    datasets: dict,
+    pad_width_out: gp.Coordinate,
     sampling: tuple[int],
-    batch_size: int = 5,
-):
+    batch_size: int = 5
+):  
     raw = gp.ArrayKey("RAW")
     label_keys = {}
     for label in labels:
         label_keys[label] = gp.ArrayKey(label.upper())
     srcs = []
     probs = []
-    for label_store, raw_store in zip(label_stores, raw_stores):
-        src = CellMapCropSource(label_store, raw_store, label_keys, raw, sampling)
-        probs.append(src.get_size())
-        for label_key in label_keys.values():
-            print(label_key)
-            src += gp.Pad(label_key, pad_width, value=255)
-        src += gp.Normalize(raw)
-
-        # TODO CONTRAST ADJUSTMENT
-        srcs.append(src)
-    pipeline = tuple(srcs) + gp.RandomProvider(probs) + gp.RandomLocation()
-    pipeline += corditea.GaussianNoiseAugment(raw, noise_prob=0.75)
+    for dataset, ds_info in datasets["datasets"].items():
+        for crops in ds_info["crops"]:
+            for crop in crops.split(","):
+                src = CellMapCropSource(
+                    os.path.join(datasets["gt_path"], dataset, "groundtruth.zarr", crop),
+                    ds_info["raw"],
+                    label_keys,
+                    raw,
+                    sampling
+                )
+                src_pipe = src
+                probs.append(src.get_size()/len(crops.split(",")))
+                for label_key in label_keys.values():
+                    src_pipe += gp.Pad(label_key, pad_width_out, value=255)
+                src_pipe += gp.RandomLocation()
+                srcs.append(src_pipe)
+                
+    pipeline = tuple(srcs) + gp.RandomProvider(probs)
     pipeline += gp.IntensityAugment(raw, 0.75, 1.5, -0.15, 0.15)
     pipeline += corditea.GammaAugment([raw], 0.75, 4 / 3.0)
     pipeline += gp.SimpleAugment()
@@ -56,17 +66,15 @@ def make_train_pipeline(
     model,
     labels: list[str],
     label_weights: list[float],
-    label_stores: list[str],
-    raw_stores: list[str],
-    pad_width: gp.Coordinate,
+    datasets: dict,
+    pad_width_out: gp.Coordinate,
     sampling: tuple[int],
     batch_size: int = 5,
 ):
     pipeline = make_data_pipeline(
         labels,
-        label_stores,
-        raw_stores,
-        pad_width,
+        datasets,
+        pad_width_out,
         sampling,
         batch_size,
     )

@@ -1,6 +1,6 @@
-culture/jrc_cos7-1a:
-  raw: /nrs/cellmap/data/jrc_cos7-1a/jrc_cos7-1a.zarr/recon-1/em/fibsem-uint8
-  crops:
+datasets:
+  culture/jrc_cos7-1a:
+    crops:
     - crop234
     - crop236
     - crop237
@@ -12,9 +12,9 @@ culture/jrc_cos7-1a:
     - crop256
     - crop257
     - crop292
-culture/jrc_cos7-1b:
-  raw: /nrs/cellmap/data/jrc_cos7-1b/jrc_cos7-1b.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_cos7-1a/jrc_cos7-1a.zarr/recon-1/em/fibsem-uint8
+  culture/jrc_cos7-1b:
+    crops:
     - crop235
     - crop238
     - crop240,crop291
@@ -25,23 +25,17 @@ culture/jrc_cos7-1b:
     - crop255
     - crop258
     - crop259
-culture/jrc_ctl-id8-1:
-  raw: /nrs/cellmap/data/jrc_ctl-id8-1/jrc_ctl-id8-1.zarr/recon-1/em/fibsem-uint16
-  crops:
+    raw: /nrs/cellmap/data/jrc_cos7-1b/jrc_cos7-1b.zarr/recon-1/em/fibsem-uint8
+  culture/jrc_ctl-id8-1:
+    crops:
     - crop116
     - crop117
+    - crop118
+    - crop119
     - crop130
-tissue/brain/jrc_fly-vnc-1:
-  raw: /nrs/cellmap/data/jrc_fly-vnc-1/jrc_fly-vnc-1.zarr/recon-1/em/fibsem-uint8
-  crops:
-    - crop78
-    - crop79
-    - crop173,crop185
-    - crop174
-    - crop176
-culture/jrc_hela-2:
-  raw: /nrs/cellmap/data/jrc_hela-2/jrc_hela-2.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_ctl-id8-1/jrc_ctl-id8-1.zarr/recon-1/em/fibsem-uint16
+  culture/jrc_hela-2:
+    crops:
     - crop1
     - crop3
     - crop4
@@ -68,9 +62,9 @@ culture/jrc_hela-2:
     - crop96
     - crop113
     - crop155
-culture/jrc_hela-3:
-  raw: /nrs/cellmap/data/jrc_hela-3/jrc_hela-3.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_hela-2/jrc_hela-2.zarr/recon-1/em/fibsem-uint8
+  culture/jrc_hela-3:
+    crops:
     - crop27
     - crop33
     - crop34
@@ -89,9 +83,9 @@ culture/jrc_hela-3:
     - crop101,crop181
     - crop102
     - crop111
-culture/jrc_jurkat-1:
-  raw: /nrs/cellmap/data/jrc_jurkat-1/jrc_jurkat-1.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_hela-3/jrc_hela-3.zarr/recon-1/em/fibsem-uint8
+  culture/jrc_jurkat-1:
+    crops:
     - crop35
     - crop36
     - crop37
@@ -110,9 +104,9 @@ culture/jrc_jurkat-1:
     - crop107
     - crop112
     - crop126,crop180,crop182
-culture/jrc_macrophage-2:
-  raw: /nrs/cellmap/data/jrc_macrophage-2/jrc_macrophage-2.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_jurkat-1/jrc_jurkat-1.zarr/recon-1/em/fibsem-uint8
+  culture/jrc_macrophage-2:
+    crops:
     - crop31
     - crop32
     - crop39
@@ -131,18 +125,66 @@ culture/jrc_macrophage-2:
     - crop90
     - crop109
     - crop110
-tissue/brain/jrc_mb-1a:
-  raw: /nrs/cellmap/data/jrc_mb-1a/jrc_mb-1a.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_macrophage-2/jrc_macrophage-2.zarr/recon-1/em/fibsem-uint8
+  culture/jrc_sum159-1:
+    crops:
+    - crop20
+    - crop22
+    - crop25
+    - crop26
+    - crop81
+    - crop82
+    - crop80
+    - crop83
+    - crop84
+    - crop97
+    - crop98
+    - crop99
+    raw: /nrs/cellmap/data/jrc_sum159-1/jrc_sum159-1.zarr/recon-1/em/fibsem-uint8
+  culture/jrc_sum159-4:
+    crops:
+    - crop202
+    - crop203
+    - crop213
+    - crop210
+    - crop206
+    - crop216
+    - crop208
+    - crop201
+    - crop212
+    - crop217
+    - crop218
+    - crop186
+    - crop187
+    - crop188
+    - crop209
+    - crop211
+    - crop189
+    - crop219
+    raw: /nrs/cellmap/data/jrc_sum159-4/jrc_sum159-4.zarr/recon-1/em/fibsem-uint8
+  tissue/brain/jrc_fly-vnc-1:
+    crops:
+    - crop78
+    - crop79
+    - crop173,crop185
+    - crop174
+    - crop176
+    raw: /nrs/cellmap/data/jrc_fly-vnc-1/jrc_fly-vnc-1.zarr/recon-1/em/fibsem-uint8
+  tissue/brain/jrc_mb-1a:
+    crops:
     - crop120
     - crop121
     - crop122
     - crop123
     - crop134
     - crop178
-tissue/other/jrc_mus-kidney:
-  raw: /nrs/cellmap/data/jrc_mus-kidney/jrc_mus-kidney.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_mb-1a/jrc_mb-1a.zarr/recon-1/em/fibsem-uint8
+  tissue/brain/jrc_mus-nacc-1:
+    crops:
+    - crop115
+    raw: /nrs/cellmap/data/jrc_mus-nacc-1/jrc_mus-nacc-1.zarr/recon-1/em/fibsem-uint8
+  tissue/other/jrc_mus-kidney:
+    crops:
     - crop129
     - crop140
     - crop141
@@ -161,9 +203,32 @@ tissue/other/jrc_mus-kidney:
     - crop165
     - crop166
     - crop229
-tissue/other/jrc_mus-liver-zon-1:
-  raw: /nrs/cellmap/data/jrc_mus-liver-zon-1/jrc_mus-liver-zon-1.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_mus-kidney/jrc_mus-kidney.zarr/recon-1/em/fibsem-uint8
+  tissue/other/jrc_mus-liver:
+    crops:
+    - crop124
+    - crop125
+    - crop131
+    - crop132
+    - crop133
+    - crop135
+    - crop136
+    - crop137
+    - crop138
+    - crop139
+    - crop142
+    - crop143
+    - crop144
+    - crop145
+    - crop150
+    - crop151
+    - crop157,crop183
+    - crop171,crop416
+    - crop172,crop417
+    - crop175
+    raw: /nrs/cellmap/data/jrc_mus-liver/jrc_mus-liver.zarr/recon-1/em/fibsem-uint8
+  tissue/other/jrc_mus-liver-zon-1:
+    crops:
     - crop266
     - crop267
     - crop268
@@ -188,9 +253,9 @@ tissue/other/jrc_mus-liver-zon-1:
     - crop325
     - crop326
     - crop377
-tissue/other/jrc_mus-liver-zon-2:
-  raw: /nrs/cellmap/data/jrc_mus-liver-zon-2/jrc_mus-liver-zon-2.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_mus-liver-zon-1/jrc_mus-liver-zon-1.zarr/recon-1/em/fibsem-uint8
+  tissue/other/jrc_mus-liver-zon-2:
+    crops:
     - crop333
     - crop340
     - crop341
@@ -199,76 +264,13 @@ tissue/other/jrc_mus-liver-zon-2:
     - crop369
     - crop370
     - crop376
-tissue/other/jrc_mus-liver:
-  raw: /nrs/cellmap/data/jrc_mus-liver/jrc_mus-liver.zarr/recon-1/em/fibsem-uint8
-  crops:
-    - crop124
-    - crop125
-    - crop131
-    - crop132
-    - crop133
-    - crop135
-    - crop136
-    - crop137
-    - crop138
-    - crop139
-    - crop142
-    - crop143
-    - crop144
-    - crop145
-    - crop150
-    - crop151
-    - crop157,crop183
-    - crop171,crop416
-    - crop172,crop417
-    - crop175
-culture/jrc_sum159-1:
-  raw: /nrs/cellmap/data/jrc_sum159-1/jrc_sum159-1.zarr/recon-1/em/fibsem-uint8
-  crops:
-    - crop20
-    - crop22
-    - crop25
-    - crop26
-    - crop81
-    - crop82
-    - crop80
-    - crop83
-    - crop84
-    - crop97
-    - crop98
-    - crop99
-tissue/other/jrc_mus-pancreas-1:
-  raw: /nrs/cellmap/data/jrc_mus-pancreas-1/jrc_mus-pancreas-1.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_mus-liver-zon-2/jrc_mus-liver-zon-2.zarr/recon-1/em/fibsem-uint8
+  tissue/other/jrc_mus-pancreas-1:
+    crops:
     - crop106
-tissue/brain/jrc_mus-nacc-1:
-  raw: /nrs/cellmap/data/jrc_mus-nacc-1/jrc_mus-nacc-1.zarr/recon-1/em/fibsem-uint8
-  crops:
-    - crop115
-culture/jrc_sum159-4:
-  raw: /nrs/cellmap/data/jrc_sum159-4/jrc_sum159-4.zarr/recon-1/em/fibsem-uint8
-  crops:
-    - crop202
-    - crop203
-    - crop213
-    - crop210
-    - crop206
-    - crop216
-    - crop208
-    - crop201
-    - crop212
-    - crop217
-    - crop218
-    - crop186
-    - crop187
-    - crop188
-    - crop209
-    - crop211
-    - crop189
-    - crop219
-tissue/other/jrc_ut21-1413-003:
-  raw: /nrs/cellmap/data/jrc_ut21-1413-003/jrc_ut21-1413-003.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_mus-pancreas-1/jrc_mus-pancreas-1.zarr/recon-1/em/fibsem-uint8
+  tissue/other/jrc_ut21-1413-003:
+    crops:
     - crop192
     - crop193
     - crop191
@@ -287,7 +289,9 @@ tissue/other/jrc_ut21-1413-003:
     - crop226
     - crop227
     - crop225
-tissue/other/jrc_zf-cardiac-1:
-  raw: /nrs/cellmap/data/jrc_zf-cardiac-1/jrc_zf-cardiac-1.zarr/recon-1/em/fibsem-uint8
-  crops:
+    raw: /nrs/cellmap/data/jrc_ut21-1413-003/jrc_ut21-1413-003.zarr/recon-1/em/fibsem-uint8
+  tissue/other/jrc_zf-cardiac-1:
+    crops:
     - crop318
+    raw: /nrs/cellmap/data/jrc_zf-cardiac-1/jrc_zf-cardiac-1.zarr/recon-1/em/fibsem-uint8
+gt_path: /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/
