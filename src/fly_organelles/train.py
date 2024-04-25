@@ -14,10 +14,12 @@ logger = logging.getLogger("__name__")
 def make_data_pipeline(
     labels: list[str],
     datasets: dict,
+    pad_width_in: gp.Coordinate,
     pad_width_out: gp.Coordinate,
     sampling: tuple[int],
     batch_size: int = 5
 ):  
+    logger.debug(f"Using pad_with {pad_width_in} for input and {pad_width_out} for output arrays.")
     raw = gp.ArrayKey("RAW")
     label_keys = {}
     for label in labels:
@@ -40,6 +42,7 @@ def make_data_pipeline(
                 probs.append(src.get_size()/len(crops.split(",")))
                 for label_key in label_keys.values():
                     src_pipe += gp.Pad(label_key, pad_width_out, value=255)
+                src_pipe += gp.Pad(raw, pad_width_in, value=0)
                 src_pipe += gp.RandomLocation()
                 srcs.append(src_pipe)
                 
@@ -69,6 +72,7 @@ def make_train_pipeline(
     labels: list[str],
     label_weights: list[float],
     datasets: dict,
+    pad_width_in: gp.Coordinate,
     pad_width_out: gp.Coordinate,
     sampling: tuple[int],
     batch_size: int = 5,
@@ -76,6 +80,7 @@ def make_train_pipeline(
     pipeline = make_data_pipeline(
         labels,
         datasets,
+        pad_width_in,
         pad_width_out,
         sampling,
         batch_size,

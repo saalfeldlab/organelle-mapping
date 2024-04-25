@@ -16,11 +16,14 @@ def run(labels, label_weights, datasets):
     input_size = gp.Coordinate((178, 178, 178)) * gp.Coordinate(voxel_size)
     output_size = gp.Coordinate((56, 56, 56)) * gp.Coordinate(voxel_size)
     pad_width_out = output_size/2.
+    pad_width_in = (input_size - output_size)/2. + pad_width_out
+    
     pipeline = make_train_pipeline(
         model,
         labels=labels,
         label_weights=label_weights,
         datasets=datasets,
+        pad_width_in=pad_width_in,
         pad_width_out=pad_width_out,
         sampling=voxel_size,
     )
