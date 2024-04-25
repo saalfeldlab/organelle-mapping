@@ -50,4 +50,4 @@ def main(yaml_file):
     run(labels, label_weights, datasets)
 
 if __name__ == "__main__":
-    main("selected_data.yaml")
+    main("selected_data_8nm_mem+org.yaml")

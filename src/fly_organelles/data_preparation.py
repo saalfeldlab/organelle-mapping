@@ -3,11 +3,13 @@ import numpy as np
 import logging
 import numcodecs
 import yaml
+import copy
 import click
 import fibsem_tools as fst
 from fibsem_tools.io.multiscale import multiscale_group
 from typing import BinaryIO, Optional
 import os
+from pathlib import Path
 import xarray as xr
 import itertools
 from xarray_multiscale import multiscale, windowed_mode
@@ -27,9 +29,80 @@ UNKNOWN = 255
 PRESENT = 1
 ABSENT = 0
 
+def filter_crops_for_sampling(datasets, sampling, labels):
+    new_datasets = copy.deepcopy(datasets)
+    for dataset, ds_info in datasets["datasets"].items():
+        new_crops = []
+        for crop in ds_info["crops"]:
+            myc = []
+            for c in crop.split(","):
+                try:
+                    for label in labels:
+                        find_target_scale(fst.read(Path(datasets["gt_path"])/ dataset / "groundtruth.zarr"/ c / label), sampling)
+                except ValueError:
+                    continue
+                myc.append(c)
+            if len(myc)> 0:
+                new_crops.append(",".join(myc))
+        if len(new_crops) > 0:
+            new_datasets["datasets"][dataset]["crops"] = new_crops
+        else:
+            del new_datasets["datasets"][dataset]
+    return new_datasets
+def filter_crops_for_percent_annotated(datasets, sampling, labels, threshold_percent_annotated=25):
+    new_datasets = copy.deepcopy(datasets)
+    for dataset, ds_info in datasets["datasets"].items():
+        new_crops = []
+        for crop in ds_info["crops"]:
+            myc = []
+            for c in crop.split(","):
+                for label in labels:
+                    scale, _, shape = find_target_scale(fst.read(Path(datasets["gt_path"])/ dataset / "groundtruth.zarr"/ c / label), sampling)
+                    ann_attrs = fst.read(Path(datasets["gt_path"])/ dataset / "groundtruth.zarr"/ c /label / scale).attrs["cellmap"]["annotation"]
+                    voxels = np.prod(shape)
+                    if "unknown" in ann_attrs["complement_counts"]:
+                        not_annotated = ann_attrs["complement_counts"]["unknown"]
+                    else:
+                        not_annotated = 0
+                    annotated = voxels - not_annotated
+                    if annotated/voxels > threshold_percent_annotated/100.:
+                        myc.append(c)
+                        break
+            if len(myc)> 0:
+                new_crops.append(",".join(myc))
+        if len(new_crops) > 0:
+            new_datasets["datasets"][dataset]["crops"] = new_crops
+        else:
+            del new_datasets["datasets"][dataset]
+    return new_datasets
+            
+@cli.command()
+@click.argument("data-config-in", type=click.File("rb"))
+@click.argument("data-config-out", type=click.File("w"))
+@click.option("--sampling", type=float, nargs=3, required=True)
+@click.option("--label", type=click.STRING, multiple=True, required=True)
+@click.option("--threshold_percent_annotated", type=float, default=25, show_default=True)
+@click.option("--skip_filter_sampling", is_flag=True, default=False)
+@click.option("--skip_filter_percent_annotated", is_flag=True, default=False)
+def filter_crop_list(data_config_in, data_config_out, sampling, label, 
+                     threshold_percent_annotated=25,
+                    skip_filter_sampling=False, skip_filter_percent_annotated=False):
+    filter_crop_list_func(data_config_in, data_config_out, sampling, label, 
+                     threshold_percent_annotated=threshold_percent_annotated,
+                     skip_filter_sampling=skip_filter_sampling, 
+                     skip_filter_percent_annotated=skip_filter_percent_annotated)
 
 
-
+def filter_crop_list_func(data_config_in, data_config_out, sampling, label, 
+                          threshold_percent_annotated=25,
+                          skip_filter_sampling=False, skip_filter_percent_annotated=False):
+    data_dict = yaml.safe_load(data_config_in)
+    if not skip_filter_sampling:
+        data_dict = filter_crops_for_sampling(data_dict, sampling, label)
+    if not skip_filter_percent_annotated:
+        data_dict = filter_crops_for_percent_annotated(data_dict, sampling, label, threshold_percent_annotated=threshold_percent_annotated)
+    yaml.safe_dump(data_dict, data_config_out, default_flow_style=False)
+    
 def verify_classes(classes: dict[str, set[str]]) -> tuple[bool, int]:
     atoms = []
     for k, v in classes.items():
