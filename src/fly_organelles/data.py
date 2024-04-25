@@ -6,10 +6,13 @@ import xarray as xr
 import numpy as np
 import corditea
 import math
+import yaml
+import os
+from fly_organelles.utils import corner_offset, find_target_scale, get_scale_info, find_target_scale_by_offset
+from typing import BinaryIO
 
 logger = logging.getLogger(__name__)
-
-
+                
 def spatial_spec_from_xarray(xarr) -> tuple[gp.Roi, gp.Coordinate]:
     assert isinstance(xarr, xr.DataArray)
     offset = []
@@ -25,39 +28,6 @@ def spatial_spec_from_xarray(xarr) -> tuple[gp.Roi, gp.Coordinate]:
     return roi, voxel_size
 
 
-def get_scale_info(zarr_grp):
-    attrs = zarr_grp.attrs
-    resolutions = {}
-    offsets = {}
-    shapes = {}
-    # making a ton of assumptions here, hopefully triggering KeyErrors though if they don't apply
-    for scale in attrs["multiscales"][0]["datasets"]:
-        resolutions[scale["path"]] = scale["coordinateTransformations"][0]["scale"]
-        offsets[scale["path"]] = scale["coordinateTransformations"][1]["translation"]
-        shapes[scale["path"]] = zarr_grp[scale["path"]].shape
-    offset = min(offsets.values())
-    return offset, resolutions, shapes
-
-
-def find_target_scale(zarr_grp, target_resolution):
-    offset, resolutions, shapes = get_scale_info(zarr_grp)
-    target_scale = None
-    for scale, res in resolutions.items():
-        if gp.Coordinate(res) == gp.Coordinate(target_resolution):
-            target_scale = scale
-            break
-    if target_scale is None:
-        msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array with sampling {target_resolution}"
-        raise ValueError(msg)
-    return target_scale, offset, shapes[target_scale]
-
-
-def construct_roi(shape, offset, voxel_size):
-    voxel_size = gp.Coordinate(voxel_size)
-    offset = gp.Coordinate(offset)
-    shape = voxel_size * gp.Coordinate(shape)
-    roi = gp.Roi(offset, shape)
-    return roi
 
 
 class CellMapCropSource(gp.batch_provider.BatchProvider):
@@ -75,8 +45,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         raw_scale, raw_offset, raw_shape = find_target_scale(raw_grp, sampling)
         self.stores[raw_arraykey] = fst.read(Path(raw_store) / raw_scale)
         self.labels = labels
-        self.specs = {}
-        raw_roi = construct_roi(raw_shape, raw_offset, sampling)
+        raw_roi = gp.Roi(raw_offset, gp.Coordinate(sampling) * gp.Coordinate(raw_shape))
         raw_voxel_size = gp.Coordinate(sampling)
         # raw_roi, raw_voxel_size = spatial_spec_from_xarray(self.stores[raw_arraykey])
         self.specs[raw_arraykey] = gp.array_spec.ArraySpec(
@@ -87,7 +56,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
             label_scale, label_offset, label_shape = find_target_scale(label_grp, sampling)
             self.stores[labelkey] = fst.read_xarray(Path(label_store) / label / label_scale)
             # label_roi, label_voxel_size = spatial_spec_from_xarray(self.stores[labelkey])
-            label_roi = construct_roi(label_shape, label_offset, sampling)
+            label_roi = gp.Roi(label_offset, gp.Coordinate(label_shape)*gp.Coordinate(sampling))
             label_voxel_size = gp.Coordinate(sampling)
             self.specs[labelkey] = gp.array_spec.ArraySpec(
                 roi=label_roi, voxel_size=label_voxel_size, interpolatable=False, dtype=self.stores[labelkey].dtype

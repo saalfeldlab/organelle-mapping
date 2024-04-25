@@ -14,7 +14,7 @@ from xarray_multiscale import multiscale, windowed_mode
 import numcodecs
 from pydantic_zarr import ArraySpec, GroupSpec
 from cellmap_schemas.annotation import AnnotationGroupAttrs, wrap_attributes, SemanticSegmentation, AnnotationArrayAttrs
-
+from fly_organelles.utils import corner_offset, valid_offset, all_combinations, read_label_yaml, read_data_yaml, find_target_scale
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -27,10 +27,9 @@ UNKNOWN = 255
 PRESENT = 1
 ABSENT = 0
 
-def all_combinations(iterable):
-    for r in range(1,len(iterable)+1):
-        yield from itertools.combinations(iterable, r)
-        
+
+
+
 def verify_classes(classes: dict[str, set[str]]) -> tuple[bool, int]:
     atoms = []
     for k, v in classes.items():
@@ -50,12 +49,6 @@ def verify_classes(classes: dict[str, set[str]]) -> tuple[bool, int]:
     if len(hashable_values) != len(set(hashable_values)):
         return False, 5 # several labels with same atoms
     return True, 0
-    
-def read_label_yaml(yaml_file: BinaryIO) -> dict[str,set[str]]:
-    classes = yaml.safe_load(yaml_file)
-    for lbl, atoms in classes.items():
-        classes[lbl] = set(atoms)
-    return classes    
 
 class Crop:
     def __init__(self, classes: dict[str, set[str]], crop_path):
@@ -207,13 +200,6 @@ def add_class_to_all_crops_func(label_config: BinaryIO,
                 f"{gt_path}{key}/groundtruth.zarr/{crop}"
             )
             c.add_new_class(new_label)
-
-def corner_offset(center_off_arr, raw_res_arr, crop_res_arr):
-    return (center_off_arr + raw_res_arr/2. - crop_res_arr/2.)
-
-def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
-    corner_off_arr = corner_offset(center_off_arr, raw_res_arr, crop_res_arr)
-    return np.all(corner_off_arr % raw_res_arr == 0) and np.all(corner_off_arr % crop_res_arr == 0)
 
 @cli.command()
 @click.argument("crop_path", type=str)
