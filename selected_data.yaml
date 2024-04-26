@@ -78,7 +78,7 @@ datasets:
   culture/jrc_hela-3:
     contrast:
     - 0
-    - 281
+    - 255
     crops:
     - crop27
     - crop33
