@@ -56,11 +56,11 @@ def make_data_pipeline(
     pipeline += corditea.GammaAugment([raw], 0.75, 4 / 3.0)
     pipeline += gp.SimpleAugment()
     pipeline += corditea.ElasticAugment(
-        control_point_spacing=gp.Coordinate((100, 100, 100)),
-        control_point_displacement_sigma=gp.Coordinate((12, 12, 12)),
-        rotation_interval=(0, math.pi / 2.0),
-        subsample=8,
-        uniform_3d_rotation=True,
+         control_point_spacing=gp.Coordinate((25, 25, 25)),
+         control_point_displacement_sigma=gp.Coordinate((24, 24, 24)),
+         rotation_interval=(0, math.pi / 2.0),
+         subsample=8,
+         uniform_3d_rotation=True,
     )
     pipeline += gp.IntensityScaleShift(raw, 2, -1)
     pipeline += gp.Unsqueeze(list(label_keys.values()))

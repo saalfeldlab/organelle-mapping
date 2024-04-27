@@ -15,9 +15,10 @@ def run(labels, label_weights, datasets):
     voxel_size = (8, 8, 8)
     input_size = gp.Coordinate((178, 178, 178)) * gp.Coordinate(voxel_size)
     output_size = gp.Coordinate((56, 56, 56)) * gp.Coordinate(voxel_size)
+    buffer = gp.Coordinate((24*6,24*6,24*6))
     pad_width_out = output_size/2.
-    pad_width_in = (input_size - output_size)/2. + pad_width_out
-    
+    pad_width_in = (input_size - output_size)/2. + pad_width_out + buffer
+     
     pipeline = make_train_pipeline(
         model,
         labels=labels,
