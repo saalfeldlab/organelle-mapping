@@ -3,6 +3,7 @@ from fly_organelles.train import make_train_pipeline
 import gunpowder as gp
 import logging
 import yaml
+import click
 
 # logging.basicConfig(level=logging.DEBUG)
 # loggp = logging.getLogger("gunpowder.nodes.pad")
@@ -39,16 +40,14 @@ def run(labels, label_weights, datasets):
             request.add(gp.ArrayKey("MASK"), output_size, voxel_size = gp.Coordinate(voxel_size))
             pp.request_batch(request)
 
-
-def main(yaml_file):
+@click.command()
+@click.argument("data-config", type=click.File("rb"))
+def main(data_config):
     labels = ["organelle", "all_mem"]
     label_weights = [
         1.0 / len(labels),
     ] * len(labels)
-    with open(yaml_file, "r") as data_yaml:
-        datasets = yaml.safe_load(data_yaml)
+    #with open(yaml_file, "r") as data_yaml:
+    datasets = yaml.safe_load(data_config)
         #label_stores, raw_stores, crop_copies = read_data_yaml(data_yaml)
     run(labels, label_weights, datasets)
-
-if __name__ == "__main__":
-    main("selected_data_8nm_mem+org.yaml")
