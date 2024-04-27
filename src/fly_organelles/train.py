@@ -93,7 +93,7 @@ def make_train_pipeline(
         sampling,
         batch_size,
     )
-    pipeline += gp.PreCache(120,80)
+    pipeline += gp.PreCache(160,80)
     pipeline += gp.torch.Train(
         model=model,
         loss=MaskedMultiLabelBCEwithLogits(label_weights),
