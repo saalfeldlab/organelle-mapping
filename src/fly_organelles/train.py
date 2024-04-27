@@ -61,8 +61,10 @@ def make_data_pipeline(
          rotation_interval=(0, math.pi / 2.0),
          subsample=8,
          uniform_3d_rotation=True,
+         augmentation_probability=0.6,
     )
     pipeline += gp.IntensityScaleShift(raw, 2, -1)
+    pipeline += corditea.GaussianNoiseAugment(raw, var_range=(0, 0.01), noise_prob=0.5)
     pipeline += gp.Unsqueeze(list(label_keys.values()))
     pipeline += corditea.Concatenate(list(label_keys.values()), gp.ArrayKey("LABELS"))
     pipeline += ExtractMask(gp.ArrayKey("LABELS"), gp.ArrayKey("MASK"))
