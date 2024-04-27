@@ -10,7 +10,7 @@ import click
 # loggp.setLevel(logging.DEBUG)
 
 
-def run(labels, label_weights, datasets):
+def run(iterations, labels, label_weights, datasets):
     model = StandardUnet(len(labels))
     
     voxel_size = (8, 8, 8)
@@ -32,7 +32,7 @@ def run(labels, label_weights, datasets):
     
 
     with gp.build(pipeline) as pp:
-        for i in range(50):
+        for i in range(iterations):
             request = gp.BatchRequest()
             request.add(gp.ArrayKey("OUTPUT"), output_size, voxel_size=gp.Coordinate(voxel_size))
             request.add(gp.ArrayKey("RAW"), input_size, voxel_size= gp.Coordinate(voxel_size))
@@ -42,6 +42,7 @@ def run(labels, label_weights, datasets):
 
 @click.command()
 @click.argument("data-config", type=click.File("rb"))
+@click.argument("iterations", type=int)
 def main(data_config):
     labels = ["organelle", "all_mem"]
     label_weights = [
@@ -50,4 +51,4 @@ def main(data_config):
     #with open(yaml_file, "r") as data_yaml:
     datasets = yaml.safe_load(data_config)
         #label_stores, raw_stores, crop_copies = read_data_yaml(data_yaml)
-    run(labels, label_weights, datasets)
+    run(iterations, labels, label_weights, datasets)

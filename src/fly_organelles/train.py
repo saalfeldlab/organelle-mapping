@@ -102,6 +102,9 @@ def make_train_pipeline(
         loss_inputs={"output": gp.ArrayKey("OUTPUT"), "target": gp.ArrayKey("LABELS"), "mask": gp.ArrayKey("MASK")},
         outputs={0: gp.ArrayKey("OUTPUT")},
         device="cuda:1",
+        log_every=20,
+        log_dir="logs",
+        save_every=2000,
     )
     pipeline += gp.Snapshot(
         {
@@ -111,6 +114,7 @@ def make_train_pipeline(
             gp.ArrayKey("OUTPUT"): "output",
         },
         store_value_range=True,
-        output_filename="{iteration}.zarr"
+        output_filename="{iteration:08d}.zarr",
+        every=500
     )
     return pipeline
