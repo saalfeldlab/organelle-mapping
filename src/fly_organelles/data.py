@@ -38,10 +38,13 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         labels: dict[str, gp.array.ArrayKey],
         raw_arraykey: gp.ArrayKey,
         sampling: list[int],
+        base_padding: gp.Coordinate,
+        max_request: gp.Coordinate
     ):
         super().__init__()
         self.stores = {}
         self.specs = {}
+        self.max_request = max_request
         raw_grp = fst.read(raw_store)
         raw_scale, raw_offset, raw_shape = find_target_scale(raw_grp, sampling)
         raw_offset = gp.Coordinate((0,)* len(sampling)) # tuple(np.array(raw_offset) - np.array(sampling)/2.)
@@ -54,6 +57,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         raw_spec = gp.array_spec.ArraySpec(
             roi=raw_roi, voxel_size=raw_voxel_size, interpolatable=True, dtype=self.stores[raw_arraykey].dtype
         )
+        self.padding = base_padding
         for label, labelkey in self.labels.items():
             label_grp = fst.read(Path(label_store) / label)
             label_scale, label_offset, label_shape = find_target_scale(label_grp, sampling)
@@ -68,7 +72,6 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
                 logger.debug(f"Reading raw from {raw_store}/ {raw_scale} with voxel_size {raw_res}")
                 self.stores[raw_arraykey] = fst.read(Path(raw_store)/ raw_scale)
                 raw_roi = gp.Roi(gp.Coordinate((0,)* len(sampling)), gp.Coordinate(raw_shape)* gp.Coordinate(raw_res) - gp.Coordinate(sampling))
-                
                 raw_spec = gp.array_spec.ArraySpec(roi=raw_roi, 
                                                    voxel_size=raw_res, 
                                                    interpolatable=True, 
@@ -79,7 +82,9 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
             #label_offset = tuple(np.array(label_offset) - np.array(sampling)/2.)
             self.stores[labelkey] = fst.read_xarray(Path(label_store) / label / label_scale)
             # label_roi, label_voxel_size = spatial_spec_from_xarray(self.stores[labelkey])
-            label_roi = gp.Roi(label_offset, gp.Coordinate(label_shape)*gp.Coordinate(sampling))
+            cropsize=gp.Coordinate(label_shape)*gp.Coordinate(sampling)
+            label_roi = gp.Roi(label_offset, cropsize)
+            
             label_voxel_size = gp.Coordinate(sampling)
             self.specs[labelkey] = gp.array_spec.ArraySpec(
                 roi=label_roi, 
@@ -89,7 +94,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
             )
             self.raw_arraykey = raw_arraykey
 
-
+        self.padding += gp.Coordinate(max(0,p) for p in self.max_request - (cropsize+self.padding*2))/2.        
         self.specs[raw_arraykey] = raw_spec
         self.sampling = sampling
 

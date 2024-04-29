@@ -14,12 +14,12 @@ logger = logging.getLogger("__name__")
 def make_data_pipeline(
     labels: list[str],
     datasets: dict,
-    pad_width_in: gp.Coordinate,
     pad_width_out: gp.Coordinate,
     sampling: tuple[int],
+    max_out_request: gp.Coordinate,
+    displacement_sigma: gp.Coordinate,
     batch_size: int = 5
 ):  
-    logger.debug(f"Using pad_with {pad_width_in} for input and {pad_width_out} for output arrays.")
     raw = gp.ArrayKey("RAW")
     label_keys = {}
     for label in labels:
@@ -35,19 +35,22 @@ def make_data_pipeline(
                     ds_info["raw"],
                     label_keys,
                     raw,
-                    sampling
+                    sampling,
+                    base_padding=pad_width_out,
+                    max_request=max_out_request
                 )
                 src_pipe = src
                 if src.needs_downsampling:
                     src_pipe += corditea.AverageDownSample(raw,sampling)
                 probs.append(src.get_size()/len(crops.split(",")))
+                logging.debug(f"Padding {crop} with {src.padding}")
                 for label_key in label_keys.values():
-                    src_pipe += gp.Pad(label_key, pad_width_out, value=255)
+                    src_pipe += gp.Pad(label_key, src.padding, value=255)
                 factor = factors[src.specs[raw].dtype]
                 src_pipe += gp.Normalize(raw, factor=1./factor)
                 minc, maxc = ds_info["contrast"]
                 src_pipe += gp.IntensityScaleShift(raw, scale= (maxc-minc)/factor, shift = minc/factor)
-                src_pipe += gp.Pad(raw, pad_width_in, value=0)
+                src_pipe += gp.Pad(raw, None, value=0)
                 src_pipe += gp.RandomLocation()
                 srcs.append(src_pipe)
                 
@@ -57,7 +60,7 @@ def make_data_pipeline(
     pipeline += gp.SimpleAugment()
     pipeline += corditea.ElasticAugment(
          control_point_spacing=gp.Coordinate((25, 25, 25)),
-         control_point_displacement_sigma=gp.Coordinate((24, 24, 24)),
+         control_point_displacement_sigma=displacement_sigma,
          rotation_interval=(0, math.pi / 2.0),
          subsample=8,
          uniform_3d_rotation=True,
@@ -80,17 +83,19 @@ def make_train_pipeline(
     labels: list[str],
     label_weights: list[float],
     datasets: dict,
-    pad_width_in: gp.Coordinate,
     pad_width_out: gp.Coordinate,
     sampling: tuple[int],
+    max_out_request: gp.Coordinate,
+    displacement_sigma: gp.Coordinate,
     batch_size: int = 5,
 ):
     pipeline = make_data_pipeline(
         labels,
         datasets,
-        pad_width_in,
         pad_width_out,
         sampling,
+        max_out_request,
+        displacement_sigma,
         batch_size,
     )
     pipeline += gp.PreCache(160,80)
