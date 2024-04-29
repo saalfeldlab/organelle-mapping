@@ -37,7 +37,8 @@ dependencies = [
   "pydantic-zarr",
   "numcodecs",
   "neuroglancer",
-  "dask"
+  "dask",
+  "tensorboardX"
 ]
 
 [project.urls]
