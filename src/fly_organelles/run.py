@@ -33,6 +33,7 @@ def run(iterations, labels, label_weights, datasets):
         displacement_sigma=displacement_sigma,
         input_size=input_size,
         output_size=output_size,
+        batch_size=14,
     )
     
 
