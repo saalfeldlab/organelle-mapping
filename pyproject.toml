@@ -38,7 +38,7 @@ dependencies = [
   "numcodecs",
   "neuroglancer",
   "dask",
-  "tensorboardX"
+  "tensorboardX",
 ]
 
 [project.urls]
