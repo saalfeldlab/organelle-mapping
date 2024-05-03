@@ -49,12 +49,25 @@ def run(iterations, labels, label_weights, datasets):
 @click.command()
 @click.argument("data-config", type=click.File("rb"))
 @click.argument("iterations", type=int)
-def main(data_config, iterations):
-    labels = ["organelle", "all_mem"]
-    label_weights = [
-        1.0 / len(labels),
-    ] * len(labels)
-    #with open(yaml_file, "r") as data_yaml:
+@click.option(
+    "--labels", "-l", multiple=True, type=str, help="List of labels to train for.", default=["organelle", "all_mem"]
+)
+@click.option("--label_weights", "-lw", multiple=True, type=float)
+def main(data_config, iterations, labels, label_weights=None):
+    if not label_weights:
+        label_weights = [
+            1.0 / len(labels),
+        ] * len(labels)
+    else:
+        assert len(label_weights) == len(
+            labels
+        ), f"If label weights are specified ({type(label_weights)}) they need to be of the same length as the list of labels ({len(labels)})"
+        normalizer = np.sum(label_weights)
+        label_weights = [lw / normalizer for lw in label_weights]
+    logger.info(
+        f"Running training for the following labels:{', '.join([f'{lbl} ({lblw:.4f})' for lbl,lblw in zip(labels,label_weights)])}"
+    )
+    # with open(yaml_file, "r") as data_yaml:
     datasets = yaml.safe_load(data_config)
-        #label_stores, raw_stores, crop_copies = read_data_yaml(data_yaml)
+    # label_stores, raw_stores, crop_copies = read_data_yaml(data_yaml)
     run(iterations, labels, label_weights, datasets)

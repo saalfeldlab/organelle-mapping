@@ -62,6 +62,13 @@ command = "mamba"
 conda-forge = true
 dependencies = []
 
+[tool.hatch.envs.default.env-vars]
+MKL_NUM_THREADS = "1"
+NUM_MKL_THREADS = "1"
+OPENBLAS_NUM_THREADS = "1"
+OPENMP_NUM_THREADS = "1"
+OMP_NUM_THREADS = "1"
+
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -78,6 +85,14 @@ command = "mamba"
 conda-forge = true
 detached = false
 dependencies = ["jupyter", "pytest", "coverage[toml]>=6.5"]
+skip-install = false
+
+[tool.hatch.envs.dev.env-vars]
+MKL_NUM_THREADS = "1"
+NUM_MKL_THREADS = "1"
+OPENBLAS_NUM_THREADS = "1"
+OPENMP_NUM_THREADS = "1"
+OMP_NUM_THREADS = "1"
 
 
 [tool.hatch.envs.lint]
