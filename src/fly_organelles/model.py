@@ -1,5 +1,5 @@
-import torch
 import funlib.learn.torch
+import torch
 
 
 class MaskedMultiLabelBCEwithLogits(torch.nn.BCEWithLogitsLoss):

@@ -1,22 +1,45 @@
-import zarr
-import numpy as np
-import logging
-import numcodecs
-import yaml
 import copy
-import click
-import fibsem_tools as fst
-from fibsem_tools.io.multiscale import multiscale_group
-from typing import BinaryIO, Optional
+import itertools
+import logging
 import os
 from pathlib import Path
-import xarray as xr
-import itertools
-from xarray_multiscale import multiscale, windowed_mode
+from typing import BinaryIO, Optional
+
+import click
+import fibsem_tools as fst
 import numcodecs
+import numpy as np
+import xarray as xr
+import yaml
+import zarr
+from cellmap_schemas.annotation import AnnotationArrayAttrs, AnnotationGroupAttrs, SemanticSegmentation, wrap_attributes
+from fibsem_tools.io.multiscale import multiscale_group
 from pydantic_zarr import ArraySpec, GroupSpec
-from cellmap_schemas.annotation import AnnotationGroupAttrs, wrap_attributes, SemanticSegmentation, AnnotationArrayAttrs
-from fly_organelles.utils import corner_offset, valid_offset, all_combinations, read_label_yaml, read_data_yaml, find_target_scale
+from xarray_multiscale import multiscale, windowed_mode
+
+from fly_organelles.utils import (
+    all_combinations,
+    corner_offset,
+    find_target_scale,
+    read_data_yaml,
+    read_label_yaml,
+    valid_offset,
+)
+
+)
+from fibsem_tools.io.multiscale import multiscale_group
+from pydantic_zarr import ArraySpec, GroupSpec
+from xarray_multiscale import multiscale, windowed_mode
+
+from fly_organelles.utils import (
+    all_combinations,
+    corner_offset,
+    find_target_scale,
+    read_data_yaml,
+    read_label_yaml,
+    valid_offset,
+)
+
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -49,6 +72,7 @@ def filter_crops_for_sampling(datasets, sampling, labels):
         else:
             del new_datasets["datasets"][dataset]
     return new_datasets
+
 def filter_crops_for_percent_annotated(datasets, sampling, labels, threshold_percent_annotated=25):
     new_datasets = copy.deepcopy(datasets)
     for dataset, ds_info in datasets["datasets"].items():
@@ -75,7 +99,7 @@ def filter_crops_for_percent_annotated(datasets, sampling, labels, threshold_per
         else:
             del new_datasets["datasets"][dataset]
     return new_datasets
-            
+
 @cli.command()
 @click.argument("data-config-in", type=click.File("rb"))
 @click.argument("data-config-out", type=click.File("w"))
@@ -102,7 +126,7 @@ def filter_crop_list_func(data_config_in, data_config_out, sampling, label,
     if not skip_filter_percent_annotated:
         data_dict = filter_crops_for_percent_annotated(data_dict, sampling, label, threshold_percent_annotated=threshold_percent_annotated)
     yaml.safe_dump(data_dict, data_config_out, default_flow_style=False)
-    
+
 def verify_classes(classes: dict[str, set[str]]) -> tuple[bool, int]:
     atoms = []
     for k, v in classes.items():
@@ -173,7 +197,7 @@ class Crop:
             if missing <= self.get_annotated_classes():
                 n_arr[np.logical_and.reduce([self.get_array(c) == ABSENT for c in missing.union(combo)])] = ABSENT
         return n_arr.astype(np.uint8)
-    
+
     def save_class(self, name: str, arr: np.ndarray):
         xarr = xr.DataArray(arr, coords=self.get_coords())
         multi = {m.name: m for m in multiscale(xarr, windowed_mode, (2,2,2), chunks=self.get_chunking())}
