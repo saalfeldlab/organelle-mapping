@@ -38,9 +38,9 @@ def add_example_layers(state, snapshot_path, add_time=True):
     layers = {
         "raw": "image",
         "output": "image",
+        "norm_output": "image",
         "labels": "segmentation",
         "mask": "segmentation",
-        
     }
     if add_time:
         lv_func = create_lv_stacked

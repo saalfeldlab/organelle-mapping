@@ -31,6 +31,8 @@ def run(iterations, labels, label_weights, datasets):
         sampling=voxel_size,
         max_out_request=max_out_request,
         displacement_sigma=displacement_sigma,
+        input_size=input_size,
+        output_size=output_size,
     )
     
 

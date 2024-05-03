@@ -10,6 +10,8 @@ import numpy as np
 
 logger = logging.getLogger("__name__")
 
+def sigmoidify(arr):
+    return torch.nn.functional.sigmoid(torch.tensor(arr)).numpy()
 
 def make_data_pipeline(
     labels: list[str],
@@ -87,6 +89,8 @@ def make_train_pipeline(
     sampling: tuple[int],
     max_out_request: gp.Coordinate,
     displacement_sigma: gp.Coordinate,
+    input_size: gp.Coordinate,
+    output_size: gp.Coordinate,
     batch_size: int = 5,
 ):
     pipeline = make_data_pipeline(
@@ -111,15 +115,25 @@ def make_train_pipeline(
         log_dir="logs",
         save_every=2000,
     )
+    pipeline += corditea.LambdaFilter(
+        sigmoidify,
+        gp.ArrayKey("OUTPUT"),
+        gp.ArrayKey("NORM_OUTPUT")
+    )
+    snapshot_request = gp.BatchRequest()
+    snapshot_request.add(gp.ArrayKey("DUMMY"), input_size, voxel_size=gp.Coordinate(sampling))
+    snapshot_request.add(gp.ArrayKey("NORM_OUTPUT"), output_size, voxel_size=gp.Coordinate(sampling))
+    del snapshot_request[gp.ArrayKey("DUMMY")]
     pipeline += gp.Snapshot(
         {
             gp.ArrayKey("LABELS"): "labels",
             gp.ArrayKey("RAW"): "raw",
             gp.ArrayKey("MASK"): "mask",
             gp.ArrayKey("OUTPUT"): "output",
+            gp.ArrayKey("NORM_OUTPUT"): "norm_output"
         },
-        store_value_range=True,
         output_filename="{iteration:08d}.zarr",
-        every=500
+        every=500,
+        additional_request = snapshot_request        
     )
     return pipeline
