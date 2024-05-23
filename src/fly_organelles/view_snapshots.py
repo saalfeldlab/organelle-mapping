@@ -16,8 +16,8 @@ def create_lv(path, volume_type="segmentation", array_name="raw"):
 
     dim_names = ["z", "y", "x", "c", "n"]
     dim_units = ["nm", "nm", "nm", "", ""]
-    dim_scales = z_arr.attrs["resolution"] + [1, 1]
-    voxel_offset = list(np.array(z_arr.attrs["offset"]) / np.array(z_arr.attrs["resolution"])) + [0, 0]
+    dim_scales = [*z_arr.attrs["resolution"], 1, 1]
+    voxel_offset = [*(np.array(z_arr.attrs["offset"]) / np.array(z_arr.attrs["resolution"])), 0, 0]
     for dim in range(arr.ndim)[::-1]:
         if arr.shape[dim] == 1:
             arr = dask.array.squeeze(arr, axis=dim)
@@ -29,7 +29,7 @@ def create_lv(path, volume_type="segmentation", array_name="raw"):
     return neuroglancer.LocalVolume(arr, dimensions=dims, volume_type=volume_type, voxel_offset=voxel_offset)
 
 
-def add_example_layers(state, snapshot_path, add_time=True):
+def add_example_layers(state, snapshot_path, *, add_time=True):
     layers = {
         "raw": "image",
         "output": "image",
@@ -64,8 +64,8 @@ def create_lv_stacked(snapshot_path, volume_type="segmentation", array_name="raw
     dask_arrs = dask.array.stack(dask_arrs, axis=-1)
     dim_names = ["z", "y", "x", "c", "n", "t"]
     dim_units = ["nm", "nm", "nm", "", "", "s"]
-    dim_scales = z_arr.attrs["resolution"] + [1, 1, 1]
-    voxel_offset = list(np.array(z_arr.attrs["offset"]) / np.array(z_arr.attrs["resolution"])) + [0, 0, 0]
+    dim_scales = [*z_arr.attrs["resolution"], 1, 1, 1]
+    voxel_offset = [*(np.array(z_arr.attrs["offset"]) / np.array(z_arr.attrs["resolution"])), 0, 0, 0]
     for dim in range(dask_arrs.ndim)[::-1]:
         if dask_arrs.shape[dim] == 1:
             dask_arrs = dask.array.squeeze(dask_arrs, axis=dim)
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     viewer = neuroglancer.Viewer()
     with viewer.txn() as s:
         add_example_layers(s, args.snapshot_path, add_time=args.add_time)
-    print(viewer)
+    print(viewer)  # noqa: T201
     while True:
         signal = input("Enter q to exit: ")
         if "Q" in signal.upper():

@@ -65,13 +65,17 @@ def main(data_config, iterations, labels, label_weights=None):
             1.0 / len(labels),
         ] * len(labels)
     else:
-        assert len(label_weights) == len(
-            labels
-        ), f"If label weights are specified ({type(label_weights)}) they need to be of the same length as the list of labels ({len(labels)})"
+        if len(label_weights) != len(labels):
+            msg = (
+                f"If label weights are specified ({type(label_weights)}),"
+                f"they need to be of the same length as the list of labels ({len(labels)})"
+            )
+            raise ValueError(msg)
         normalizer = np.sum(label_weights)
         label_weights = [lw / normalizer for lw in label_weights]
     logger.info(
-        f"Running training for the following labels:{', '.join([f'{lbl} ({lblw:.4f})' for lbl,lblw in zip(labels,label_weights)])}"
+        f"Running training for the following labels:"
+        f"{', '.join([f'{lbl} ({lblw:.4f})' for lbl,lblw in zip(labels,label_weights)])}"
     )
     # with open(yaml_file, "r") as data_yaml:
     datasets = yaml.safe_load(data_config)

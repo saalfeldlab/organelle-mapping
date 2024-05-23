@@ -1,15 +1,11 @@
 import logging
-import math
-import os
 from pathlib import Path
-from typing import BinaryIO
 
-import corditea
 import fibsem_tools as fst
 import gunpowder as gp
 import numpy as np
 import xarray as xr
-import yaml
+
 
 from fly_organelles.utils import (
     corner_offset,
@@ -22,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 def spatial_spec_from_xarray(xarr) -> tuple[gp.Roi, gp.Coordinate]:
-    assert isinstance(xarr, xr.DataArray)
+    if not isinstance(xarr, xr.DataArray):
+        msg = f"Expected input to be `xarray.DataArray`, not {type(xarr)}"
+        raise TypeError(msg)
     offset = []
     for axis in "zyx":
         offset.append(int(xarr.coords[axis][0].data))
