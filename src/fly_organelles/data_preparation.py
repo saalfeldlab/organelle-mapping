@@ -272,6 +272,38 @@ class Crop:
         arr = self.create_new_class(atoms)
         self.save_class(name, arr)
 
+
+@cli.command()
+@click.argument("data-config", type=click.File("rb"))
+def smooth_multiscale(data_config: BinaryIO):
+    datas = yaml.safe_load(data_config)
+    if UNKNOWN <= 8 * max(PRESENT, ABSENT):
+        msg = "smoothing relies on large value for UNKNOWN"
+        raise ValueError(msg)
+    for key, ds_info in datas["datasets"].items():
+        for crops in ds_info["crops"]:
+            for cropname in crops.split(","):
+                crop = fst.access(Path(datas["gt_path"]) / key / "groundtruth.zarr" / cropname, "r+")
+                labels = crop.attrs["cellmap"]["annotation"]["class_names"]
+                for label in labels:
+                    logger.info(f"Processing {cropname} for {label}")
+                    for l1, l2 in itertools.pairwise(sorted(crop[label].keys(), key=lambda x: int(x[1:]))):
+                        src = crop[f"{label}/{l1}"][:]
+                        down = skimage.transform.downscale_local_mean(src, 2).astype("float32")
+                        downslice = tuple(slice(sh) for sh in (np.array(down.shape) // 2) * 2)
+                        down = down[downslice]
+                        down[down > max(PRESENT, ABSENT)] = UNKNOWN
+                        attrs = crop[f"{label}/{l2}"].attrs.asdict()
+                        crop[label].create_dataset(
+                            l2, data=down, overwrite=True, dimension_separator="/", compressor=numcodecs.Zstd(level=3)
+                        )
+                        attrs["cellmap"]["annotation"]["complement_counts"]["absent"] = round(
+                            np.sum(PRESENT - down[down != UNKNOWN]), 2
+                        )
+                        attrs["cellmap"]["annotation"]["complement_counts"]["unknown"] = np.sum(down == UNKNOWN)
+                        crop[label][l2].attrs["cellmap"] = attrs["cellmap"]
+
+
 @cli.command()
 @click.argument("label-config", type=click.File("rb"))
 @click.argument("data-config", type=click.File("rb"))
