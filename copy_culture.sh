@@ -1,9 +1,9 @@
-rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_cos7-1a.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/culture/jrc_cos7-1a/groundtruth.zarr/
-rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_cos7-1b.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/culture/jrc_cos7-1b/groundtruth.zarr/
-rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_ctl-id8-1.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/culture/jrc_ctl-id8-1/groundtruth.zarr/
-rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_hela-2.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/culture/jrc_hela-2/groundtruth.zarr/
-rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_hela-3.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/culture/jrc_hela-3/groundtruth.zarr/
-rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_jurkat-1.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/culture/jrc_jurkat-1/groundtruth.zarr/
-rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_macrophage-2.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/culture/jrc_macrophage-2/groundtruth.zarr/
-rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_sum159-1.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/culture/jrc_sum159-1/groundtruth.zarr/
-rsync -rv --delete /nrs/cellmap/bennettd/data/crop_tests/jrc_sum159-4.zarr/labels/groundtruth/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/culture/jrc_sum159-4/groundtruth.zarr/
+rsync -rv --delete --mkpath /nrs/cellmap/data/jrc_cos7-1a/staging/groundtruth.zarr/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles_smooth/culture/jrc_cos7-1a/groundtruth.zarr/
+rsync -rv --delete --mkpath /nrs/cellmap/data/jrc_cos7-1b/staging/groundtruth.zarr/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles_smooth/culture/jrc_cos7-1b/groundtruth.zarr/
+rsync -rv --delete --mkpath /nrs/cellmap/data/jrc_ctl-id8-1/staging/groundtruth.zarr/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles_smooth/culture/jrc_ctl-id8-1/groundtruth.zarr/
+rsync -rv --delete --mkpath /nrs/cellmap/data/jrc_hela-2/staging/groundtruth.zarr/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles_smooth/culture/jrc_hela-2/groundtruth.zarr/
+rsync -rv --delete --mkpath /nrs/cellmap/data/jrc_hela-3/staging/groundtruth.zarr/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles_smooth/culture/jrc_hela-3/groundtruth.zarr/
+rsync -rv --delete --mkpath /nrs/cellmap/data/jrc_jurkat-1/staging/groundtruth.zarr/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles_smooth/culture/jrc_jurkat-1/groundtruth.zarr/
+rsync -rv --delete --mkpath /nrs/cellmap/data/jrc_macrophage-2/staging/groundtruth.zarr/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles_smooth/culture/jrc_macrophage-2/groundtruth.zarr/
+rsync -rv --delete --mkpath /nrs/cellmap/data/jrc_sum159-1/staging/groundtruth.zarr/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles_smooth/culture/jrc_sum159-1/groundtruth.zarr/
+rsync -rv --delete --mkpath /nrs/cellmap/data/jrc_sum159-4/staging/groundtruth.zarr/ /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles_smooth/culture/jrc_sum159-4/groundtruth.zarr/
