@@ -52,6 +52,7 @@ def make_data_pipeline(
                 logging.debug(f"Padding {crop} with {src.padding}")
                 for label_key in label_keys.values():
                     src_pipe += gp.Pad(label_key, src.padding, value=255)
+                    src_pipe += gp.AsType(label_key, "float32")
                 factor = factors[src.specs[raw].dtype]
                 src_pipe += gp.Normalize(raw, factor=1.0 / factor)
                 minc, maxc = ds_info["contrast"]
