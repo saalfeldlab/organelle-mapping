@@ -322,10 +322,17 @@ def smooth_multiscale(data_config: BinaryIO):
 @click.argument("data-config", type=click.File("rb"))
 @click.argument("new-label", type=click.STRING)
 def add_class_to_all_crops(label_config: BinaryIO, data_config: BinaryIO, new_label: str):
-    add_class_to_all_crops_func(label_config, data_config, new_label)
+    """Script to add a new composite label to all crops in the given data configuration.
+
+    Args:
+        label_config (BinaryIO): Yaml file with label definitions. Should include the `new_label`
+        data_config (BinaryIO): Yaml file describing groundtruth data.
+        new_label (str): Name of new label to be added (as specified in `label_config`)
+    """
+    _add_class_to_all_crops_func(label_config, data_config, new_label)
 
 
-def add_class_to_all_crops_func(label_config: BinaryIO, data_config: BinaryIO, new_label: str):
+def _add_class_to_all_crops_func(label_config: BinaryIO, data_config: BinaryIO, new_label: str):
     datas = yaml.safe_load(data_config)
     classes = read_label_yaml(label_config)
     for key, ds_info in datas["datasets"].items():
@@ -363,8 +370,26 @@ def edit_offset_func(crop_path, orig_offset, new_offset, *, rounding: bool = Fal
 
 @cli.command()
 @click.argument("data-config", type=click.File("rb"))
-@click.option("-n", "--dry-run", is_flag=True)
-def fix_offset(data_config, *, dry_run: bool = False):
+@click.option(
+    "-n",
+    "--dry-run",
+    is_flag=True,
+    help="Adding this flag will find all the offsets that can be fixed but doesn't edit any of them.",
+)
+def fix_offset(data_config: BinaryIO, *, dry_run: bool = False):
+    """
+    Script to check whether offsets of groundtruth crops are aligned with the grid of the raw data. If they are not,
+    the script uses heuristics to guess what the correct offset might be and edits the crop metadata accordingly,
+    unless the `dry_run` flag is added.
+
+    Args:
+        data_config (BinaryIO): Yaml file describing groundtruth data.
+        dry_run (bool, optional): If True, the crop metadata will not be modified. Defaults to False.
+
+    Returns:
+        dict[str, list[str]]: summary dictionary with lists of crops that are already "valid",
+            "correctable"/"corrected" and "invalid" (i.e. not automatically correctable).
+    """
     datas = yaml.safe_load(data_config)
     summary: dict[str, list[str]] = {"valid": [], "invalid": []}
     if dry_run:
