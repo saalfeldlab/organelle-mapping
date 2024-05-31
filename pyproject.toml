@@ -23,6 +23,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
+  "daisy",
+  "funlib.persistence",
   "fibsem-tools>=6.0",
   "matplotlib",
   "funlib.learn.torch@git+ssh://git@github.com/funkelab/funlib.learn.torch.git",
@@ -32,6 +34,7 @@ dependencies = [
   "click",
   "xarray",
   "zarr",
+  "scikit-image",
   "xarray-multiscale",
   "cellmap-schemas",
   "pydantic-zarr",
@@ -49,6 +52,7 @@ Source = "https://github.com/saalfeldlab/fly-organelles"
 [project.scripts]
 data_prep = "fly_organelles.data_preparation:cli"
 train = "fly_organelles.run:main"
+inference = "fly_organelles.inference:cli"
 
 [tool.hatch.version]
 path = "src/fly_organelles/__about__.py"

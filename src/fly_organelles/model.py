@@ -1,6 +1,18 @@
 import funlib.learn.torch
 import torch
 
+def load_eval_model(num_labels, checkpoint_path):
+    model_backbone = StandardUnet(num_labels)
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+    checkpoint = torch.load(checkpoint_path)
+    model_backbone.load_state_dict(checkpoint["model_state_dict"])
+    model = torch.nn.Sequential(model_backbone, torch.nn.Sigmoid())
+    model.to(device)
+    model.eval()
+    return model
 
 class MaskedMultiLabelBCEwithLogits(torch.nn.BCEWithLogitsLoss):
     def __init__(self, pos_weight, spatial_dims=3):
