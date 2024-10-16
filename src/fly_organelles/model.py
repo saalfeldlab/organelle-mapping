@@ -7,7 +7,7 @@ def load_eval_model(num_labels, checkpoint_path):
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
-    checkpoint = torch.load(checkpoint_path)
+    checkpoint = torch.load(checkpoint_path, weights_only=True)
     model_backbone.load_state_dict(checkpoint["model_state_dict"])
     model = torch.nn.Sequential(model_backbone, torch.nn.Sigmoid())
     model.to(device)
