@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "daisy",
-  "funlib.persistence",
+  "funlib.persistence@git+ssh://git@github.com/funkelab/funlib.persistence.git@main",
   "fibsem-tools>=6.0",
   "matplotlib",
   "funlib.learn.torch@git+ssh://git@github.com/funkelab/funlib.learn.torch.git",
@@ -59,11 +59,9 @@ path = "src/fly_organelles/__about__.py"
 
 [tool.hatch.metadata]
 allow-direct-references = true
+source-layout = "src"
 
 [tool.hatch.envs.default]
-type = "conda"
-command = "mamba"
-conda-forge = true
 dependencies = []
 
 [tool.hatch.envs.default.env-vars]
@@ -84,9 +82,6 @@ python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
 
 
 [tool.hatch.envs.dev]
-type = "conda"
-command = "mamba"
-conda-forge = true
 detached = false
 dependencies = ["jupyter", "pytest", "coverage[toml]>=6.5"]
 skip-install = false
