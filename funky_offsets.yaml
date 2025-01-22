@@ -1,0 +1,72 @@
+datasets:
+  tissue/other/jrc_22ak351-leaf-3m:
+    raw: /nrs/cellmap/data/jrc_22ak351-leaf-3m/jrc_22ak351-leaf-3m.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop352 
+  tissue/other/jrc_22ak351-leaf-3r:
+    raw: /nrs/cellmap/data/jrc_22ak351-leaf-3r/jrc_22ak351-leaf-3r.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop361 
+  culture/jrc_cos7-1a:
+    raw: /nrs/cellmap/data/jrc_cos7-1a/jrc_cos7-1a.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop243 
+      - crop251 
+  culture/jrc_ctl-id8-1:
+    raw: /nrs/cellmap/data/jrc_ctl-id8-1/jrc_ctl-id8-1.zarr/recon-1/em/fibsem-uint16
+    crops:
+      - crop119 
+  culture/jrc_hela-2:
+    raw: /nrs/cellmap/data/jrc_hela-2/jrc_hela-2.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop23 
+  culture/jrc_hela-3:
+    raw: /nrs/cellmap/data/jrc_hela-3/jrc_hela-3.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop27 
+      - crop33 
+      - crop50 
+  culture/jrc_jurkat-1:
+    raw: /nrs/cellmap/data/jrc_jurkat-1/jrc_jurkat-1.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop182 
+  tissue/other/jrc_mus-heart-1:
+    raw: /nrs/cellmap/data/jrc_mus-heart-1/jrc_mus-heart-1.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop478 
+  tissue/other/jrc_mus-kidney-3:
+    raw: /nrs/cellmap/data/jrc_mus-kidney-3/jrc_mus-kidney-3.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop476 
+  tissue/other/jrc_mus-kidney:
+    raw: /nrs/cellmap/data/jrc_mus-kidney/jrc_mus-kidney.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop221 
+  tissue/other/jrc_mus-liver-3:
+    raw: /nrs/cellmap/data/jrc_mus-liver-3/jrc_mus-liver-3.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop475 
+  tissue/other/jrc_mus-liver-zon-1:
+    raw: /nrs/cellmap/data/jrc_mus-liver-zon-1/jrc_mus-liver-zon-1.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop271 
+      - crop293 
+      - crop294 
+      - crop295 
+      - crop339 
+      - crop344 
+      - crop414 
+      - crop415 
+  tissue/other/jrc_mus-liver-zon-2:
+    raw: /nrs/cellmap/data/jrc_mus-liver-zon-2/jrc_mus-liver-zon-2.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop359 
+      - crop362 
+      - crop363 
+      - crop364 
+      - crop365 
+  tissue/other/jrc_zf-cardiac-1:
+    raw: /nrs/cellmap/data/jrc_zf-cardiac-1/jrc_zf-cardiac-1.zarr/recon-1/em/fibsem-uint8
+    crops:
+      - crop378 
+gt_path: /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles_smooth/

@@ -37,7 +37,7 @@ datasets:
     - crop116
     - crop117
     - crop118
-    - crop119
+    # - crop119
     - crop130
     raw: /nrs/cellmap/data/jrc_ctl-id8-1/jrc_ctl-id8-1.zarr/recon-1/em/fibsem-uint16
   culture/jrc_hela-2:
@@ -58,7 +58,7 @@ datasets:
     - crop16
     - crop18
     - crop19
-    - crop23
+    # - crop23
     - crop28
     - crop54
     - crop55
@@ -77,10 +77,10 @@ datasets:
     - 0
     - 255
     crops:
-    - crop27
-    - crop33
+    # - crop27
+    # - crop33
     - crop34
-    - crop50
+    # - crop50
     - crop51
     - crop60
     - crop61
@@ -116,7 +116,8 @@ datasets:
     - crop93
     - crop107
     - crop112
-    - crop126,crop180,crop182
+    - crop126,crop180
+    #, crop182
     raw: /nrs/cellmap/data/jrc_jurkat-1/jrc_jurkat-1.zarr/recon-1/em/fibsem-uint8
   culture/jrc_macrophage-2:
     contrast:
@@ -147,7 +148,7 @@ datasets:
     - 134
     - 255
     crops:
-    - crop22
+    # - crop22
     - crop25
     - crop26
     - crop81
@@ -334,4 +335,4 @@ datasets:
     - crop227
     - crop225
     raw: /nrs/cellmap/data/jrc_ut21-1413-003/jrc_ut21-1413-003.zarr/recon-1/em/fibsem-uint8
-gt_path: /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles/
+gt_path: /nrs/saalfeld/heinrichl/data/cellmap_labels/fly_organelles_smooth/
