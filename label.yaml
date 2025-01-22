@@ -70,7 +70,7 @@ cyto:
   - cyto
 mt_in:
   - mt_in
-nuc:
+nuc: 
   - ne_mem
   - ne_lum
   - np_out
@@ -85,23 +85,23 @@ vim:
   - vim
 glyco:
   - glyco
-golgi:
+golgi: 
   - golgi_mem
   - golgi_lum
 
-ves:
+ves: 
   - ves_mem
   - ves_lum
 
-endo:
+endo: 
   - endo_mem
   - endo_lum
 
-lyso:
+lyso: 
   - lyso_mem
   - lyso_lum
 
-ld:
+ld: 
   - ld_mem
   - ld_lum
 rbc:
@@ -113,15 +113,16 @@ perox_mem:
   - perox_mem
 perox_lum:
   - perox_lum
-perox:
+
+perox: 
   - perox_mem
   - perox_lum
 
-mito:
+mito: 
   - mito_mem
   - mito_lum
   - mito_ribo
-er:
+er: 
   - er_mem
   - er_lum
   - eres_mem
@@ -130,7 +131,8 @@ er:
   - ne_lum
   - np_out
   - np_in
-ne:
+
+ne: 
   - ne_mem
   - ne_lum
   - np_out
@@ -146,9 +148,10 @@ chrom:
   - echrom
   - nechrom
 
-mt:
+mt: 
   - mt_out
   - mt_in
+
 isg_mem:
   - isg_mem
 isg_lum:

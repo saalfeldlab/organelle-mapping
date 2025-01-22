@@ -1,6 +1,7 @@
 import funlib.learn.torch
 import torch
 
+
 def load_eval_model(num_labels, checkpoint_path):
     model_backbone = StandardUnet(num_labels)
     if torch.cuda.is_available():
@@ -13,6 +14,7 @@ def load_eval_model(num_labels, checkpoint_path):
     model.to(device)
     model.eval()
     return model
+
 
 class MaskedMultiLabelBCEwithLogits(torch.nn.BCEWithLogitsLoss):
     def __init__(self, pos_weight, spatial_dims=3):
@@ -71,7 +73,9 @@ class StandardUnet(torch.nn.Module):
             constant_upsample=True,
         )
 
-        self.final_conv = torch.nn.Conv3d(num_fmaps, out_channels, (1, 1, 1), padding="valid")
+        self.final_conv = torch.nn.Conv3d(
+            num_fmaps, out_channels, (1, 1, 1), padding="valid"
+        )
 
     def forward(self, raw):
         x = self.unet_backbone(raw)
