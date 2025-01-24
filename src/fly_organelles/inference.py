@@ -38,6 +38,7 @@ def spawn_worker(
     mask_containers=list(),
     mask_datasets=list(),
     instance: bool = False,
+    time_limit: int = 2000
 ):
     def run_worker():
         mask_args = []
@@ -45,8 +46,6 @@ def spawn_worker(
             mask_args.extend(["-mc", mask_container, "-md", mask_dataset])
         process_cmd = [
             "inference",
-            "--log-level",
-            "DEBUG",
             "start-worker",
             "-ckpt",
             f"{checkpoint}",
@@ -83,7 +82,7 @@ def spawn_worker(
                     "-J",
                     "pred",
                     "-q",
-                    "gpu_rtx",
+                    "gpu_rtx8000",
                     "-n",
                     "2",
                     "-gpu",
@@ -91,7 +90,9 @@ def spawn_worker(
                     "-o",
                     "prediction_logs/out",
                     "-e",
-                    " prediction_logs/err",
+                    "prediction_logs/err",
+                    "-W",
+                    f"{time_limit}",
                     *process_cmd,
                 ]
             )
@@ -137,6 +138,7 @@ def spawn_worker(
     default=list(),
 )  # ignore
 @click.option("--instance", type=bool, default=False)  # this is for affinities
+@click.option("-tw", "--per-block-time-estimate", type=float, default=30, help="in seconds")
 def predict(
     checkpoint,
     num_outputs,
@@ -157,6 +159,7 @@ def predict(
     mask_container,
     mask_dataset,
     instance,
+    per_block_time_estimate
 ):
     if not local:
         assert billing is not None
@@ -185,7 +188,9 @@ def predict(
 
     total_write_roi = parsed_roi.snap_to_grid(raw.voxel_size)
     total_read_roi = total_write_roi.grow(context, context)
-
+    n_blocks = np.prod((total_write_roi/write_shape).shape)
+    time_per_worker = (per_block_time_estimate * n_blocks)/workers
+    time_limit = int(np.ceil(time_per_worker/60.))
     if not instance:
         for indexes, channel in parsed_channels:
             num_channels = None if "-" not in indexes else len(indexes.split("-"))
@@ -234,6 +239,7 @@ def predict(
             mask_container,
             mask_dataset,
             instance,
+            time_limit,
         ),
         check_function=None,
         read_write_conflict=False,
