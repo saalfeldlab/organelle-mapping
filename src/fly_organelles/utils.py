@@ -5,15 +5,28 @@ from typing import BinaryIO
 import gunpowder as gp
 import numpy as np
 import yaml
-
+from decimal import Decimal
 
 def corner_offset(center_off_arr, raw_res_arr, crop_res_arr):
-    return center_off_arr + raw_res_arr / 2.0 - crop_res_arr / 2.0
+    return center_off_arr + raw_res_arr / Decimal('2.0') - crop_res_arr / Decimal('2')
 
 
 def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
+    center_off_arr = np.array([Decimal(f"{co:.2f}") for co in center_off_arr])
+    raw_res_arr = np.array([Decimal(f"{rr:.2f}") for rr in raw_res_arr])
+    crop_res_arr = np.array([Decimal(f"{cr:.2f}") for cr in crop_res_arr])
     corner_off_arr = corner_offset(center_off_arr, raw_res_arr, crop_res_arr)
-    return np.all(corner_off_arr % raw_res_arr == 0) and np.all(corner_off_arr % crop_res_arr == 0)
+    # for co, rr, cr in zip(corner_off_arr, raw_res_arr, crop_res_arr):
+    #     if not np.isclose(float(Decimal(str(co)) % Decimal(str(rr))),0):
+    #         print(co, rr, co % rr)
+    #         return False
+    #     if not np.isclose(float(Decimal(str(co)) % Decimal(str(cr))),0):
+    #         print(co, cr, co % cr)
+    #         return False
+    # return True
+    if not (np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(corner_off_arr % crop_res_arr == Decimal(0))):
+        print(center_off_arr, raw_res_arr, crop_res_arr, corner_off_arr % raw_res_arr, corner_off_arr % crop_res_arr)
+    return np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(corner_off_arr % crop_res_arr == Decimal(0))
 
 
 def all_combinations(iterable):

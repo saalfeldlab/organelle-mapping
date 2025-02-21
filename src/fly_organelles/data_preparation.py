@@ -346,12 +346,12 @@ def _add_class_to_all_crops_func(label_config: BinaryIO, data_config: BinaryIO, 
 @click.argument("crop_path", type=str)
 @click.option("--orig_offset", type=float, nargs=3)
 @click.option("--new_offset", type=float, nargs=3)
-@click.option("-r", "--rounding", is_flag=True)
-def edit_offset(crop_path, orig_offset, new_offset, *, rounding: bool = False):
+@click.option("-r", "--rounding", type=int, default=-1)
+def edit_offset(crop_path, orig_offset, new_offset, *, rounding: int = -1):
     edit_offset_func(crop_path, orig_offset, new_offset, rounding=rounding)
 
 
-def edit_offset_func(crop_path, orig_offset, new_offset, *, rounding: bool = False):
+def edit_offset_func(crop_path, orig_offset, new_offset, *, rounding: int = -1):
     diff_offset = np.array(orig_offset) - np.array(new_offset)
     crop_root = fst.access(crop_path, mode="r+")
     for lbl in crop_root.keys():
@@ -362,8 +362,8 @@ def edit_offset_func(crop_path, orig_offset, new_offset, *, rounding: bool = Fal
                 if ms_attrs[0]["datasets"][ds]["coordinateTransformations"][k]["type"] == "translation":
                     transl = ms_attrs[0]["datasets"][ds]["coordinateTransformations"][k]["translation"]
                     set_offset = np.array(transl) - diff_offset
-                    if rounding:
-                        set_offset = np.round(set_offset)
+                    if rounding >= 0:
+                        set_offset = np.round(set_offset, rounding)
                     ms_attrs[0]["datasets"][ds]["coordinateTransformations"][k]["translation"] = list(set_offset)
         crop_label_root.attrs["multiscales"] = ms_attrs
 
