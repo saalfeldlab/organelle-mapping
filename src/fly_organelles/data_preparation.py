@@ -49,13 +49,13 @@ def filter_crops_for_sampling(datasets, sampling, labels):
     new_datasets = copy.deepcopy(datasets)
     for dataset, ds_info in datasets["datasets"].items():
         new_crops = []
-        for crop in ds_info["crops"]:
+        for crop in ds_info["labels"]["crops"]:
             myc = []
             for c in crop.split(","):
                 try:
                     for label in labels:
                         find_target_scale(
-                            fst.read(Path(datasets["gt_path"]) / dataset / "groundtruth.zarr" / c / label), sampling
+                            fst.read(Path(datasets["labels"]["data"]) /datasets["labels"]["group"] / c / label), sampling
                         )
                 except ValueError:
                     continue
@@ -63,7 +63,7 @@ def filter_crops_for_sampling(datasets, sampling, labels):
             if len(myc) > 0:
                 new_crops.append(",".join(myc))
         if len(new_crops) > 0:
-            new_datasets["datasets"][dataset]["crops"] = new_crops
+            new_datasets["datasets"][dataset]["labels"]["crops"] = new_crops
         else:
             del new_datasets["datasets"][dataset]
     return new_datasets
@@ -73,15 +73,15 @@ def filter_crops_for_percent_annotated(datasets, sampling, labels, threshold_per
     new_datasets = copy.deepcopy(datasets)
     for dataset, ds_info in datasets["datasets"].items():
         new_crops = []
-        for crop in ds_info["crops"]:
+        for crop in ds_info["labels"]["crops"]:
             myc = []
             for c in crop.split(","):
                 for label in labels:
                     scale, _, shape = find_target_scale(
-                        fst.read(Path(datasets["gt_path"]) / dataset / "groundtruth.zarr" / c / label), sampling
+                        fst.read(Path(datasets["labels"]["data"]) / datasets["labels"]["group"] / c / label), sampling
                     )
                     ann_attrs = fst.read(
-                        Path(datasets["gt_path"]) / dataset / "groundtruth.zarr" / c / label / scale
+                        Path(datasets["labels"]["data"]) / datasets["labels"]["group"]/ c / label / scale
                     ).attrs["cellmap"]["annotation"]
                     voxels = np.prod(shape)
                     if "unknown" in ann_attrs["complement_counts"]:
@@ -95,7 +95,7 @@ def filter_crops_for_percent_annotated(datasets, sampling, labels, threshold_per
             if len(myc) > 0:
                 new_crops.append(",".join(myc))
         if len(new_crops) > 0:
-            new_datasets["datasets"][dataset]["crops"] = new_crops
+            new_datasets["datasets"][dataset]["labels"]["crops"] = new_crops
         else:
             del new_datasets["datasets"][dataset]
     return new_datasets
@@ -294,9 +294,9 @@ def smooth_multiscale(data_config: BinaryIO):
         msg = "smoothing relies on large value for UNKNOWN"
         raise ValueError(msg)
     for key, ds_info in datas["datasets"].items():
-        for crops in ds_info["crops"]:
+        for crops in ds_info["labels"]["crops"]:
             for cropname in crops.split(","):
-                crop = fst.access(Path(datas["gt_path"]) / key / "groundtruth.zarr" / cropname, "r+")
+                crop = fst.access(Path(ds_info["labels"]["data"]) / ds_info["labels"]["group"] / cropname, "r+")
                 labels = crop.attrs["cellmap"]["annotation"]["class_names"]
                 for label in labels:
                     logger.info(f"Processing {cropname} for {label}")
@@ -337,8 +337,8 @@ def _add_class_to_all_crops_func(label_config: BinaryIO, data_config: BinaryIO, 
     classes = read_label_yaml(label_config)
     for key, ds_info in datas["datasets"].items():
         logger.info(f"Processing {key}")
-        for crop in ds_info["crops"]:
-            c = Crop(classes, f"{datas['gt_path']}{key}/groundtruth.zarr/{crop}")
+        for crop in ds_info["labels"]["crops"]:
+            c = Crop(classes, f"{ds_info['labels']['data']}/{ds_info['labels']['group']}/{crop}")
             c.add_new_class(new_label)
 
 
@@ -398,7 +398,7 @@ def fix_offset(data_config: BinaryIO, *, dry_run: bool = False):
         summary["corrected"] = []
     for key, ds_info in datas["datasets"].items():
         logger.info(f"Processing {key}")
-        root_raw = fst.read(ds_info["raw"])
+        root_raw = fst.read(Path(ds_info["em"]["data"]) / ds_info["em"]["group"])
         try:
             datasets = root_raw.attrs["multiscales"][0]["datasets"]
         except KeyError as e:
@@ -408,9 +408,9 @@ def fix_offset(data_config: BinaryIO, *, dry_run: bool = False):
             if ds["path"] == "s0":
                 raw_res = ds["coordinateTransformations"][0]["scale"]
         raw_res_arr = np.array(raw_res)
-        for crop in ds_info["crops"]:
-            logger.info(f"Processing {datas['gt_path']}{key}/groundtruth.zarr/{crop}")
-            crop_path = f"{datas['gt_path']}{key}/groundtruth.zarr/{crop}"
+        for crop in ds_info["labels"]["crops"]:
+            logger.info(f"Processing {ds_info['labels']['data']}/{ds_info['labels']['group']}/{crop}")
+            crop_path =  Path(ds_info['labels']['data']) /ds_info['labels']['group'] / crop
             crop_root = fst.read(crop_path)
             lbl = next(iter(crop_root.keys()))
             crop_datasets = crop_root[lbl].attrs["multiscales"][0]["datasets"]
