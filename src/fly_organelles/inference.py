@@ -165,7 +165,7 @@ def predict(
         assert billing is not None
     parsed_channels = [channel.split(":") for channel in channels.split(",")]
     assert os.path.exists(checkpoint)
-    raw = open_ds(in_container, in_dataset)
+    raw = open_ds(os.path.join(in_container, in_dataset))
 
     if roi is not None:
         parsed_start, parsed_end = zip(
@@ -176,7 +176,8 @@ def predict(
             daisy.Coordinate(parsed_end) - daisy.Coordinate(parsed_start),
         )
     else:
-        parsed_roi = raw.roi
+        parsed_roi = raw.roi * daisy.Coordinate(voxel_size)
+
 
     total_write_roi = raw.roi
     output_voxel_size = daisy.Coordinate(voxel_size)
@@ -193,29 +194,41 @@ def predict(
     time_limit = int(np.ceil(time_per_worker/60.))
     if not instance:
         for indexes, channel in parsed_channels:
-            num_channels = None if "-" not in indexes else len(indexes.split("-"))
+            if "-" not in indexes:
+                    shape = tuple((total_write_roi/output_voxel_size).shape)
+                    chunk_shape = tuple((write_roi/output_voxel_size).shape)
+                    axes = ["z", "y", "x"]
+            else:
+                    num_channels = len(range(int(indexes.split("-")[0]), int(indexes.split("-")[1])))
+                    shape = (num_channels,) + tuple((total_write_roi/output_voxel_size).shape)
+                    chunk_shape = (num_channels,) + tuple((write_roi/output_voxel_size).shape)
+                    axes = ["c^"] + ["z", "y", "x"]
             prepare_ds(
-                out_container,
-                f"{out_dataset}/{channel}",
-                total_roi=total_write_roi,
+                f"{out_container}/{out_dataset}/{channel}",
+                shape=shape,
+                # offset = total_write_roi.get_offset(),
                 voxel_size=output_voxel_size,
-                write_size=write_roi.shape,
+                axis_names = axes,
+                units = ["nm", "nm", "nm"],
+                chunk_shape= chunk_shape,
                 dtype=np.uint8,
-                num_channels=num_channels,
+                mode="w"
             )
     else:
+        raise NotImplementedError("Instance prediction not implemented yet")
         num_channels = num_outputs
         assert len(parsed_channels) == 1
         indexes, channel = parsed_channels[0]
         for i in range(0, num_channels, 3):
             prepare_ds(
-                out_container,
-                f"{out_dataset}/{channel}__{i}",
-                total_roi=total_write_roi,
+                f"{out_container}/{out_dataset}/{channel}__{i}",
+                shape=(num_channels, *(total_write_roi/output_voxel_size).shape),
+                offset = total_write_roi.get_offset(),
                 voxel_size=output_voxel_size,
-                write_size=write_roi.shape,
+                axis_names = ["c^", "z", "y", "x"],
+                units = ["nm", "nm", "nm"],
+                chunk_shape=(num_channels, *write_roi.shape),
                 dtype=np.float32,
-                num_channels=min(3, num_channels - i),
             )
 
     task = daisy.Task(
@@ -245,7 +258,7 @@ def predict(
         read_write_conflict=False,
         fit="overhang",
         num_workers=workers,
-        max_retries=2,
+        max_retries=0,
         timeout=None,
     )
 
@@ -305,7 +318,7 @@ def start_worker(
 
     model = load_eval_model(num_outputs, checkpoint)
     device = next(model.parameters()).device
-    raw_dataset = open_ds(in_container, in_dataset)
+    raw_dataset = open_ds(os.path.join(in_container, in_dataset))
     mask_datasets = [open_ds(mc, md) for mc, md in zip(mask_container, mask_dataset)]
 
     # voxel_size = raw_dataset.voxel_size
@@ -314,13 +327,13 @@ def start_worker(
     if not instance:
         out_datasets = [
             open_ds(
-                out_container,
-                f"{out_dataset}/{channel}",
+                f"{out_container}/{out_dataset}/{channel}",
                 mode="r+",
             )
             for _, channel in parsed_channels
         ]
     else:
+        raise NotImplementedError("Instance prediction not implemented yet")
         assert len(parsed_channels) == 1
         indexes, channel = parsed_channels[0]
         out_datasets = [
@@ -356,6 +369,7 @@ def start_worker(
                     / scale
                 ) - 1.0
             else:
+                raise NotImplementedError("Instance prediction not implemented yet")
                 raw_input = (
                     raw_dataset.to_ndarray(roi=block.read_roi, fill_value=shift + scale).astype(np.float32) - shift
                 ) / scale
@@ -369,8 +383,10 @@ def start_worker(
             with torch.no_grad():
                 predictions = Array(
                     model.forward(torch.from_numpy(raw_input).float().to(device)).detach().cpu().numpy()[0],
-                    block.write_roi,
+                    block.write_roi.offset,
                     output_voxel_size,
+                    axis_names = ["c^", "z", "y", "x"],
+                    
                 )
 
                 write_data = predictions.to_ndarray(write_roi).clip(0, 1)
