@@ -24,8 +24,6 @@ classifiers = [
 ]
 dependencies = [
   "daisy",
-  "funlib.persistence==0.4.0",
-  # "funlib.persistence@git+https://github.com/funkelab/funlib.persistence.git@main",
   "fibsem-tools>=6.0",
   "matplotlib",
   "funlib.learn.torch@git+https://github.com/funkelab/funlib.learn.torch.git",
@@ -33,7 +31,7 @@ dependencies = [
   "corditea@git+https://github.com/saalfeldlab/corditea.git",
   "torch",
   "click",
-  "xarray==2024.7.0",
+  "xarray==2023.12.0",
   "zarr",
   "scikit-image",
   "xarray-multiscale",

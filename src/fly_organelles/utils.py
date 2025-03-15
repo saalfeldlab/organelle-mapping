@@ -81,3 +81,36 @@ def find_target_scale(zarr_grp, target_resolution):
         msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array with sampling {target_resolution}"
         raise ValueError(msg)
     return target_scale, offsets[target_scale], shapes[target_scale]
+
+
+from gunpowder.nodes import BatchFilter
+
+class ShiftNorm(BatchFilter):
+    def __init__(self, array, min, max):
+        self.array = array
+        self.min = min
+        self.max = max
+
+    def process(self, batch, request):
+        if self.array not in batch.arrays:
+            return
+
+        raw = batch.arrays[self.array]
+        raw.data = raw.data.clip(self.min, self.max)-self.min
+        raw.data /= (self.max-self.min)
+        # print(f"new min: {raw.data.min()}, new max: {raw.data.max()}")
+
+
+class Binarize(BatchFilter):
+    def __init__(self, array):
+        self.array = array
+
+    def process(self, batch, request):
+        if self.array not in batch.arrays:
+            return
+
+        raw = batch.arrays[self.array]
+        data = raw.data
+        data[data > 0] = 1
+        data[data < 1] = 0
+        raw.data = data

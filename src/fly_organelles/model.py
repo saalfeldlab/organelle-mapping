@@ -14,6 +14,29 @@ def load_eval_model(num_labels, checkpoint_path):
     model.eval()
     return model
 
+
+class WeightedMSELoss(torch.nn.MSELoss):
+    def __init__(self, foreground_factor=2):
+        super(WeightedMSELoss, self).__init__()
+        self.foreground_factor = foreground_factor
+
+    def forward(self, output, target, mask):
+
+        weights = torch.ones_like(target)
+        weights[target > 0] = self.foreground_factor
+
+        scaled = (mask * weights * (output - target) ** 2)
+
+        if len(torch.nonzero(scaled)) != 0:
+
+            masked = torch.masked_select(scaled, torch.gt(mask, 0))
+            loss = torch.mean(masked)
+
+        else:
+            loss = torch.mean(scaled)
+
+        return loss
+    
 class MaskedMultiLabelBCEwithLogits(torch.nn.BCEWithLogitsLoss):
     def __init__(self, pos_weight, spatial_dims=3):
         pos_weight = torch.Tensor(pos_weight)[(...,) + (None,) * spatial_dims]

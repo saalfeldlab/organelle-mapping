@@ -10,7 +10,7 @@ import numpy as np
 
 def create_lv(path, volume_type="segmentation", array_name="raw"):
     z_arr = fst.read(os.path.join(path, array_name))
-    arr = dask.array.transpose(fst.io.zarr.to_dask(z_arr), (2, 3, 4, 1, 0))
+    arr = dask.array.transpose(fst.io.zarr.core.to_dask(z_arr), (2, 3, 4, 1, 0))
     if volume_type == "segmentation":
         arr = arr.astype("uint8")
 
@@ -57,7 +57,7 @@ def create_lv_stacked(snapshot_path, volume_type="segmentation", array_name="raw
     dask_arrs = []
     for snapshot in snapshots:
         z_arr = fst.read(os.path.join(snapshot_path, snapshot, array_name))
-        dask_arr = dask.array.transpose(fst.io.zarr.to_dask(z_arr), (2, 3, 4, 1, 0))
+        dask_arr = dask.array.transpose(fst.io.zarr.core.to_dask(z_arr), (2, 3, 4, 1, 0))
         if volume_type == "segmentation":
             dask_arr = dask_arr.astype("uint8")
         dask_arrs.append(dask_arr)
@@ -81,6 +81,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("snapshot_path", type=str)
     ap.add_argument("--add_time", action="store_true")
+
+    neuroglancer.set_server_bind_address("0.0.0.0")
     neuroglancer.cli.add_server_arguments(ap)
     args = ap.parse_args()
     neuroglancer.cli.handle_server_arguments(args)
