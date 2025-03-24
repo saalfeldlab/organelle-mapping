@@ -165,7 +165,7 @@ def predict(
         assert billing is not None
     parsed_channels = [channel.split(":") for channel in channels.split(",")]
     assert os.path.exists(checkpoint)
-    raw = open_ds(os.path.join(in_container, in_dataset))
+    raw = open_ds(os.path.join(in_container, in_dataset), voxel_size=voxel_size)
 
     if roi is not None:
         parsed_start, parsed_end = zip(
@@ -176,8 +176,7 @@ def predict(
             daisy.Coordinate(parsed_end) - daisy.Coordinate(parsed_start),
         )
     else:
-        parsed_roi = raw.roi * daisy.Coordinate(voxel_size)
-
+        parsed_roi = raw.roi #* daisy.Coordinate(voxel_size)
 
     total_write_roi = raw.roi
     output_voxel_size = daisy.Coordinate(voxel_size)
@@ -313,13 +312,13 @@ def start_worker(
     shift = min_raw
     scale = max_raw - min_raw
     parsed_channels = [channel.split(":") for channel in channels.split(",")]
-
+    
     client = daisy.Client()
 
     model = load_eval_model(num_outputs, checkpoint)
     device = next(model.parameters()).device
-    raw_dataset = open_ds(os.path.join(in_container, in_dataset))
-    mask_datasets = [open_ds(mc, md) for mc, md in zip(mask_container, mask_dataset)]
+    raw_dataset = open_ds(os.path.join(in_container, in_dataset), voxel_size=voxel_size)
+    mask_datasets = [open_ds(mc, md, voxel_size=voxel_size) for mc, md in zip(mask_container, mask_dataset)]
 
     # voxel_size = raw_dataset.voxel_size
     output_voxel_size = daisy.Coordinate(voxel_size)
@@ -329,6 +328,7 @@ def start_worker(
             open_ds(
                 f"{out_container}/{out_dataset}/{channel}",
                 mode="r+",
+                voxel_size=output_voxel_size
             )
             for _, channel in parsed_channels
         ]
@@ -386,9 +386,8 @@ def start_worker(
                     block.write_roi.offset,
                     output_voxel_size,
                     axis_names = ["c^", "z", "y", "x"],
-                    
                 )
-
+                
                 write_data = predictions.to_ndarray(write_roi).clip(0, 1)
                 if not instance:
                     write_data = (write_data ) * 255.0 #/ 2.0
