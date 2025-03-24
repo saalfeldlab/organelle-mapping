@@ -19,9 +19,11 @@ from cellmap_schemas.annotation import (
     SemanticSegmentation,
     wrap_attributes,
 )
-from fibsem_tools.io.multiscale import multiscale_group
-from pydantic_zarr import ArraySpec, GroupSpec
+from pydantic_zarr.v2 import ArraySpec, GroupSpec
 from xarray_multiscale import multiscale, windowed_mode
+
+#from fibsem_tools.io.multiscale import multiscale_group
+from xarray_ome_ngff import create_multiscale_group
 
 from fly_organelles.utils import (
     all_combinations,
@@ -195,6 +197,8 @@ class Crop:
 
     def get_annotated_classes(self) -> set[str]:
         return set(self.crop_root.attrs["cellmap"]["annotation"]["class_names"])
+    def get_annotation_type(self,  label: str, scale_level="s0") -> str:
+        return self.crop_root[label][scale_level].attrs["cellmap"]["annotation"]["annotation_type"]["type"]
 
     def get_array(self, label: str, scale_level="s0") -> np.ndarray:
         return np.array(self.crop_root[label][scale_level])
@@ -223,7 +227,7 @@ class Crop:
                 n_arr[np.logical_and.reduce([self.get_array(c) == ABSENT for c in missing.union(combo)])] = ABSENT
         return n_arr.astype(np.uint8)
 
-    def save_class(self, name: str, arr: np.ndarray):
+    def save_class(self, name: str, arr: np.ndarray, overwrite: bool = False):
         xarr = xr.DataArray(arr, coords=self.get_coords())
         multi = {m.name: m for m in multiscale(xarr, windowed_mode, (2, 2, 2), chunks=self.get_chunking())}
         label_array_specs = {}
@@ -238,38 +242,37 @@ class Crop:
                 histo["unknown"] = counts[list(ids).index(UNKNOWN)]
             if ABSENT in ids:
                 histo["absent"] = counts[list(ids).index(ABSENT)]
+            if PRESENT in ids:
+                histo["present"] = counts[list(ids).index(PRESENT)]
             # initialize array wise metadata
             annotation_array_attrs = AnnotationArrayAttrs(
                 class_name=name, complement_counts=histo, annotation_type=annotation_type
             )
-            label_array_specs[mslvl] = ArraySpec.from_array(
-                msarr,
-                chunks=self.get_chunking(),
-                compressor=compressor,
-                attrs=wrap_attributes(annotation_array_attrs).dict(),
-            )
+            label_array_specs[mslvl] = wrap_attributes(annotation_array_attrs).dict()
+            # label_array_specs[mslvl] = ArraySpec.from_array(
+            #     msarr,
+            #     chunks=self.get_chunking(),
+            #     compressor=compressor,
+            #     attributes=wrap_attributes(annotation_array_attrs).dict(),
+            # )
         # intialize group attributes for annotation
         annotation_group_attrs = AnnotationGroupAttrs(class_name=name, description="", annotation_type=annotation_type)
         # intialize group attributes for multiscale
-        ms_group = multiscale_group(
-            list(multi.values()),
-            metadata_types=("ome-ngff@0.4",),
-            array_paths=list(multi.keys()),
-            chunks=self.get_chunking(),
-            compressor=compressor,
-        )
-        # combine multiscale and annotation attributes
-        group_spec = GroupSpec(
-            attrs=wrap_attributes(annotation_group_attrs).dict() | ms_group.attrs, members=label_array_specs
-        )
+        ms_group = create_multiscale_group(
+             store = self.crop_root.store,
+             path = os.path.join(self.crop_root.path, name),
+             arrays = multi,
+             chunks=self.get_chunking(),
+             compressor=compressor,
+             overwrite=overwrite
+         )
+        ms_group.attrs.update(annotation_group_attrs.dict())
+        for mslvl, msarr in ms_group.items():
+            msarr.attrs.update(label_array_specs[mslvl])
 
-        # save metadata
-        store = zarr.NestedDirectoryStore(self.crop_path)
-        group_spec.to_zarr(store, path=name, overwrite=True)
 
         for mslvl, msarr in multi.items():
-            mszarr = zarr.Array(store, path=f"{name}/{mslvl}", write_empty_chunks=False)
-            mszarr[:] = msarr.to_numpy()
+            ms_group[mslvl][:] = msarr.data
 
         if name not in self.get_annotated_classes():
             atts = self.crop_root.attrs
@@ -284,6 +287,20 @@ class Crop:
             raise ValueError(msg)
         arr = self.create_new_class(atoms)
         self.save_class(name, arr)
+
+    def convert_to_semantic(self, label: Optional[str]=None):
+        if label is None:
+            for lbl in self.get_annotated_classes():
+                self.convert_to_semantic(lbl)
+        elif self.get_annotation_type(label) == "semantic_segmentation":
+            logger.info(f"Label {label} is already semantic segmentation")
+            return
+        else:
+            logger.info(f"Converting {label} to semantic segmentation")
+            arr = self.get_array(label).copy()
+            present_mask = np.logical_not(np.logical_or(arr == ABSENT, arr == UNKNOWN))
+            arr[present_mask] = PRESENT
+            self.save_class(label, arr, overwrite=True)
 
 
 @cli.command()
@@ -341,7 +358,29 @@ def _add_class_to_all_crops_func(label_config: BinaryIO, data_config: BinaryIO, 
             c = Crop(classes, f"{ds_info['labels']['data']}/{ds_info['labels']['group']}/{crop}")
             c.add_new_class(new_label)
 
+@cli.command()
+@click.argument("label-config", type=click.File("rb"))
+@click.argument("data-config", type=click.File("rb"))
+@click.argument("label", type=click.STRING, required=False, default=None)
+def convert_class_to_semantic(label_config: BinaryIO, data_config: BinaryIO, label: Optional[str] = None):
+    """Script to convert labels from instance to semantic segmentation.
 
+    Args:
+        label_config (BinaryIO): Yaml file with label definitions.
+        data_config (BinaryIO): Yaml file describing groundtruth data.
+        label (Optional[str], optional): Name of label to convert. Defaults to None, 
+            in which case all labels are converted.
+    """
+    _convert_class_to_semantic_func(label_config, data_config, label)
+def _convert_class_to_semantic_func(label_config: BinaryIO, data_config: BinaryIO, label: Optional[str] = None):
+    datas = yaml.safe_load(data_config)
+    classes = read_label_yaml(label_config)
+    for key, ds_info in datas["datasets"].items():
+        logger.info(f"Processing {key}")
+        for crop in ds_info["labels"]["crops"]:
+            logger.info(f"Processing {crop}")
+            c = Crop(classes, f"{ds_info['labels']['data']}/{ds_info['labels']['group']}/{crop}")
+            c.convert_to_semantic(label)
 @cli.command()
 @click.argument("crop_path", type=str)
 @click.option("--orig_offset", type=float, nargs=3)
