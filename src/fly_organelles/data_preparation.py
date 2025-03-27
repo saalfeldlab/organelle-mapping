@@ -42,11 +42,6 @@ def cli():
     pass
 
 
-UNKNOWN = 255
-PRESENT = 1
-ABSENT = 0
-
-
 def filter_crops_for_sampling(datasets, sampling, labels):
     new_datasets = copy.deepcopy(datasets)
     for dataset, ds_info in datasets["datasets"].items():
@@ -202,48 +197,54 @@ class Crop:
 
     def get_array(self, label: str, scale_level="s0") -> np.ndarray:
         return np.array(self.crop_root[label][scale_level])
+    def get_encoding(self, label: str) -> dict[str, int]:
+        return self.crop_root[label].attrs["cellmap"]["annotation"]["annotation_type"]["encoding"]
+    def get_scalelevels(self, label: str) -> list[str]:
+        return list(self.crop_root[label].keys())
 
     def create_new_class(self, atoms: set[str]):
-        n_arr = UNKNOWN * np.ones(self.get_shape(), dtype=np.uint8)
+        encoding = {"absent": 0, "unknown": 255, "present": 1}
+        n_arr = encoding["unknown"] * np.ones(self.get_shape(), dtype=np.uint8)
         subcombos = []
         for l in self.get_annotated_classes():
+            label_encoding = self.get_encoding(l)
             l_set = self.classes[l]
             if l_set == atoms:
                 msg = "combination is already an annotated class"
                 raise ValueError(msg)
             if l_set < atoms:
-                n_arr[self.get_array(l) == PRESENT] = PRESENT
+                n_arr[self.get_array(l) == label_encoding["present"]] = encoding["present"]
                 if len(l_set) > 1:
                     subcombos.append(l)
             elif atoms.isdisjoint(l_set):
-                n_arr[self.get_array(l) == PRESENT] = ABSENT
+                n_arr[self.get_array(l) == label_encoding["present"]] = encoding["absent"]
         if atoms <= self.get_annotated_classes():
-            n_arr[np.logical_and.reduce([self.get_array(a) == ABSENT for a in atoms])] = ABSENT
+            n_arr[np.logical_and.reduce([self.get_array(a) == self.get_encoding(a)["absent"] for a in atoms])] = encoding["absent"]
         for combo in all_combinations(subcombos):
-            if not np.any(n_arr == UNKNOWN):
+            if not np.any(n_arr == encoding["unknown"]):
                 break
             missing = atoms - set().union(*(self.classes[c] for c in combo))
             if missing <= self.get_annotated_classes():
-                n_arr[np.logical_and.reduce([self.get_array(c) == ABSENT for c in missing.union(combo)])] = ABSENT
-        return n_arr.astype(np.uint8)
+                n_arr[np.logical_and.reduce([self.get_array(c) == self.get_encoding(c)["absent"] for c in missing.union(combo)])] = encoding["absent"]
+        return n_arr.astype(np.uint8), encoding
 
-    def save_class(self, name: str, arr: np.ndarray, overwrite: bool = False):
+    def save_class(self, name: str, arr: np.ndarray, encoding: dict[str,int], overwrite: bool = False):
         xarr = xr.DataArray(arr, coords=self.get_coords())
         multi = {m.name: m for m in multiscale(xarr, windowed_mode, (2, 2, 2), chunks=self.get_chunking())}
         label_array_specs = {}
         # intialize some stuff for reuse
-        annotation_type = SemanticSegmentation(encoding={"absent": ABSENT, "present": PRESENT, "unknown": UNKNOWN})
+        annotation_type = SemanticSegmentation(encoding=encoding)
         compressor = numcodecs.Zstd(level=3)
         for mslvl, msarr in multi.items():
             # get complement counts for annotation metadata
             ids, counts = np.unique(msarr, return_counts=True)
             histo = {}
-            if UNKNOWN in ids:
-                histo["unknown"] = counts[list(ids).index(UNKNOWN)]
-            if ABSENT in ids:
-                histo["absent"] = counts[list(ids).index(ABSENT)]
-            if PRESENT in ids:
-                histo["present"] = counts[list(ids).index(PRESENT)]
+            if encoding["unknown"] in ids:
+                histo["unknown"] = counts[list(ids).index(encoding["unknown"])]
+            if encoding["absent"] in ids:
+                histo["absent"] = counts[list(ids).index(encoding["absent"])]
+            if encoding["present"] in ids:
+                histo["present"] = counts[list(ids).index(encoding["present"])]
             # initialize array wise metadata
             annotation_array_attrs = AnnotationArrayAttrs(
                 class_name=name, complement_counts=histo, annotation_type=annotation_type
@@ -285,8 +286,8 @@ class Crop:
         elif name in self.classes and self.classes[name] != atoms:
             msg = "A class with name {name} exists in the configured set of classes, but the atoms do not match."
             raise ValueError(msg)
-        arr = self.create_new_class(atoms)
-        self.save_class(name, arr)
+        arr, encoding = self.create_new_class(atoms)
+        self.save_class(name, arr, encoding)
 
     def convert_to_semantic(self, label: Optional[str]=None):
         if label is None:
@@ -298,9 +299,15 @@ class Crop:
         else:
             logger.info(f"Converting {label} to semantic segmentation")
             arr = self.get_array(label).copy()
-            present_mask = np.logical_not(np.logical_or(arr == ABSENT, arr == UNKNOWN))
-            arr[present_mask] = PRESENT
-            self.save_class(label, arr, overwrite=True)
+            label_encoding = self.get_encoding(label)
+            present_mask = np.logical_not(np.logical_or(arr == label_encoding["absent"], arr == label_encoding["unknown"]))
+            encoding = {"absent": 0, "unknown": 255, "present": 1}
+            arr[present_mask] = encoding["present"]
+            if encoding["unknown"] != label_encoding["unknown"]:
+                arr[arr == label_encoding["unknown"]] = encoding["unknown"]
+            if encoding["absent"] != label_encoding["absent"]:
+                arr[arr == label_encoding["absent"]] = encoding["absent"]
+            self.save_class(label, arr, encoding, overwrite=True)
 
 
 @cli.command()
