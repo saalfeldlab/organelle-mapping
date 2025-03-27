@@ -266,7 +266,7 @@ class Crop:
              compressor=compressor,
              overwrite=overwrite
          )
-        ms_group.attrs.update(annotation_group_attrs.dict())
+        ms_group.attrs.update(wrap_attributes(annotation_group_attrs).dict())
         for mslvl, msarr in ms_group.items():
             msarr.attrs.update(label_array_specs[mslvl])
 
