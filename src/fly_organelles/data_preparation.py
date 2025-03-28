@@ -404,7 +404,10 @@ def _add_class_to_all_crops_func(label_config: BinaryIO, data_config: BinaryIO, 
         logger.info(f"Processing {key}")
         for crop in ds_info["labels"]["crops"]:
             c = Crop(classes, f"{ds_info['labels']['data']}/{ds_info['labels']['group']}/{crop}")
-            c.add_new_class(new_label)
+            if new_label in c.get_annotated_classes():
+                logger.info(f"Label {new_label} already exists in {crop}")
+            else:
+                c.add_new_class(new_label)
 
 @cli.command()
 @click.argument("label-config", type=click.File("rb"))
