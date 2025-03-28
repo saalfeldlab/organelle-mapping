@@ -26,6 +26,8 @@ from xarray_multiscale import multiscale, windowed_mode
 from xarray_ome_ngff import create_multiscale_group
 
 from fly_organelles.utils import (
+    GeneralizedAnnotationArrayAttrs,
+    SmoothSemanticSegmentation,
     all_combinations,
     find_target_scale,
     read_label_yaml,
@@ -194,13 +196,19 @@ class Crop:
         return set(self.crop_root.attrs["cellmap"]["annotation"]["class_names"])
     def get_annotation_type(self,  label: str, scale_level="s0") -> str:
         return self.crop_root[label][scale_level].attrs["cellmap"]["annotation"]["annotation_type"]["type"]
-
+    def get_attributes(self, label: Optional[str] = None, scale_level: Optional[str] = "s0") -> dict():
+        attr_src = self.crop_root
+        if label is not None:
+            attr_src = attr_src[label]
+            if scale_level is not None:
+                attr_src = attr_src[scale_level]
+        return attr_src.attrs.dict()
     def get_array(self, label: str, scale_level="s0") -> np.ndarray:
         return np.array(self.crop_root[label][scale_level])
     def get_encoding(self, label: str) -> dict[str, int]:
         return self.crop_root[label].attrs["cellmap"]["annotation"]["annotation_type"]["encoding"]
     def get_scalelevels(self, label: str) -> list[str]:
-        return list(self.crop_root[label].keys())
+        return sorted(self.crop_root[label].keys(),key=lambda x: int(x[1:]))
 
     def create_new_class(self, atoms: set[str]):
         encoding = {"absent": 0, "unknown": 255, "present": 1}
@@ -308,39 +316,72 @@ class Crop:
             if encoding["absent"] != label_encoding["absent"]:
                 arr[arr == label_encoding["absent"]] = encoding["absent"]
             self.save_class(label, arr, encoding, overwrite=True)
+    def smooth_multiscale(self, label: Optional[str]=None):
+        if label is None:
+            for lbl in self.get_annotated_classes():
+                self.smooth_multiscale(lbl)
+        else:
+            logger.info(f"Generating smooth multiscale for {label}")
+            if self.get_annotation_type(label) != "semantic_segmentation":
+                msg = f"Label {label} is not semantic segmentation, convert to semantic segmentation first"
+                raise ValueError(msg)
+            encoding = self.get_encoding(label)
+            if encoding["unknown"] <= 8 * max(encoding["present"], encoding["absent"]):
+                msg = f"smoothing relies on large value for encoding unknown, found values {encoding} for {label} in {cropname}"
+                raise ValueError(msg)
+            full_scale = self.get_scalelevels()[0]
+            full_scale_arr = self.get_array(label, full_scale)
+            multi_valued = np.unique(full_scale_arr).size != 1
+            for l1, l2 in itertools.pairwise(self.get_scalelevels()):
+                src = self.get_array(label, l1)
+                down = skimage.transform.downscale_local_mean(src, 2).astype("float32")
+                downslice = tuple(slice(sh) for sh in (np.array(down.shape) // 2) * 2)
+                down = down[downslice]
+                down[down > max(encoding["present"], encoding["absent"])] = encoding["unknown"]
+                self.get_attributes(label, l2)
+                histo = {}
+                histo["absent"] = round(
+                    np.sum(encoding["present"] - down[down != encoding["unknown"]]), 2)
+                histo["unknown"] = np.sum(down == encoding["unknown"])
+                #histo["present"] = np.prod(down.shape) - histo["absent"] - histo["unknown"]
+                if multi_valued:
+                    annotation_type = SmoothSemanticSegmentation(
+                        encoding=encoding)
+                    annotation_array_attrs = GeneralizedAnnotationArrayAttrs(
+                        class_name=label,
+                        complement_counts=histo,
+                        annotation_type=annotation_type)
+                else:
+                    annotation_type = SemanticSegmentation(
+                        encoding=encoding
+                    )
+                    annotation_array_attrs = AnnotationArrayAttrs(
+                        class_name=label,
+                        complement_counts=histo,
+                        annotation_type=annotation_type)
+                    down = down.astype(src.dtype)
+                self.crop_root[label].create_dataset(
+                    l2, data=down, overwrite=True, dimension_separator="/", compressor=numcodecs.Zstd(level=3)
+                )
+                self.crop_root[label][l2].attrs.update(
+                    wrap_attributes(
+                        annotation_array_attrs).model_dump())
 
 
 @cli.command()
+@click.argument("label-config", type=click.File("rb"))
 @click.argument("data-config", type=click.File("rb"))
-def smooth_multiscale(data_config: BinaryIO):
+def smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO):
+    _smooth_multiscale(label_config, data_config)
+
+def _smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO):
     datas = yaml.safe_load(data_config)
-    if UNKNOWN <= 8 * max(PRESENT, ABSENT):
-        msg = "smoothing relies on large value for UNKNOWN"
-        raise ValueError(msg)
-    for key, ds_info in datas["datasets"].items():
+    classes = read_label_yaml(label_config)
+    for _, ds_info in datas["datasets"].items():
         for crops in ds_info["labels"]["crops"]:
             for cropname in crops.split(","):
-                crop = fst.access(Path(ds_info["labels"]["data"]) / ds_info["labels"]["group"] / cropname, "r+")
-                labels = crop.attrs["cellmap"]["annotation"]["class_names"]
-                for label in labels:
-                    logger.info(f"Processing {cropname} for {label}")
-                    for l1, l2 in itertools.pairwise(sorted(crop[label].keys(), key=lambda x: int(x[1:]))):
-                        src = crop[f"{label}/{l1}"][:]
-                        down = skimage.transform.downscale_local_mean(src, 2).astype("float32")
-                        downslice = tuple(slice(sh) for sh in (np.array(down.shape) // 2) * 2)
-                        down = down[downslice]
-                        down[down > max(PRESENT, ABSENT)] = UNKNOWN
-                        attrs = crop[f"{label}/{l2}"].attrs.asdict()
-                        crop[label].create_dataset(
-                            l2, data=down, overwrite=True, dimension_separator="/", compressor=numcodecs.Zstd(level=3)
-                        )
-                        attrs["cellmap"]["annotation"]["complement_counts"]["absent"] = round(
-                            np.sum(PRESENT - down[down != UNKNOWN]), 2
-                        )
-                        attrs["cellmap"]["annotation"]["complement_counts"]["unknown"] = np.sum(down == UNKNOWN)
-                        crop[label][l2].attrs["cellmap"] = attrs["cellmap"]
-
-
+                crop = Crop(classes, f"{ds_info['labels']['data']}/{ds_info['labels']['group']}/{cropname}")
+                crop.smooth_multiscale()
 @cli.command()
 @click.argument("label-config", type=click.File("rb"))
 @click.argument("data-config", type=click.File("rb"))
