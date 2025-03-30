@@ -377,9 +377,10 @@ def smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO):
 def _smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO):
     datas = yaml.safe_load(data_config)
     classes = read_label_yaml(label_config)
-    for _, ds_info in datas["datasets"].items():
+    for dataset, ds_info in datas["datasets"].items():
         for crops in ds_info["labels"]["crops"]:
             for cropname in crops.split(","):
+                logger.info(f"Generating smooth multiscale for {dataset}{cropname}")
                 crop = Crop(classes, f"{ds_info['labels']['data']}/{ds_info['labels']['group']}/{cropname}")
                 crop.smooth_multiscale()
 @cli.command()
