@@ -202,7 +202,7 @@ class Crop:
             attr_src = attr_src[label]
             if scale_level is not None:
                 attr_src = attr_src[scale_level]
-        return attr_src.attrs.dict()
+        return attr_src.attrs.asdict()
     def get_array(self, label: str, scale_level="s0") -> np.ndarray:
         return np.array(self.crop_root[label][scale_level])
     def get_encoding(self, label: str) -> dict[str, int]:
