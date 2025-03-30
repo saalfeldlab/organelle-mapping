@@ -329,22 +329,36 @@ class Crop:
             if encoding["unknown"] <= 8 * max(encoding["present"], encoding["absent"]):
                 msg = f"smoothing relies on large value for encoding unknown, found values {encoding} for {label} in {cropname}"
                 raise ValueError(msg)
-            full_scale = self.get_scalelevels()[0]
-            full_scale_arr = self.get_array(label, full_scale)
-            multi_valued = np.unique(full_scale_arr).size != 1
-            for l1, l2 in itertools.pairwise(self.get_scalelevels()):
-                src = self.get_array(label, l1)
-                down = skimage.transform.downscale_local_mean(src, 2).astype("float32")
-                downslice = tuple(slice(sh) for sh in (np.array(down.shape) // 2) * 2)
-                down = down[downslice]
-                down[down > max(encoding["present"], encoding["absent"])] = encoding["unknown"]
-                self.get_attributes(label, l2)
-                histo = {}
-                histo["absent"] = round(
-                    np.sum(encoding["present"] - down[down != encoding["unknown"]]), 2)
-                histo["unknown"] = np.sum(down == encoding["unknown"])
+            scalelevels = self.get_scalelevels(label)
+            # check if scales are already smoothed
+            try:
+                annotation_types = [self.get_annotation_type(label, sc) for sc in scalelevels]
+                done = [annotype == "smooth_semantic_segmentation" for annotype in annotation_types]
+                if any(done):
+                    start = done.index(True)
+                    if all(done[start:]):
+                        logger.info(f"All scales already smoothed for {label}")
+                        return
+            except KeyError:
+                pass
+            # check whether downsampling is trivial
+            full_scale = scalelevels[0]
+            full_scale_histo = self.get_attributes(label, full_scale)["cellmap"]["annotation"]["complement_counts"]
+            full_scale_nvals = np.prod(self.get_shape(full_scale))
+            full_scale_histo["present"] = full_scale_nvals - full_scale_histo.get("absent",0) - full_scale_histo.get("unknown", 0)            
+            multi_valued = full_scale_nvals not in full_scale_histo.values()
+            for l1, l2 in itertools.pairwise(self.get_scalelevels(label)):
                 #histo["present"] = np.prod(down.shape) - histo["absent"] - histo["unknown"]
                 if multi_valued:
+                    src = self.get_array(label, l1)
+                    down = skimage.transform.downscale_local_mean(src, 2).astype("float32")
+                    downslice = tuple(slice(sh) for sh in (np.array(down.shape) // 2) * 2)
+                    down = down[downslice]
+                    down[down > max(encoding["present"], encoding["absent"])] = encoding["unknown"]
+                    histo = {}
+                    histo["absent"] = round(
+                        np.sum(encoding["present"] - down[down != encoding["unknown"]]), 2)
+                    histo["unknown"] = np.sum(down == encoding["unknown"])
                     annotation_type = SmoothSemanticSegmentation(
                         encoding=encoding)
                     annotation_array_attrs = GeneralizedAnnotationArrayAttrs(
@@ -352,6 +366,11 @@ class Crop:
                         complement_counts=histo,
                         annotation_type=annotation_type)
                 else:
+                    down = self.get_array(label, l2)
+                    ids, counts = np.unique(down, return_counts=True)
+                    histo = {}
+                    for key in ["absent", "unknown"]:
+                        histo[key] = counts[list(ids).index(encoding[key])] if encoding[key] in ids else 0
                     annotation_type = SemanticSegmentation(
                         encoding=encoding
                     )
@@ -359,7 +378,6 @@ class Crop:
                         class_name=label,
                         complement_counts=histo,
                         annotation_type=annotation_type)
-                    down = down.astype(src.dtype)
                 self.crop_root[label].create_dataset(
                     l2, data=down, overwrite=True, dimension_separator="/", compressor=numcodecs.Zstd(level=3)
                 )
