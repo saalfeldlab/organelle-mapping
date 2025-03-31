@@ -6,6 +6,8 @@ import gunpowder as gp
 import numpy as np
 import yaml
 from decimal import Decimal
+from cellmap_schemas.annotation import SemanticSegmentation, AnnotationArrayAttrs, InstancePossibility, SemanticPossibility
+from typing import Literal
 
 def corner_offset(center_off_arr, raw_res_arr, crop_res_arr):
     return center_off_arr + raw_res_arr / Decimal('2.0') - crop_res_arr / Decimal('2')
@@ -94,3 +96,29 @@ def find_target_scale(zarr_grp, target_resolution):
         msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array with sampling {target_resolution}"
         raise ValueError(msg)
     return target_scale, offsets[target_scale], shapes[target_scale]
+
+class SmoothSemanticSegmentation(SemanticSegmentation):
+    """
+    Metadata for a semantic segmentation, i.e. a segmentation where unique
+    numerical values represent separate semantic classes.
+
+    Attributes
+    ----------
+
+    type: Literal["semantic_segmentation"]
+        Must be the string 'semantic_segmentation'.
+    encoding: dict[SemanticPossibility, int]
+        This dict represents the mapping from possibilities to numeric values. The keys
+        must be strings in the set `{'unknown', 'absent', 'present'}`, and the values
+        must be numeric values contained in the array described by this metadata.
+
+        For example, if an annotator produces an array where 0 represents `unknown` and
+        1 represents the presence of class X then `encoding` would take the value
+        `{'unknown': 0, 'present': 1}`
+
+    """
+
+    type: Literal["smooth_semantic_segmentation"] = "smooth_semantic_segmentation"
+
+class GeneralizedAnnotationArrayAttrs(AnnotationArrayAttrs):
+    complement_counts: dict[InstancePossibility, int] | dict[SemanticPossibility, int|float] | None
