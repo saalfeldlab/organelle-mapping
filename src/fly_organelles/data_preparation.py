@@ -55,7 +55,7 @@ def filter_crops_for_sampling(datasets, sampling, labels):
                 try:
                     for label in labels:
                         find_target_scale(
-                            fst.read(Path(datasets["labels"]["data"]) /datasets["labels"]["group"] / c / label), sampling
+                            fst.read(Path(ds_info["labels"]["data"]) /ds_info["labels"]["group"] / c / label), sampling
                         )
                 except ValueError:
                     continue
@@ -78,10 +78,10 @@ def filter_crops_for_percent_annotated(datasets, sampling, labels, threshold_per
             for c in crop.split(","):
                 for label in labels:
                     scale, _, shape = find_target_scale(
-                        fst.read(Path(datasets["labels"]["data"]) / datasets["labels"]["group"] / c / label), sampling
+                        fst.read(Path(ds_info["labels"]["data"]) / ds_info["labels"]["group"] / c / label), sampling
                     )
                     ann_attrs = fst.read(
-                        Path(datasets["labels"]["data"]) / datasets["labels"]["group"]/ c / label / scale
+                        Path(ds_info["labels"]["data"]) / ds_info["labels"]["group"]/ c / label / scale
                     ).attrs["cellmap"]["annotation"]
                     voxels = np.prod(shape)
                     if "unknown" in ann_attrs["complement_counts"]:
