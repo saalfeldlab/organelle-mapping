@@ -43,9 +43,9 @@ class MaskedMultiLabelBCEwithLogits(torch.nn.BCEWithLogitsLoss):
         self.loss_fn = super().__init__(reduction="none", pos_weight=pos_weight)
         self.spatial_dims = spatial_dims
 
-    def forward(self, output, target, mask):
-        bce = torch.sum(super().forward(output, target) * mask)
-        bce /= torch.sum(mask)
+    def forward(self, loss_output, loss_target, loss_mask):
+        bce = torch.sum(super().forward(loss_output, loss_target) * loss_mask)
+        bce /= torch.sum(loss_mask)
         return bce
 
 
