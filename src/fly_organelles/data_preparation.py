@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import BinaryIO, Optional
 
+from decimal import Decimal
 import click
 import fibsem_tools as fst
 import numcodecs
@@ -169,7 +170,52 @@ def verify_classes(classes: dict[str, set[str]]) -> tuple[bool, int]:
         return False, 5  # several labels with same atoms
     return True, 0
 
+@cli.command()
+@click.argument("data-config", type=click.File("rb"))
+def find_duplicates(data_config):
+    """Script to find duplicate crops in the given data configuration.
 
+    Args:
+        data_config (str): Yaml file describing groundtruth data.
+    """
+    _find_duplicates(data_config)
+
+def _find_duplicates(data_config):
+    datas = yaml.safe_load(data_config)
+    for key, ds_info in datas["datasets"].items():
+        # crop_to_offset = dict()
+        scales = dict()
+        sizes = dict()
+        offset_to_crops = dict()
+        for crop in ds_info["labels"]["crops"]:
+            for c in crop.split(","):
+                crop_path =  Path(ds_info['labels']['data']) /ds_info['labels']['group'] / c
+                crop_root = fst.read(crop_path)
+                example_class = crop_root.attrs["cellmap"]["annotation"]["class_names"][0]
+                crop_datasets = crop_root[example_class].attrs["multiscales"][0]["datasets"]
+                for cds in crop_datasets:
+                    if cds["path"] == "s0":
+                        crop_res = cds["coordinateTransformations"][0]["scale"]
+                        crop_res = tuple(Decimal(f"{cr:.2f}") for cr in crop_res)
+                        scales[c] = crop_res
+                        size = crop_root[example_class]["s0"].shape
+                        sizes[c] = size
+                        crop_off = cds["coordinateTransformations"][1]["translation"]
+                        crop_off = tuple(Decimal(f"{co:.2f}") for co in crop_off)
+                        # crop_to_offset[c] = crop_off
+                        offset_to_crops.setdefault(crop_off, []).append(c)
+        duplicates = {k: v for k,v in offset_to_crops.items() if len(v) > 1}
+        if duplicates:
+            logger.info(f"Duplicates found in {key}: {duplicates}")
+            for crops in duplicates.values():
+                duplicate_scales = [scales[crop] for crop in crops]
+                if len(set(duplicate_scales)) > 1:
+                    logger.info(f"Different scales for duplicate crops {crops}: {duplicate_scales}")
+                duplicate_sizes = [sizes[crop] for crop in crops]
+                if len(set(duplicate_sizes)) > 1:
+                    logger.info(f"Different sizes for duplicate crops {crops}: {duplicate_sizes}")
+        else:
+            logger.info(f"No duplicates found in {key}")
 class Crop:
     def __init__(self, classes: dict[str, set[str]], crop_path):
         if not verify_classes(classes)[0]:
