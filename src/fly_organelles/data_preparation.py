@@ -316,6 +316,7 @@ class Crop:
         ms_group = create_multiscale_group(
              store = self.crop_root.store,
              path = os.path.join(self.crop_root.path, name),
+             transform_precision=2,
              arrays = multi,
              chunks=self.get_chunking(),
              compressor=compressor,
