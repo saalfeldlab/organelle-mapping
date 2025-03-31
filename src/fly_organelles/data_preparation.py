@@ -469,11 +469,12 @@ def _add_class_to_all_crops_func(label_config: BinaryIO, data_config: BinaryIO, 
     for key, ds_info in datas["datasets"].items():
         logger.info(f"Processing {key}")
         for crop in ds_info["labels"]["crops"]:
-            c = Crop(classes, f"{ds_info['labels']['data']}/{ds_info['labels']['group']}/{crop}")
-            if new_label in c.get_annotated_classes():
-                logger.info(f"Label {new_label} already exists in {crop}")
-            else:
-                c.add_new_class(new_label)
+            for cropname in crop.split(","):
+                c = Crop(classes, f"{ds_info['labels']['data']}/{ds_info['labels']['group']}/{cropname}")
+                if new_label in c.get_annotated_classes():
+                    logger.info(f"Label {new_label} already exists in {cropname}")
+                else:
+                    c.add_new_class(new_label)
 
 @cli.command()
 @click.argument("label-config", type=click.File("rb"))
@@ -495,9 +496,10 @@ def _convert_class_to_semantic_func(label_config: BinaryIO, data_config: BinaryI
     for key, ds_info in datas["datasets"].items():
         logger.info(f"Processing {key}")
         for crop in ds_info["labels"]["crops"]:
-            logger.info(f"Processing {crop}")
-            c = Crop(classes, f"{ds_info['labels']['data']}/{ds_info['labels']['group']}/{crop}")
-            c.convert_to_semantic(label)
+            for cropname in crop.split(","):
+                logger.info(f"Processing {cropname}")
+                c = Crop(classes, f"{ds_info['labels']['data']}/{ds_info['labels']['group']}/{cropname}")
+                c.convert_to_semantic(label)
 @cli.command()
 @click.argument("crop_path", type=str)
 @click.option("--orig_offset", type=float, nargs=3)
@@ -565,43 +567,44 @@ def fix_offset(data_config: BinaryIO, *, dry_run: bool = False):
                 raw_res = ds["coordinateTransformations"][0]["scale"]
         raw_res_arr = np.array(raw_res)
         for crop in ds_info["labels"]["crops"]:
-            logger.info(f"Processing {ds_info['labels']['data']}/{ds_info['labels']['group']}/{crop}")
-            crop_path =  Path(ds_info['labels']['data']) /ds_info['labels']['group'] / crop
-            crop_root = fst.read(crop_path)
-            lbl = next(iter(crop_root.keys()))
-            crop_datasets = crop_root[lbl].attrs["multiscales"][0]["datasets"]
-            for cds in crop_datasets:
-                if cds["path"] == "s0":
-                    crop_res = cds["coordinateTransformations"][0]["scale"]
-                    crop_res_arr = np.array(crop_res)
-                    crop_off = cds["coordinateTransformations"][1]["translation"]
-                    crop_off_arr = np.array(crop_off)
+            for cropname in crop.split(","):
+                logger.info(f"Processing {ds_info['labels']['data']}/{ds_info['labels']['group']}/{cropname}")
+                crop_path =  Path(ds_info['labels']['data']) /ds_info['labels']['group'] / cropname
+                crop_root = fst.read(crop_path)
+                lbl = next(iter(crop_root.keys()))
+                crop_datasets = crop_root[lbl].attrs["multiscales"][0]["datasets"]
+                for cds in crop_datasets:
+                    if cds["path"] == "s0":
+                        crop_res = cds["coordinateTransformations"][0]["scale"]
+                        crop_res_arr = np.array(crop_res)
+                        crop_off = cds["coordinateTransformations"][1]["translation"]
+                        crop_off_arr = np.array(crop_off)
 
-                    if valid_offset(crop_off_arr, raw_res_arr, crop_res_arr):
-                        logger.info(
-                            f"Crop {crop} passed with raw resolution: "
-                            f"{raw_res}, crop resolution {crop_res} and crop offset {crop_off}"
-                        )
-                        summary["valid"].append(crop)
-                    else:
-                        logger.info(
-                            f"Crop {crop} did not pass with raw resolution: "
-                            f"{raw_res}, crop resolution {crop_res} and crop offset {crop_off}"
-                        )
-                        if np.all(crop_res < raw_res):
-                            crop_off_arr_suggested = crop_off_arr - crop_res_arr / 2.0
-
+                        if valid_offset(crop_off_arr, raw_res_arr, crop_res_arr):
+                            logger.info(
+                                f"Crop {cropname} passed with raw resolution: "
+                                f"{raw_res}, crop resolution {crop_res} and crop offset {crop_off}"
+                            )
+                            summary["valid"].append(cropname)
                         else:
-                            crop_off_arr_suggested = crop_off_arr + crop_res_arr / 2.0 - raw_res_arr / 2.0
-                        if valid_offset(crop_off_arr_suggested, raw_res_arr, crop_res_arr):
-                            logger.info(f" Crop {crop} can be automatically corrected with {crop_off_arr_suggested}.")
-                            if not dry_run:
-                                edit_offset_func(crop_path, crop_off, list(crop_off_arr_suggested))
-                                summary["corrected"].append(crop)
+                            logger.info(
+                                f"Crop {cropname} did not pass with raw resolution: "
+                                f"{raw_res}, crop resolution {crop_res} and crop offset {crop_off}"
+                            )
+                            if np.all(crop_res < raw_res):
+                                crop_off_arr_suggested = crop_off_arr - crop_res_arr / 2.0
+
                             else:
-                                summary["correctable"].append(crop)
-                        else:
-                            summary["invalid"].append(crop)
-                            logger.info(f"Crop {crop} cannot be automatically corrected.")
+                                crop_off_arr_suggested = crop_off_arr + crop_res_arr / 2.0 - raw_res_arr / 2.0
+                            if valid_offset(crop_off_arr_suggested, raw_res_arr, crop_res_arr):
+                                logger.info(f" Crop {cropname} can be automatically corrected with {crop_off_arr_suggested}.")
+                                if not dry_run:
+                                    edit_offset_func(crop_path, crop_off, list(crop_off_arr_suggested))
+                                    summary["corrected"].append(cropname)
+                                else:
+                                    summary["correctable"].append(cropname)
+                            else:
+                                summary["invalid"].append(cropname)
+                                logger.info(f"Crop {cropname} cannot be automatically corrected.")
     click.echo(summary)
     return summary
