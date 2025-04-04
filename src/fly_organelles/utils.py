@@ -1,10 +1,23 @@
 import itertools
 import os
 from decimal import Decimal
+from statistics import mode
+from typing import BinaryIO, Literal, Optional
 
 import gunpowder as gp
 import numpy as np
 import yaml
+import zarr
+from cellmap_schemas.annotation import (
+    AnnotationArrayAttrs,
+    InstancePossibility,
+    SemanticPossibility,
+    SemanticSegmentation,
+)
+from pydantic_ome_ngff.v04.axis import Axis
+from pydantic_ome_ngff.v04.multiscale import Dataset, MultiscaleMetadata, MultiscaleGroupAttrs
+from pydantic_ome_ngff.v04.transform import VectorScale, VectorTranslation
+
 
 def decimal_arr(arr, precision: int = 2):
     return np.array([Decimal(f"{a:.{precision}f}") for a in arr])
@@ -219,6 +232,72 @@ class GeneralizedAnnotationArrayAttrs(AnnotationArrayAttrs):
     )
 
 
+def generate_standard_multiscale(
+    dataset_paths, axes, base_resolution, base_offset, factors, name="nominal"
+):
+    axes_order = [ax.name for ax in axes]
+    scale = np.array(ax_dict_to_list(base_resolution, axes_order))
+    offset = np.array(ax_dict_to_list(base_offset, axes_order))
+    transforms = [
+        (VectorScale(scale=tuple(scale)), VectorTranslation(translation=tuple(offset)))
+    ]
+    for f in factors:
+        factor = np.array(ax_dict_to_list(f, axes_order))
+        offset = offset + (factor - np.ones_like(factor)) * scale / 2.0
+        scale = scale * factor
+        transforms.append(
+            (
+                VectorScale(scale=tuple(scale)),
+                VectorTranslation(translation=tuple(offset)),
+            )
+        )
+    datasets = tuple(
+        Dataset(path=dataset_path, coordinateTransformations=transform)
+        for dataset_path, transform in zip(dataset_paths, transforms)
+    )
+    # axes = tuple(Axis(name=ax, type="space", unit="nanometer") for ax in ("z", "y", "x"))
+    return MultiscaleMetadata(name=name, axes=axes, type=None, datasets=datasets)
+
+
+def get_axes_object(zarr_grp):
+    msattrs = MultiscaleGroupAttrs(multiscales=zarr_grp.attrs["multiscales"])
+    return msattrs.multiscales[0].axes
+
+
+def infer_nominal_transform(
+    scale: dict[str, float], offset: dict[str, float]
+) -> tuple[dict[str, int], dict[str, int]]:
+    if offset.keys() != scale.keys():
+        msg = (
+            f"Keys of offset {offset.keys()} do not match keys of scale {scale.keys()}."
+        )
+    if len(set(scale.values())) == len(scale.values()):
+        msg = "Scales along all axes are unique, cannot infer nominal transform."
+        raise ValueError(msg)
+    # get dominant scale, i.e. the one that's represented more than once with np unique
+    nominal_scale_val = mode(scale.values())
+    if int(nominal_scale_val) != nominal_scale_val:
+        msg = f"Dominant scale {nominal_scale_val} is not an integer, cannot infer nominal transform."
+        raise ValueError(msg)
+    nominal_scale_val = int(nominal_scale_val)
+    nominal_scale = dict.fromkeys(scale.keys(), nominal_scale_val)
+    nominal_offset = {}
+    for ax, off in offset.items():
+        pix_off = off / scale[ax]
+        #assert np.isclose(int(pix_off * 2), pix_off * 2, 1e-4), f"{pix_off}"
+        nominal_offset[ax] = int(pix_off * nominal_scale_val)
+    return nominal_scale, nominal_offset
+
 
 def ax_dict_to_list(ax_dict, axes_order):
     return [ax_dict[ax] for ax in axes_order]
+
+def get_downsampling_factors(samplings):
+    sorted_keys = sorted(samplings.keys(), key=lambda x: min(samplings[x].values()))
+    factors = []
+    for sc1, sc2 in itertools.pairwise(sorted_keys):
+        factor = {}
+        for ax in samplings[sc1].keys():
+            factor[ax] = samplings[sc2][ax] / samplings[sc1][ax]
+        factors.append(factor)
+    return factors
