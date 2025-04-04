@@ -15,7 +15,11 @@ from cellmap_schemas.annotation import (
     SemanticSegmentation,
 )
 from pydantic_ome_ngff.v04.axis import Axis
-from pydantic_ome_ngff.v04.multiscale import Dataset, MultiscaleMetadata, MultiscaleGroupAttrs
+from pydantic_ome_ngff.v04.multiscale import (
+    Dataset,
+    MultiscaleGroupAttrs,
+    MultiscaleMetadata,
+)
 from pydantic_ome_ngff.v04.transform import VectorScale, VectorTranslation
 
 
@@ -80,7 +84,9 @@ def read_data_yaml(yaml_file: BinaryIO):
         for crop in ds_info["crops"]:
             copies = crop.split(",")
             for c in copies:
-                label_stores.append(os.path.join(datasets["gt_path"], dataset, "groundtruth.zarr", c))
+                label_stores.append(
+                    os.path.join(datasets["gt_path"], dataset, "groundtruth.zarr", c)
+                )
                 raw_stores.append(ds_info["raw"])
                 crop_copies.append(len(copies))
     return label_stores, raw_stores, crop_copies
@@ -284,13 +290,14 @@ def infer_nominal_transform(
     nominal_offset = {}
     for ax, off in offset.items():
         pix_off = off / scale[ax]
-        #assert np.isclose(int(pix_off * 2), pix_off * 2, 1e-4), f"{pix_off}"
+        # assert np.isclose(int(pix_off * 2), pix_off * 2, 1e-4), f"{pix_off}"
         nominal_offset[ax] = int(pix_off * nominal_scale_val)
     return nominal_scale, nominal_offset
 
 
 def ax_dict_to_list(ax_dict, axes_order):
     return [ax_dict[ax] for ax in axes_order]
+
 
 def get_downsampling_factors(samplings):
     sorted_keys = sorted(samplings.keys(), key=lambda x: min(samplings[x].values()))
