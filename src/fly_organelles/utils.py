@@ -212,7 +212,13 @@ class SmoothSemanticSegmentation(SemanticSegmentation):
 
     type: Literal["smooth_semantic_segmentation"] = "smooth_semantic_segmentation"
 
+
 class GeneralizedAnnotationArrayAttrs(AnnotationArrayAttrs):
+    complement_counts: (
+        dict[InstancePossibility, int] | dict[SemanticPossibility, int | float] | None
+    )
+
+
 
 def ax_dict_to_list(ax_dict, axes_order):
     return [ax_dict[ax] for ax in axes_order]
