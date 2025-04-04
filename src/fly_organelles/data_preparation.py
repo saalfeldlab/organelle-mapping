@@ -771,3 +771,77 @@ def fix_offset(data_config: BinaryIO, *, dry_run: bool = False):
                                 )
     click.echo(summary)
     return summary
+
+def prepend_multiscale(zarr_grp, multiscale):
+    zarr_grp.attrs["multiscales"].insert(0, multiscale)
+    zarr_grp.attrs.update(zarr_grp.attrs)
+
+def change_multiscale_name(zarr_grp, name):
+    if len(zarr_grp.attrs["multiscales"]) > 1:
+        msg = f"Multiscales attribute in {zarr_grp.name} already contains several entries. Selection is not implemented for renaming."
+        raise NotImplementedError(msg)
+    zarr_grp.attrs["multiscales"][0]["name"] = name
+    zarr_grp.attrs.update(zarr_grp.attrs)
+
+@cli.command()
+@click.argument("data-config", type=click.File("rb"))
+def add_nominal_multiscale_attr(data_config: BinaryIO):
+    """Estimate and add nominal scaling to multiscale attributes.
+
+    Args:
+        data_config (BinaryIO): Yaml file describing data.
+    """
+    _add_nominal_multiscale_attr(data_config)
+
+def _add_nominal_multiscale_attr(data_config: BinaryIO):
+    datas = yaml.safe_load(data_config)
+    for key, ds_info in datas["datasets"].items():
+        logger.info(f"Processing {key}")
+        # check raw data to see if it is isotropic
+        raw_zarr_grp = zarr.open(Path(ds_info["em"]["data"]) / ds_info["em"]["group"], "r+")
+        offsets, samplings, _ = utils.get_scale_info(raw_zarr_grp)
+        sampling = next(iter(samplings.values()))
+        isotropic = len(set(sampling.values())) == 1
+        if isotropic:
+            change_multiscale_name(raw_zarr_grp, "nominal")
+        else:
+            change_multiscale_name(raw_zarr_grp, "estimated")
+            axes = utils.get_axes_object(raw_zarr_grp)
+            dataset_paths = sorted(samplings.keys(), key=lambda x: min(samplings[x].values()))
+            nominal_scale, nominal_offset = utils.infer_nominal_transform(samplings[dataset_paths[0]], offsets[dataset_paths[0]])
+            factors = utils.get_downsampling_factors(samplings)
+            ms_nominal = utils.generate_standard_multiscale(dataset_paths=dataset_paths, axes=axes, base_resolution=nominal_scale, base_offset=nominal_offset, factors=factors)
+            prepend_multiscale(raw_zarr_grp, ms_nominal.model_dump())
+        for crop in ds_info["labels"]["crops"]:
+            for cropname in crop.split(","):
+                logger.info(f"Processing {cropname}")
+                crop_grp = zarr.open(
+                    Path(ds_info["labels"]["data"])
+                    / ds_info["labels"]["group"]
+                    / cropname,
+                    "r+",
+                )
+                annotated_classes = set(crop_grp.attrs["cellmap"]["annotation"]["class_names"])
+                for class_name in sorted(annotated_classes):
+                    if isotropic:
+                        change_multiscale_name(crop_grp[class_name], "nominal")
+                    else:
+                        change_multiscale_name(crop_grp[class_name], "estimated")
+                        axes = utils.get_axes_object(crop_grp[class_name])
+                        offsets, samplings, _ = utils.get_scale_info(
+                            crop_grp[class_name]
+                        )
+                        dataset_paths = sorted(
+                            samplings.keys(),
+                            key=lambda x: min(samplings[x].values())
+                        )
+                        nominal_scale, nominal_offset = utils.infer_nominal_transform(samplings[dataset_paths[0]], offsets[dataset_paths[0]])
+                        factors = utils.get_downsampling_factors(samplings)
+                        ms_nominal = utils.generate_standard_multiscale(
+                            dataset_paths=dataset_paths,
+                            axes=axes,
+                            base_resolution=nominal_scale,
+                            base_offset=nominal_offset,
+                            factors=factors
+                        )
+                        prepend_multiscale(crop_grp[class_name], ms_nominal.model_dump())
