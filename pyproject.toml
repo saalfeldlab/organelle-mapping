@@ -42,6 +42,7 @@ dependencies = [
   "neuroglancer",
   "dask",
   "tensorboardX",
+  "xarray-ome-ngff"
 ]
 
 [project.urls]
