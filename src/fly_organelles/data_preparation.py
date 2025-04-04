@@ -25,15 +25,8 @@ from xarray_multiscale import multiscale, windowed_mode
 
 # from fibsem_tools.io.multiscale import multiscale_group
 from xarray_ome_ngff import create_multiscale_group
+import fly_organelles.utils as utils
 
-from fly_organelles.utils import (
-    GeneralizedAnnotationArrayAttrs,
-    SmoothSemanticSegmentation,
-    all_combinations,
-    find_target_scale,
-    read_label_yaml,
-    valid_offset,
-)
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -54,7 +47,7 @@ def filter_crops_for_sampling(datasets, sampling, labels):
             for c in crop.split(","):
                 try:
                     for label in labels:
-                        find_target_scale(
+                        utils.find_target_scale(
                             fst.read(
                                 Path(ds_info["labels"]["data"])
                                 / ds_info["labels"]["group"]
@@ -85,7 +78,7 @@ def filter_crops_for_percent_annotated(
             myc = []
             for c in crop.split(","):
                 for label in labels:
-                    scale, _, shape = find_target_scale(
+                    scale, _, shape = utils.find_target_scale(
                         fst.read(
                             Path(ds_info["labels"]["data"])
                             / ds_info["labels"]["group"]
@@ -332,7 +325,7 @@ class Crop:
                     [self.get_array(a) == self.get_encoding(a)["absent"] for a in atoms]
                 )
             ] = encoding["absent"]
-        for combo in all_combinations(subcombos):
+        for combo in utils.all_combinations(subcombos):
             if not np.any(n_arr == encoding["unknown"]):
                 break
             missing = atoms - set().union(*(self.classes[c] for c in combo))
@@ -460,7 +453,7 @@ class Crop:
                 raise ValueError(msg)
             encoding = self.get_encoding(label)
             if encoding["unknown"] <= 8 * max(encoding["present"], encoding["absent"]):
-                msg = f"smoothing relies on large value for encoding unknown, found values {encoding} for {label} in {cropname}"
+                msg = f"smoothing relies on large value for encoding unknown, found values {encoding} for {label} in {self.crop_path}"
                 raise ValueError(msg)
             scalelevels = self.get_scalelevels(label)
             # check if scales are already smoothed
@@ -511,8 +504,8 @@ class Crop:
                         2,
                     )
                     histo["unknown"] = np.sum(down == encoding["unknown"])
-                    annotation_type = SmoothSemanticSegmentation(encoding=encoding)
-                    annotation_array_attrs = GeneralizedAnnotationArrayAttrs(
+                    annotation_type = utils.SmoothSemanticSegmentation(encoding=encoding)
+                    annotation_array_attrs = utils.GeneralizedAnnotationArrayAttrs(
                         class_name=label,
                         complement_counts=histo,
                         annotation_type=annotation_type,
@@ -554,7 +547,7 @@ def smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO):
 
 def _smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO):
     datas = yaml.safe_load(data_config)
-    classes = read_label_yaml(label_config)
+    classes = utils.read_label_yaml(label_config)
     for dataset, ds_info in datas["datasets"].items():
         for crops in ds_info["labels"]["crops"]:
             for cropname in crops.split(","):
@@ -587,7 +580,7 @@ def _add_class_to_all_crops_func(
     label_config: BinaryIO, data_config: BinaryIO, new_label: str
 ):
     datas = yaml.safe_load(data_config)
-    classes = read_label_yaml(label_config)
+    classes = utils.read_label_yaml(label_config)
     for key, ds_info in datas["datasets"].items():
         logger.info(f"Processing {key}")
         for crop in ds_info["labels"]["crops"]:
@@ -624,7 +617,7 @@ def _convert_class_to_semantic_func(
     label_config: BinaryIO, data_config: BinaryIO, label: Optional[str] = None
 ):
     datas = yaml.safe_load(data_config)
-    classes = read_label_yaml(label_config)
+    classes = utils.read_label_yaml(label_config)
     for key, ds_info in datas["datasets"].items():
         logger.info(f"Processing {key}")
         for crop in ds_info["labels"]["crops"]:
@@ -734,7 +727,7 @@ def fix_offset(data_config: BinaryIO, *, dry_run: bool = False):
                         crop_off = cds["coordinateTransformations"][1]["translation"]
                         crop_off_arr = np.array(crop_off)
 
-                        if valid_offset(crop_off_arr, raw_res_arr, crop_res_arr):
+                        if utils.valid_offset(crop_off_arr, raw_res_arr, crop_res_arr):
                             logger.info(
                                 f"Crop {cropname} passed with raw resolution: "
                                 f"{raw_res}, crop resolution {crop_res} and crop offset {crop_off}"
@@ -756,7 +749,7 @@ def fix_offset(data_config: BinaryIO, *, dry_run: bool = False):
                                     + crop_res_arr / 2.0
                                     - raw_res_arr / 2.0
                                 )
-                            if valid_offset(
+                            if utils.valid_offset(
                                 crop_off_arr_suggested, raw_res_arr, crop_res_arr
                             ):
                                 logger.info(
