@@ -73,44 +73,130 @@ def read_data_yaml(yaml_file: BinaryIO):
     return label_stores, raw_stores, crop_copies
 
 
-def get_scale_info(zarr_grp):
+def get_axes_names(zarr_grp) -> list[str]:
+    return [ax["name"] for ax in zarr_grp.attrs["multiscales"][0]["axes"]]
+
+
+def get_scale_info(
+    zarr_grp,
+    multiscale_name: Optional[str] = None,
+) -> tuple[
+    dict[str, dict[str, float]], dict[str, dict[str, float]], dict[str, dict[str, int]]
+]:
+    """
+    Extracts scale information, including resolutions, offsets, and shapes from a Zarr group.
+
+    Args:
+        zarr_grp: A Zarr group object containing multiscale datasets and associated metadata.
+
+    Returns:
+        tuple: A tuple containing the following:
+            - offsets (dict[str, dict[str, float]]): A dictionary mapping dataset paths to dictionaries of axis names and their corresponding offsets.
+            - resolutions (dict[str, dict[str, float]]): A dictionary mapping dataset paths to dictionaries of axis names and their corresponding resolutions.
+            - shapes (dict[str, dict[str, int]]): A dictionary mapping dataset paths to dictionaries of axis names and their corresponding shapes.
+
+    Raises:
+        KeyError: If the expected attributes or keys are missing in the Zarr group metadata.
+
+    Notes:
+        - This function assumes the Zarr group follows the multiscale metadata specification.
+        - The function relies on the presence of "multiscales" and "coordinateTransformations" attributes in the Zarr group metadata.
+    """
+
     attrs = zarr_grp.attrs
     resolutions = {}
     offsets = {}
     shapes = {}
+    axes_names = get_axes_names(zarr_grp)
     # making a ton of assumptions here, hopefully triggering KeyErrors though if they don't apply
-    for scale in attrs["multiscales"][0]["datasets"]:
-        resolutions[scale["path"]] = scale["coordinateTransformations"][0]["scale"]
-        offsets[scale["path"]] = scale["coordinateTransformations"][1]["translation"]
-        shapes[scale["path"]] = zarr_grp[scale["path"]].shape
+    if multiscale_name is None:
+        index = 0
+    else:
+        for index, multiscale in enumerate(attrs["multiscales"]):
+            if multiscale.get("name") == multiscale_name:
+                break
+        else:
+            # raise an error if no matching multiscale found
+            msg = f"Multiscale with name '{multiscale_name}' not found in Zarr group at {zarr_grp.store.path}"
+            raise KeyError(msg)
+    for scale in attrs["multiscales"][index]["datasets"]:
+        resolutions[scale["path"]] = dict(
+            zip(axes_names, scale["coordinateTransformations"][0]["scale"])
+        )
+        offsets[scale["path"]] = dict(
+            zip(axes_names, scale["coordinateTransformations"][1]["translation"])
+        )
+        shapes[scale["path"]] = dict(zip(axes_names, zarr_grp[scale["path"]].shape))
     # offset = min(offsets.values())
     return offsets, resolutions, shapes
 
 
-def find_target_scale_by_offset(zarr_grp, offset):
+def find_target_scale_by_offset(
+    zarr_grp, offset: dict[str, float]
+) -> tuple[str, dict[str, float], dict[str, float], dict[str, int]]:
     offsets, resolutions, shapes = get_scale_info(zarr_grp)
     target_scale = None
     for scale, res in list(resolutions.items())[::-1]:
-        if gp.Coordinate(offset) % gp.Coordinate(res) == gp.Coordinate((0,) * len(offset)):
+        if all(off % res[ax] == 0 for ax, off in offset.items()):
             target_scale = scale
             break
     if target_scale is None:
         msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array compatible with offset {offset}"
         raise ValueError(msg)
-    return target_scale, offsets[target_scale], resolutions[target_scale], shapes[target_scale]
+    return (
+        target_scale,
+        offsets[target_scale],
+        resolutions[target_scale],
+        shapes[target_scale],
+    )
 
 
-def find_target_scale(zarr_grp, target_resolution):
+def find_target_scale(
+    zarr_grp: zarr.Group, target_resolution: dict[str, float]
+) -> tuple[str, dict[str, float], dict[str, float], dict[str, float], dict[str, int]]:
+    """Finds the scale in a Zarr group that matches the specified target resolution.
+
+    Args:
+        zarr_grp (zarr.Group): The Zarr group containing multiscale data.
+        target_resolution (dict[str, float]): A dictionary specifying the target resolution for each axis.
+
+    Raises:
+        ValueError: If no scale in the Zarr group matches the target resolution.
+
+    Returns:
+        tuple[str, dict[str, float], dict[str, float], dict[str, float], dict[str, int]]:
+            - The name of the target scale.
+            - The offset dictionary for the target scale.
+            - The resolution dictionary for the target scale.
+            - The shape dictionary for the target scale.
+
+    """
     offsets, resolutions, shapes = get_scale_info(zarr_grp)
     target_scale = None
+    diffs = {}
     for scale, res in resolutions.items():
-        if gp.Coordinate(res) == gp.Coordinate(target_resolution):
-            target_scale = scale
-            break
-    if target_scale is None:
-        msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array with sampling {target_resolution}"
+        for ax, target_res in target_resolution.items():
+            diffs.setdefault(ax, []).append((scale, abs(res[ax] - target_res)))
+    # get scale for minimal diffs
+    for ax in diffs.keys():  # noqa: PLC0206
+        diffs[ax] = min(diffs[ax], key=lambda x: x[1])
+        if target_scale is None:
+            target_scale = diffs[ax][0]
+        elif target_scale != diffs[ax][0]:
+            msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} has inconsistent scales for axis {ax}. Expected all axes to match the same scale, but found discrepancies."
+            raise ValueError(msg)
+    # at least one axis needs an exact match
+    match = [diff[1] == 0 for diff in diffs.values()]
+    if not any(match):
+        msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array with sampling near {target_resolution}"
         raise ValueError(msg)
-    return target_scale, offsets[target_scale], shapes[target_scale]
+    return (
+        target_scale,
+        offsets[target_scale],
+        resolutions[target_scale],
+        shapes[target_scale],
+    )
+
 
 class SmoothSemanticSegmentation(SemanticSegmentation):
     """
@@ -136,4 +222,6 @@ class SmoothSemanticSegmentation(SemanticSegmentation):
     type: Literal["smooth_semantic_segmentation"] = "smooth_semantic_segmentation"
 
 class GeneralizedAnnotationArrayAttrs(AnnotationArrayAttrs):
-    complement_counts: dict[InstancePossibility, int] | dict[SemanticPossibility, int|float] | None
+
+def ax_dict_to_list(ax_dict, axes_order):
+    return [ax_dict[ax] for ax in axes_order]
