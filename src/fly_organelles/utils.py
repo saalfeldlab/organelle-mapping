@@ -1,23 +1,27 @@
 import itertools
 import os
-from typing import BinaryIO
+from decimal import Decimal
 
 import gunpowder as gp
 import numpy as np
 import yaml
-from decimal import Decimal
-from cellmap_schemas.annotation import SemanticSegmentation, AnnotationArrayAttrs, InstancePossibility, SemanticPossibility
-from typing import Literal
+
+def decimal_arr(arr, precision: int = 2):
+    return np.array([Decimal(f"{a:.{precision}f}") for a in arr])
+
+
+def undecimal_arr(arr, precision: int = 2):
+    return np.array([float(round(a, precision)) for a in arr])
+
 
 def corner_offset(center_off_arr, raw_res_arr, crop_res_arr):
     return center_off_arr + raw_res_arr / Decimal('2.0') - crop_res_arr / Decimal('2')
 
 
 def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
-    center_off_arr = np.array([Decimal(f"{co:.2f}") for co in center_off_arr])
-    raw_res_arr = np.array([Decimal(f"{rr:.2f}") for rr in raw_res_arr])
-    crop_res_arr = np.array([Decimal(f"{cr:.2f}") for cr in crop_res_arr])
-    corner_off_arr = corner_offset(center_off_arr, raw_res_arr, crop_res_arr)
+    corner_off_arr = corner_offset(
+        decimal_arr(center_off_arr), decimal_arr(raw_res_arr), decimal_arr(crop_res_arr)
+    )
     # for co, rr, cr in zip(corner_off_arr, raw_res_arr, crop_res_arr):
     #     if not np.isclose(float(Decimal(str(co)) % Decimal(str(rr))),0):
     #         print(co, rr, co % rr)
@@ -26,9 +30,20 @@ def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
     #         print(co, cr, co % cr)
     #         return False
     # return True
-    if not (np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(corner_off_arr % crop_res_arr == Decimal(0))):
-        print(center_off_arr, raw_res_arr, crop_res_arr, corner_off_arr % raw_res_arr, corner_off_arr % crop_res_arr)
-    return np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(corner_off_arr % crop_res_arr == Decimal(0))
+    if not (
+        np.all(corner_off_arr % raw_res_arr == Decimal(0))
+        and np.all(corner_off_arr % crop_res_arr == Decimal(0))
+    ):
+        print(
+            center_off_arr,
+            raw_res_arr,
+            crop_res_arr,
+            corner_off_arr % raw_res_arr,
+            corner_off_arr % crop_res_arr,
+        )
+    return np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(
+        corner_off_arr % crop_res_arr == Decimal(0)
+    )
 
 
 def all_combinations(iterable):
