@@ -173,22 +173,13 @@ def find_target_scale(
     """
     offsets, resolutions, shapes = get_scale_info(zarr_grp)
     target_scale = None
-    diffs = {}
+
     for scale, res in resolutions.items():
-        for ax, target_res in target_resolution.items():
-            diffs.setdefault(ax, []).append((scale, abs(res[ax] - target_res)))
-    # get scale for minimal diffs
-    for ax in diffs.keys():  # noqa: PLC0206
-        diffs[ax] = min(diffs[ax], key=lambda x: x[1])
-        if target_scale is None:
-            target_scale = diffs[ax][0]
-        elif target_scale != diffs[ax][0]:
-            msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} has inconsistent scales for axis {ax}. Expected all axes to match the same scale, but found discrepancies."
-            raise ValueError(msg)
-    # at least one axis needs an exact match
-    match = [diff[1] == 0 for diff in diffs.values()]
-    if not any(match):
-        msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array with sampling near {target_resolution}"
+        if res == target_resolution:
+            target_scale = scale
+            break
+    if target_scale is None:
+        msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array compatible with target resolution {target_resolution}"
         raise ValueError(msg)
     return (
         target_scale,
