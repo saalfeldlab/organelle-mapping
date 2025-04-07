@@ -23,11 +23,11 @@ from pydantic_ome_ngff.v04.multiscale import (
 from pydantic_ome_ngff.v04.transform import VectorScale, VectorTranslation
 
 
-def decimal_arr(arr, precision: int = 2):
+def decimal_arr(arr, precision: int = 2) -> np.ndarray:
     return np.array([Decimal(f"{a:.{precision}f}") for a in arr])
 
 
-def undecimal_arr(arr, precision: int = 2):
+def undecimal_arr(arr, precision: int = 2) -> np.ndarray:
     return np.array([float(round(a, precision)) for a in arr])
 
 
@@ -163,22 +163,38 @@ def get_scale_info(
 
 
 def find_target_scale_by_offset(
-    zarr_grp, offset: dict[str, float]
+    zarr_grp, target_offset: dict[str, float], multiscale: Optional[str | int | tuple[str | int]] = None
 ) -> tuple[str, dict[str, float], dict[str, float], dict[str, int]]:
-    offsets, resolutions, shapes = get_scale_info(zarr_grp)
+    if multiscale is None:
+        multiscale = get_multiscale_names(zarr_grp)
+    if isinstance(multiscale, (str, int)):
+        multiscale = [multiscale]
+    ms_offsets, ms_resolutions, ms_shapes = {}, {}, {}
+    for ms in multiscale:
+        offsets, resolutions, shapes = get_scale_info(zarr_grp, multiscale=ms)
+        if isinstance(ms, int):
+            ms_name = get_multiscale_names(zarr_grp)[ms]
+        else:
+            ms_name = ms
+        ms_offsets[ms_name] = offsets
+        ms_resolutions[ms_name] = resolutions
+        ms_shapes[ms_name] = shapes
     target_scale = None
-    for scale, res in list(resolutions.items())[::-1]:
-        if all(off % res[ax] == 0 for ax, off in offset.items()):
-            target_scale = scale
+    target_ms_name = None
+    
+    for ms_name, resolutions in ms_resolutions.items():
+        for scale, res in resolutions.items()[::-1]:
+            if all(off % res[ax] == 0 for ax, off in target_offset.items()):
+                target_scale = scale
+                target_ms_name = ms_name
+                break
+        if target_scale is not None:
             break
-    if target_scale is None:
-        msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array compatible with offset {offset}"
-        raise ValueError(msg)
     return (
         target_scale,
-        offsets[target_scale],
-        resolutions[target_scale],
-        shapes[target_scale],
+        ms_offsets[target_ms_name][target_scale],
+        ms_resolutions[target_ms_name][target_scale],
+        ms_shapes[target_ms_name][target_scale],
     )
 
 def get_multiscale_names(zarr_grp) -> list[str]:
