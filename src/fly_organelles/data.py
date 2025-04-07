@@ -11,21 +11,6 @@ import fly_organelles.utils as utils
 logger = logging.getLogger(__name__)
 
 
-def spatial_spec_from_xarray(xarr) -> tuple[gp.Roi, gp.Coordinate]:
-    if not isinstance(xarr, xr.DataArray):
-        msg = f"Expected input to be `xarray.DataArray`, not {type(xarr)}"
-        raise TypeError(msg)
-    offset = []
-    for axis in "zyx":
-        offset.append(int(xarr.coords[axis][0].data))
-    offset = gp.Coordinate(offset)
-    voxel_size = []
-    for axis in "zyx":
-        voxel_size.append(int((xarr.coords[axis][1] - xarr.coords[axis][0]).data))
-    voxel_size = gp.Coordinate(voxel_size)
-    shape = voxel_size * gp.Coordinate(xarr.shape)
-    roi = gp.Roi(offset, shape)
-    return roi, voxel_size
 
 
 class CellMapCropSource(gp.batch_provider.BatchProvider):
