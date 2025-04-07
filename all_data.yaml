@@ -35,7 +35,7 @@ datasets:
       crops:
         - crop235
         - crop238
-        - crop240
+        - crop240,crop291
         - crop241
         - crop242
         - crop245
@@ -43,7 +43,6 @@ datasets:
         - crop255
         - crop258
         - crop259
-        - crop291
   jrc_ctl-id8-1:
     em:
       data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_ctl-id8-1/jrc_ctl-id8-1.zarr
@@ -90,10 +89,9 @@ datasets:
       crops:
         - crop78
         - crop79
-        - crop173
+        - crop173,crop185
         - crop174
         - crop176
-        - crop185
   jrc_hela-2:
     em:
       data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_hela-2/jrc_hela-2.zarr
@@ -157,10 +155,9 @@ datasets:
         - crop86
         - crop87
         - crop100
-        - crop101
+        - crop101,crop181
         - crop102
         - crop111
-        - crop181
   jrc_jurkat-1:
     em: 
       data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_jurkat-1/jrc_jurkat-1.zarr
@@ -189,9 +186,7 @@ datasets:
         - crop93
         - crop107
         - crop112
-        - crop126
-        - crop180
-        - crop182
+        - crop126,crop180,crop182
   jrc_macrophage-2:
     em:
       data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_macrophage-2/jrc_macrophage-2.zarr
@@ -319,14 +314,11 @@ datasets:
         - crop145
         - crop150
         - crop151
-        - crop157
-        - crop171
-        - crop172
+        - crop157,crop183
+        - crop171,crop416
+        - crop172,crop417
         - crop175
         - crop177
-        - crop183
-        - crop416
-        - crop417
   jrc_mus-liver-3:
     em:
       data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_mus-liver-3/jrc_mus-liver-3.zarr
