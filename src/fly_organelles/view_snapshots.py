@@ -17,7 +17,11 @@ def create_lv(path, volume_type="segmentation", array_name="raw"):
     dim_names = ["z", "y", "x", "c", "n"]
     dim_units = ["nm", "nm", "nm", "", ""]
     dim_scales = [*z_arr.attrs["resolution"], 1, 1]
-    voxel_offset = [*(np.array(z_arr.attrs["offset"]) / np.array(z_arr.attrs["resolution"])), 0, 0]
+    voxel_offset = [
+        *(np.array(z_arr.attrs["offset"]) / np.array(z_arr.attrs["resolution"])),
+        0,
+        0,
+    ]
     for dim in range(arr.ndim)[::-1]:
         if arr.shape[dim] == 1:
             arr = dask.array.squeeze(arr, axis=dim)
@@ -25,8 +29,12 @@ def create_lv(path, volume_type="segmentation", array_name="raw"):
             dim_units.pop(dim)
             dim_scales.pop(dim)
             voxel_offset.pop(dim)
-    dims = neuroglancer.CoordinateSpace(names=dim_names, units=dim_units, scales=dim_scales)
-    return neuroglancer.LocalVolume(arr, dimensions=dims, volume_type=volume_type, voxel_offset=voxel_offset)
+    dims = neuroglancer.CoordinateSpace(
+        names=dim_names, units=dim_units, scales=dim_scales
+    )
+    return neuroglancer.LocalVolume(
+        arr, dimensions=dims, volume_type=volume_type, voxel_offset=voxel_offset
+    )
 
 
 def add_example_layers(state, snapshot_path, *, add_time=True):
@@ -44,11 +52,15 @@ def add_example_layers(state, snapshot_path, *, add_time=True):
     for layer_name, layer_type in layers.items():
         if layer_type == "image":
             state.layers[layer_name] = neuroglancer.ImageLayer(
-                source=lv_func(snapshot_path, volume_type=layer_type, array_name=layer_name)
+                source=lv_func(
+                    snapshot_path, volume_type=layer_type, array_name=layer_name
+                )
             )
         else:
             state.layers[layer_name] = neuroglancer.SegmentationLayer(
-                source=lv_func(snapshot_path, volume_type=layer_type, array_name=layer_name)
+                source=lv_func(
+                    snapshot_path, volume_type=layer_type, array_name=layer_name
+                )
             )
 
 
@@ -65,7 +77,12 @@ def create_lv_stacked(snapshot_path, volume_type="segmentation", array_name="raw
     dim_names = ["z", "y", "x", "c", "n", "t"]
     dim_units = ["nm", "nm", "nm", "", "", "s"]
     dim_scales = [*z_arr.attrs["resolution"], 1, 1, 1]
-    voxel_offset = [*(np.array(z_arr.attrs["offset"]) / np.array(z_arr.attrs["resolution"])), 0, 0, 0]
+    voxel_offset = [
+        *(np.array(z_arr.attrs["offset"]) / np.array(z_arr.attrs["resolution"])),
+        0,
+        0,
+        0,
+    ]
     for dim in range(dask_arrs.ndim)[::-1]:
         if dask_arrs.shape[dim] == 1:
             dask_arrs = dask.array.squeeze(dask_arrs, axis=dim)
@@ -73,8 +90,12 @@ def create_lv_stacked(snapshot_path, volume_type="segmentation", array_name="raw
             dim_units.pop(dim)
             dim_scales.pop(dim)
             voxel_offset.pop(dim)
-    dims = neuroglancer.CoordinateSpace(names=dim_names, units=dim_units, scales=dim_scales)
-    return neuroglancer.LocalVolume(dask_arrs, dimensions=dims, volume_type=volume_type, voxel_offset=voxel_offset)
+    dims = neuroglancer.CoordinateSpace(
+        names=dim_names, units=dim_units, scales=dim_scales
+    )
+    return neuroglancer.LocalVolume(
+        dask_arrs, dimensions=dims, volume_type=volume_type, voxel_offset=voxel_offset
+    )
 
 
 if __name__ == "__main__":

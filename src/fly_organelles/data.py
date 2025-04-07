@@ -11,8 +11,6 @@ import fly_organelles.utils as utils
 logger = logging.getLogger(__name__)
 
 
-
-
 class CellMapCropSource(gp.batch_provider.BatchProvider):
     def __init__(
         self,
@@ -30,13 +28,11 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         self.max_request = max_request
         raw_grp = fst.read(raw_store)
         raw_axes_names = utils.get_axes_names(raw_grp)
-        raw_scale, _, raw_res, raw_shape = utils.find_target_scale(
-            raw_grp, sampling, 0
-        )
+        raw_scale, _, raw_res, raw_shape = utils.find_target_scale(raw_grp, sampling, 0)
         raw_native_scale = utils.get_scale_info(raw_grp, 0)[1]["s0"]
         raw_corner_offset = gp.Coordinate(
             (0,) * len(sampling)
-        ) # raw corner-offset is 0 by definition
+        )  # raw corner-offset is 0 by definition
         self.labels = labels
         self.needs_downsampling = None
         raw_voxel_size = gp.Coordinate(utils.ax_dict_to_list(sampling, raw_axes_names))
@@ -49,22 +45,31 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
             label_scale, label_offset, _, label_shape = utils.find_target_scale(
                 label_grp, sampling
             )
-            label_corner_offset = gp.Coordinate(utils.undecimal_arr(
-                utils.corner_offset(
-                    utils.decimal_arr(utils.ax_dict_to_list(label_offset, label_axes_names)),
-                    utils.decimal_arr(
-                        utils.ax_dict_to_list(raw_native_scale, raw_axes_names)
-                    ),
-                    utils.decimal_arr(utils.ax_dict_to_list(raw_res, raw_axes_names)),
+            label_corner_offset = gp.Coordinate(
+                utils.undecimal_arr(
+                    utils.corner_offset(
+                        utils.decimal_arr(
+                            utils.ax_dict_to_list(label_offset, label_axes_names)
+                        ),
+                        utils.decimal_arr(
+                            utils.ax_dict_to_list(raw_native_scale, raw_axes_names)
+                        ),
+                        utils.decimal_arr(
+                            utils.ax_dict_to_list(raw_res, raw_axes_names)
+                        ),
+                    )
                 )
-            ))
+            )
             # label_offset = tuple(np.array(label_offset) - np.array(sampling)/2.)
             self.stores[labelkey] = fst.read_xarray(
                 Path(label_store) / label / label_scale
             )
             # label_roi, label_voxel_size = spatial_spec_from_xarray(self.stores[labelkey])
             label_voxel_size = raw_voxel_size
-            cropsize = gp.Coordinate(utils.ax_dict_to_list(label_shape, label_axes_names)) * label_voxel_size
+            cropsize = (
+                gp.Coordinate(utils.ax_dict_to_list(label_shape, label_axes_names))
+                * label_voxel_size
+            )
             # this is a trick to avoid gunpowder problem of offsets needing to be divisible by the sampling
             self.secret_raw_offset = label_corner_offset % raw_voxel_size
             label_corner_offset -= self.secret_raw_offset
@@ -101,7 +106,8 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
             # TODO make a drawing for this
             raw_roi = gp.Roi(
                 raw_corner_offset,
-                gp.Coordinate(utils.ax_dict_to_list(raw_up_shape, raw_axes_names)) * gp.Coordinate(utils.ax_dict_to_list(sampling_up, raw_axes_names))
+                gp.Coordinate(utils.ax_dict_to_list(raw_up_shape, raw_axes_names))
+                * gp.Coordinate(utils.ax_dict_to_list(sampling_up, raw_axes_names))
                 - raw_voxel_size,
             )
             self.stores[raw_arraykey] = fst.read(Path(raw_store) / raw_up_scale)

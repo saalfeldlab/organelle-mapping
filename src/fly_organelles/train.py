@@ -37,7 +37,9 @@ def make_data_pipeline(
         for crops in ds_info["crops"]:
             for crop in crops.split(","):
                 src = CellMapCropSource(
-                    os.path.join(datasets["gt_path"], dataset, "groundtruth.zarr", crop),
+                    os.path.join(
+                        datasets["gt_path"], dataset, "groundtruth.zarr", crop
+                    ),
                     ds_info["raw"],
                     label_keys,
                     raw,
@@ -56,7 +58,9 @@ def make_data_pipeline(
                 factor = factors[src.specs[raw].dtype]
                 src_pipe += gp.Normalize(raw, factor=1.0 / factor)
                 minc, maxc = ds_info["contrast"]
-                src_pipe += gp.IntensityScaleShift(raw, scale=(maxc - minc) / factor, shift=minc / factor)
+                src_pipe += gp.IntensityScaleShift(
+                    raw, scale=(maxc - minc) / factor, shift=minc / factor
+                )
                 src_pipe += gp.Pad(raw, None, value=0)
                 src_pipe += gp.RandomLocation()
                 srcs.append(src_pipe)
@@ -113,17 +117,27 @@ def make_train_pipeline(
         loss=MaskedMultiLabelBCEwithLogits(label_weights),
         optimizer=torch.optim.Adam(lr=0.5e-4, params=model.parameters()),
         inputs={"raw": gp.ArrayKey("RAW")},
-        loss_inputs={"output": gp.ArrayKey("OUTPUT"), "target": gp.ArrayKey("LABELS"), "mask": gp.ArrayKey("MASK")},
+        loss_inputs={
+            "output": gp.ArrayKey("OUTPUT"),
+            "target": gp.ArrayKey("LABELS"),
+            "mask": gp.ArrayKey("MASK"),
+        },
         outputs={0: gp.ArrayKey("OUTPUT")},
         device="cuda",
         log_every=20,
         log_dir="logs",
         save_every=2000,
     )
-    pipeline += corditea.LambdaFilter(sigmoidify, gp.ArrayKey("OUTPUT"), gp.ArrayKey("NORM_OUTPUT"))
+    pipeline += corditea.LambdaFilter(
+        sigmoidify, gp.ArrayKey("OUTPUT"), gp.ArrayKey("NORM_OUTPUT")
+    )
     snapshot_request = gp.BatchRequest()
-    snapshot_request.add(gp.ArrayKey("DUMMY"), input_size, voxel_size=gp.Coordinate(sampling))
-    snapshot_request.add(gp.ArrayKey("NORM_OUTPUT"), output_size, voxel_size=gp.Coordinate(sampling))
+    snapshot_request.add(
+        gp.ArrayKey("DUMMY"), input_size, voxel_size=gp.Coordinate(sampling)
+    )
+    snapshot_request.add(
+        gp.ArrayKey("NORM_OUTPUT"), output_size, voxel_size=gp.Coordinate(sampling)
+    )
     del snapshot_request[gp.ArrayKey("DUMMY")]
     pipeline += gp.Snapshot(
         {

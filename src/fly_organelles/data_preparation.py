@@ -2,10 +2,10 @@ import copy
 import itertools
 import logging
 import os
+from decimal import Decimal
 from pathlib import Path
 from typing import BinaryIO, Optional
 
-from decimal import Decimal
 import click
 import fibsem_tools as fst
 import numcodecs
@@ -25,8 +25,8 @@ from xarray_multiscale import multiscale, windowed_mode
 
 # from fibsem_tools.io.multiscale import multiscale_group
 from xarray_ome_ngff import create_multiscale_group
-import fly_organelles.utils as utils
 
+import fly_organelles.utils as utils
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -504,7 +504,9 @@ class Crop:
                         2,
                     )
                     histo["unknown"] = np.sum(down == encoding["unknown"])
-                    annotation_type = utils.SmoothSemanticSegmentation(encoding=encoding)
+                    annotation_type = utils.SmoothSemanticSegmentation(
+                        encoding=encoding
+                    )
                     annotation_array_attrs = utils.GeneralizedAnnotationArrayAttrs(
                         class_name=label,
                         complement_counts=histo,
@@ -772,9 +774,11 @@ def fix_offset(data_config: BinaryIO, *, dry_run: bool = False):
     click.echo(summary)
     return summary
 
+
 def prepend_multiscale(zarr_grp, multiscale):
     zarr_grp.attrs["multiscales"].insert(0, multiscale)
     zarr_grp.attrs.update(zarr_grp.attrs)
+
 
 def change_multiscale_name(zarr_grp, name):
     if len(zarr_grp.attrs["multiscales"]) > 1:
@@ -782,6 +786,7 @@ def change_multiscale_name(zarr_grp, name):
         raise NotImplementedError(msg)
     zarr_grp.attrs["multiscales"][0]["name"] = name
     zarr_grp.attrs.update(zarr_grp.attrs)
+
 
 @cli.command()
 @click.argument("data-config", type=click.File("rb"))
@@ -793,12 +798,15 @@ def add_nominal_multiscale_attr(data_config: BinaryIO):
     """
     _add_nominal_multiscale_attr(data_config)
 
+
 def _add_nominal_multiscale_attr(data_config: BinaryIO):
     datas = yaml.safe_load(data_config)
     for key, ds_info in datas["datasets"].items():
         logger.info(f"Processing {key}")
         # check raw data to see if it is isotropic
-        raw_zarr_grp = zarr.open(Path(ds_info["em"]["data"]) / ds_info["em"]["group"], "r+")
+        raw_zarr_grp = zarr.open(
+            Path(ds_info["em"]["data"]) / ds_info["em"]["group"], "r+"
+        )
         offsets, samplings, _ = utils.get_scale_info(raw_zarr_grp)
         sampling = next(iter(samplings.values()))
         isotropic = len(set(sampling.values())) == 1
@@ -807,10 +815,20 @@ def _add_nominal_multiscale_attr(data_config: BinaryIO):
         else:
             change_multiscale_name(raw_zarr_grp, "estimated")
             axes = utils.get_axes_object(raw_zarr_grp)
-            dataset_paths = sorted(samplings.keys(), key=lambda x: min(samplings[x].values()))
-            nominal_scale, nominal_offset = utils.infer_nominal_transform(samplings[dataset_paths[0]], offsets[dataset_paths[0]])
+            dataset_paths = sorted(
+                samplings.keys(), key=lambda x: min(samplings[x].values())
+            )
+            nominal_scale, nominal_offset = utils.infer_nominal_transform(
+                samplings[dataset_paths[0]], offsets[dataset_paths[0]]
+            )
             factors = utils.get_downsampling_factors(samplings)
-            ms_nominal = utils.generate_standard_multiscale(dataset_paths=dataset_paths, axes=axes, base_resolution=nominal_scale, base_offset=nominal_offset, factors=factors)
+            ms_nominal = utils.generate_standard_multiscale(
+                dataset_paths=dataset_paths,
+                axes=axes,
+                base_resolution=nominal_scale,
+                base_offset=nominal_offset,
+                factors=factors,
+            )
             prepend_multiscale(raw_zarr_grp, ms_nominal.model_dump())
         for crop in ds_info["labels"]["crops"]:
             for cropname in crop.split(","):
@@ -821,7 +839,9 @@ def _add_nominal_multiscale_attr(data_config: BinaryIO):
                     / cropname,
                     "r+",
                 )
-                annotated_classes = set(crop_grp.attrs["cellmap"]["annotation"]["class_names"])
+                annotated_classes = set(
+                    crop_grp.attrs["cellmap"]["annotation"]["class_names"]
+                )
                 for class_name in sorted(annotated_classes):
                     if isotropic:
                         change_multiscale_name(crop_grp[class_name], "nominal")
@@ -832,16 +852,19 @@ def _add_nominal_multiscale_attr(data_config: BinaryIO):
                             crop_grp[class_name]
                         )
                         dataset_paths = sorted(
-                            samplings.keys(),
-                            key=lambda x: min(samplings[x].values())
+                            samplings.keys(), key=lambda x: min(samplings[x].values())
                         )
-                        nominal_scale, nominal_offset = utils.infer_nominal_transform(samplings[dataset_paths[0]], offsets[dataset_paths[0]])
+                        nominal_scale, nominal_offset = utils.infer_nominal_transform(
+                            samplings[dataset_paths[0]], offsets[dataset_paths[0]]
+                        )
                         factors = utils.get_downsampling_factors(samplings)
                         ms_nominal = utils.generate_standard_multiscale(
                             dataset_paths=dataset_paths,
                             axes=axes,
                             base_resolution=nominal_scale,
                             base_offset=nominal_offset,
-                            factors=factors
+                            factors=factors,
                         )
-                        prepend_multiscale(crop_grp[class_name], ms_nominal.model_dump())
+                        prepend_multiscale(
+                            crop_grp[class_name], ms_nominal.model_dump()
+                        )

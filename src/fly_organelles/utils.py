@@ -163,7 +163,9 @@ def get_scale_info(
 
 
 def find_target_scale_by_offset(
-    zarr_grp, target_offset: dict[str, float], multiscale: Optional[str | int | tuple[str | int]] = None
+    zarr_grp,
+    target_offset: dict[str, float],
+    multiscale: Optional[str | int | tuple[str | int]] = None,
 ) -> tuple[str, dict[str, float], dict[str, float], dict[str, int]]:
     if multiscale is None:
         multiscale = get_multiscale_names(zarr_grp)
@@ -181,7 +183,7 @@ def find_target_scale_by_offset(
         ms_shapes[ms_name] = shapes
     target_scale = None
     target_ms_name = None
-    
+
     for ms_name, resolutions in ms_resolutions.items():
         for scale, res in resolutions.items()[::-1]:
             if all(off % res[ax] == 0 for ax, off in target_offset.items()):
@@ -196,6 +198,7 @@ def find_target_scale_by_offset(
         ms_resolutions[target_ms_name][target_scale],
         ms_shapes[target_ms_name][target_scale],
     )
+
 
 def get_multiscale_names(zarr_grp) -> list[str]:
     """Returns the names of all multiscales in a Zarr group.
@@ -216,8 +219,11 @@ def get_multiscale_names(zarr_grp) -> list[str]:
             multiscale_names.append(multiscale["name"])
     return multiscale_names
 
+
 def find_target_scale(
-    zarr_grp: zarr.Group, target_resolution: dict[str, float], multiscale: Optional[str | int | tuple[str | int]] = None
+    zarr_grp: zarr.Group,
+    target_resolution: dict[str, float],
+    multiscale: Optional[str | int | tuple[str | int]] = None,
 ) -> tuple[str, dict[str, float], dict[str, float], dict[str, float], dict[str, int]]:
     """Finds the scale in a Zarr group that matches the specified target resolution.
 
@@ -254,7 +260,9 @@ def find_target_scale(
     target_ms_name = None
     for ms_name, resolutions in ms_resolutions.items():
         for scale, res in resolutions.items():
-            if all(np.isclose(res[ax], target_resolution[ax]) for ax in target_resolution):
+            if all(
+                np.isclose(res[ax], target_resolution[ax]) for ax in target_resolution
+            ):
                 target_scale = scale
                 target_ms_name = ms_name
                 break

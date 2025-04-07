@@ -47,9 +47,7 @@ def single_block_inference(
         max_raw = [
             max_raw,
         ] * len(raw_arrs)
-    for raw_idx, (raw_arr, min_r, max_r) in enumerate(
-        zip(raw_arrs, min_raw, max_raw)
-    ):
+    for raw_idx, (raw_arr, min_r, max_r) in enumerate(zip(raw_arrs, min_raw, max_raw)):
         # figure out normalization parameters
         if min_r is None:
             if issubclass(raw_arr.dtype.type, np.integer):
@@ -82,8 +80,8 @@ def single_block_inference(
     logger.info(f"Running on device: {device}")
 
     # Run the prediction
-    with torch.inference_mode(): # This turns off gradient computation
-        if batched_mode: # run predictions iteratively
+    with torch.inference_mode():  # This turns off gradient computation
+        if batched_mode:  # run predictions iteratively
             input_tensor = torch.from_numpy(np.concat(raw_arrs, 0))
             predictions = (
                 model.forward(input_tensor.float().to(device)).detach().cpu().numpy()

@@ -24,7 +24,8 @@ def run(iterations, labels, label_weights, datasets):
     displacement_sigma = gp.Coordinate((24, 24, 24))
     # max_in_request = gp.Coordinate((np.ceil(np.sqrt(sum(input_size**2))),)*len(input_size)) + displacement_sigma * 6
     max_out_request = (
-        gp.Coordinate((np.ceil(np.sqrt(sum(output_size**2))),) * len(output_size)) + displacement_sigma * 6
+        gp.Coordinate((np.ceil(np.sqrt(sum(output_size**2))),) * len(output_size))
+        + displacement_sigma * 6
     )
     pad_width_out = output_size / 2.0
 
@@ -45,10 +46,18 @@ def run(iterations, labels, label_weights, datasets):
     with gp.build(pipeline) as pp:
         for i in range(iterations):
             request = gp.BatchRequest()
-            request.add(gp.ArrayKey("OUTPUT"), output_size, voxel_size=gp.Coordinate(voxel_size))
-            request.add(gp.ArrayKey("RAW"), input_size, voxel_size=gp.Coordinate(voxel_size))
-            request.add(gp.ArrayKey("LABELS"), output_size, voxel_size=gp.Coordinate(voxel_size))
-            request.add(gp.ArrayKey("MASK"), output_size, voxel_size=gp.Coordinate(voxel_size))
+            request.add(
+                gp.ArrayKey("OUTPUT"), output_size, voxel_size=gp.Coordinate(voxel_size)
+            )
+            request.add(
+                gp.ArrayKey("RAW"), input_size, voxel_size=gp.Coordinate(voxel_size)
+            )
+            request.add(
+                gp.ArrayKey("LABELS"), output_size, voxel_size=gp.Coordinate(voxel_size)
+            )
+            request.add(
+                gp.ArrayKey("MASK"), output_size, voxel_size=gp.Coordinate(voxel_size)
+            )
             pp.request_batch(request)
 
 
@@ -56,7 +65,12 @@ def run(iterations, labels, label_weights, datasets):
 @click.argument("data-config", type=click.File("rb"))
 @click.argument("iterations", type=int)
 @click.option(
-    "--labels", "-l", multiple=True, type=str, help="List of labels to train for.", default=["organelle", "all_mem"]
+    "--labels",
+    "-l",
+    multiple=True,
+    type=str,
+    help="List of labels to train for.",
+    default=["organelle", "all_mem"],
 )
 @click.option("--label_weights", "-lw", multiple=True, type=float)
 def main(data_config, iterations, labels, label_weights=None):
