@@ -92,23 +92,24 @@ def read_data_yaml(yaml_file: BinaryIO):
     return label_stores, raw_stores, crop_copies
 
 
-def get_axes_names(zarr_grp, multiscale_name: str=None) -> list[str]:
-    if multiscale_name is None:
-        index = 0
+def get_axes_names(zarr_grp, multiscale: str | int = 0) -> list[str]:
+    if isinstance(multiscale, int):
+        index = multiscale
     else:
-        for index, multiscale in enumerate(zarr_grp.attrs["multiscales"]):
-            if multiscale.get("name") == multiscale_name:
+        for i, ms in enumerate(zarr_grp.attrs["multiscales"]):
+            if ms.get("name") == multiscale:
+                index = i
                 break
         else:
             # raise an error if no matching multiscale found
-            msg = f"Multiscale with name '{multiscale_name}' not found in Zarr group at {zarr_grp.store.path}"
+            msg = f"Multiscale with name '{multiscale}' not found in Zarr group at {zarr_grp.store.path}"
             raise KeyError(msg)
     return [ax["name"] for ax in zarr_grp.attrs["multiscales"][index]["axes"]]
 
 
 def get_scale_info(
     zarr_grp,
-    multiscale_name: Optional[str] = None,
+    multiscale: str | int = 0,
 ) -> tuple[
     dict[str, dict[str, float]], dict[str, dict[str, float]], dict[str, dict[str, int]]
 ]:
@@ -117,7 +118,7 @@ def get_scale_info(
 
     Args:
         zarr_grp: A Zarr group object containing multiscale datasets and associated metadata.
-
+        multiscale (str | int): The name or index of the multiscale to extract information from. Default is 0, which refers to the first multiscale specification in the attributes list.
     Returns:
         tuple: A tuple containing the following:
             - offsets (dict[str, dict[str, float]]): A dictionary mapping dataset paths to dictionaries of axis names and their corresponding offsets.
@@ -138,15 +139,16 @@ def get_scale_info(
     shapes = {}
     axes_names = get_axes_names(zarr_grp)
     # making a ton of assumptions here, hopefully triggering KeyErrors though if they don't apply
-    if multiscale_name is None:
-        index = 0
+    if isinstance(multiscale, int):
+        index = multiscale
     else:
-        for index, multiscale in enumerate(attrs["multiscales"]):
-            if multiscale.get("name") == multiscale_name:
+        for i, ms in enumerate(attrs["multiscales"]):
+            if ms.get("name") == multiscale:
+                index = i
                 break
         else:
             # raise an error if no matching multiscale found
-            msg = f"Multiscale with name '{multiscale_name}' not found in Zarr group at {zarr_grp.store.path}"
+            msg = f"Multiscale with name '{multiscale}' not found in Zarr group at {zarr_grp.store.path}"
             raise KeyError(msg)
     for scale in attrs["multiscales"][index]["datasets"]:
         resolutions[scale["path"]] = dict(
@@ -199,7 +201,7 @@ def get_multiscale_names(zarr_grp) -> list[str]:
     return multiscale_names
 
 def find_target_scale(
-    zarr_grp: zarr.Group, target_resolution: dict[str, float], multiscale_name: Optional[str | tuple[str]] = None
+    zarr_grp: zarr.Group, target_resolution: dict[str, float], multiscale: Optional[str | int | tuple[str | int]] = None
 ) -> tuple[str, dict[str, float], dict[str, float], dict[str, float], dict[str, int]]:
     """Finds the scale in a Zarr group that matches the specified target resolution.
 
@@ -218,16 +220,20 @@ def find_target_scale(
             - The shape dictionary for the target scale.
 
     """
-    if multiscale_name is None:
-        multiscale_name = get_multiscale_names(zarr_grp)
-    if isinstance(multiscale_name, str):
-        multiscale_name = [multiscale_name]
+    if multiscale is None:
+        multiscale = get_multiscale_names(zarr_grp)
+    if isinstance(multiscale, (str, int)):
+        multiscale = [multiscale]
     ms_offsets, ms_resolutions, ms_shapes = {}, {}, {}
-    for multiscale in multiscale_name:
-        offsets, resolutions, shapes = get_scale_info(zarr_grp, multiscale_name=multiscale)
-        ms_offsets[multiscale] = offsets
-        ms_resolutions[multiscale] = resolutions
-        ms_shapes[multiscale] = shapes
+    for ms in multiscale:
+        offsets, resolutions, shapes = get_scale_info(zarr_grp, multiscale=ms)
+        if isinstance(ms, int):
+            ms_name = get_multiscale_names(zarr_grp)[ms]
+        else:
+            ms_name = ms
+        ms_offsets[ms_name] = offsets
+        ms_resolutions[ms_name] = resolutions
+        ms_shapes[ms_name] = shapes
     target_scale = None
     target_ms_name = None
     for ms_name, resolutions in ms_resolutions.items():
