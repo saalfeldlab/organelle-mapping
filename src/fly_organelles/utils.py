@@ -92,8 +92,18 @@ def read_data_yaml(yaml_file: BinaryIO):
     return label_stores, raw_stores, crop_copies
 
 
-def get_axes_names(zarr_grp) -> list[str]:
-    return [ax["name"] for ax in zarr_grp.attrs["multiscales"][0]["axes"]]
+def get_axes_names(zarr_grp, multiscale_name: str=None) -> list[str]:
+    if multiscale_name is None:
+        index = 0
+    else:
+        for index, multiscale in enumerate(zarr_grp.attrs["multiscales"]):
+            if multiscale.get("name") == multiscale_name:
+                break
+        else:
+            # raise an error if no matching multiscale found
+            msg = f"Multiscale with name '{multiscale_name}' not found in Zarr group at {zarr_grp.store.path}"
+            raise KeyError(msg)
+    return [ax["name"] for ax in zarr_grp.attrs["multiscales"][index]["axes"]]
 
 
 def get_scale_info(
@@ -169,9 +179,27 @@ def find_target_scale_by_offset(
         shapes[target_scale],
     )
 
+def get_multiscale_names(zarr_grp) -> list[str]:
+    """Returns the names of all multiscales in a Zarr group.
+
+    Args:
+        zarr_grp: A Zarr group object containing multiscale datasets and associated metadata.
+
+    Returns:
+        list[str]: A list of multiscale names.
+
+    Raises:
+        KeyError: If the expected attributes or keys are missing in the Zarr group metadata.
+    """
+    attrs = zarr_grp.attrs
+    multiscale_names = []
+    for multiscale in attrs["multiscales"]:
+        if "name" in multiscale:
+            multiscale_names.append(multiscale["name"])
+    return multiscale_names
 
 def find_target_scale(
-    zarr_grp: zarr.Group, target_resolution: dict[str, float]
+    zarr_grp: zarr.Group, target_resolution: dict[str, float], multiscale_name: Optional[str | tuple[str]] = None
 ) -> tuple[str, dict[str, float], dict[str, float], dict[str, float], dict[str, int]]:
     """Finds the scale in a Zarr group that matches the specified target resolution.
 
@@ -190,21 +218,34 @@ def find_target_scale(
             - The shape dictionary for the target scale.
 
     """
-    offsets, resolutions, shapes = get_scale_info(zarr_grp)
+    if multiscale_name is None:
+        multiscale_name = get_multiscale_names(zarr_grp)
+    if isinstance(multiscale_name, str):
+        multiscale_name = [multiscale_name]
+    ms_offsets, ms_resolutions, ms_shapes = {}, {}, {}
+    for multiscale in multiscale_name:
+        offsets, resolutions, shapes = get_scale_info(zarr_grp, multiscale_name=multiscale)
+        ms_offsets[multiscale] = offsets
+        ms_resolutions[multiscale] = resolutions
+        ms_shapes[multiscale] = shapes
     target_scale = None
-
-    for scale, res in resolutions.items():
-        if res == target_resolution:
-            target_scale = scale
+    target_ms_name = None
+    for ms_name, resolutions in ms_resolutions.items():
+        for scale, res in resolutions.items():
+            if all(np.isclose(res[ax], target_resolution[ax]) for ax in target_resolution):
+                target_scale = scale
+                target_ms_name = ms_name
+                break
+        if target_scale is not None:
             break
     if target_scale is None:
         msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array compatible with target resolution {target_resolution}"
         raise ValueError(msg)
     return (
         target_scale,
-        offsets[target_scale],
-        resolutions[target_scale],
-        shapes[target_scale],
+        ms_offsets[target_ms_name][target_scale],
+        ms_resolutions[target_ms_name][target_scale],
+        ms_shapes[target_ms_name][target_scale],
     )
 
 
@@ -265,9 +306,19 @@ def generate_standard_multiscale(
     return MultiscaleMetadata(name=name, axes=axes, type=None, datasets=datasets)
 
 
-def get_axes_object(zarr_grp):
+def get_axes_object(zarr_grp, multiscale_name: Optional[str] = None) -> list[Axis]:
+    if multiscale_name is None:
+        index = 0
+    else:
+        for index, multiscale in enumerate(zarr_grp.attrs["multiscales"]):
+            if multiscale.get("name") == multiscale_name:
+                break
+        else:
+            # raise an error if no matching multiscale found
+            msg = f"Multiscale with name '{multiscale_name}' not found in Zarr group at {zarr_grp.store.path}"
+            raise KeyError(msg)
     msattrs = MultiscaleGroupAttrs(multiscales=zarr_grp.attrs["multiscales"])
-    return msattrs.multiscales[0].axes
+    return msattrs.multiscales[index].axes
 
 
 def infer_nominal_transform(
