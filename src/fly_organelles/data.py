@@ -6,13 +6,7 @@ import gunpowder as gp
 import numpy as np
 import xarray as xr
 
-
-from fly_organelles.utils import (
-    corner_offset,
-    find_target_scale,
-    find_target_scale_by_offset,
-    get_scale_info,
-)
+import fly_organelles.utils as utils
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +35,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         raw_store: str,
         labels: dict[str, gp.array.ArrayKey],
         raw_arraykey: gp.ArrayKey,
-        sampling: list[int],
+        sampling: dict[str, int],
         base_padding: gp.Coordinate,
         max_request: gp.Coordinate,
     ):
@@ -50,56 +44,113 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         self.specs = {}
         self.max_request = max_request
         raw_grp = fst.read(raw_store)
-        raw_scale, raw_offset, raw_shape = find_target_scale(raw_grp, sampling)
-        raw_offset = gp.Coordinate((0,) * len(sampling))  # tuple(np.array(raw_offset) - np.array(sampling)/2.)
-        raw_native_scale = get_scale_info(raw_grp)[1]["s0"]
-        self.stores[raw_arraykey] = fst.read(Path(raw_store) / raw_scale)
-        self.labels = labels
-        raw_roi = gp.Roi(raw_offset, gp.Coordinate(sampling) * gp.Coordinate(raw_shape))
-        raw_voxel_size = gp.Coordinate(sampling)
-        # raw_roi, raw_voxel_size = spatial_spec_from_xarray(self.stores[raw_arraykey])
-        raw_spec = gp.array_spec.ArraySpec(
-            roi=raw_roi, voxel_size=raw_voxel_size, interpolatable=True, dtype=self.stores[raw_arraykey].dtype
+        raw_axes_names = utils.get_axes_names(raw_grp)
+        raw_scale, _, raw_res, raw_shape = utils.find_target_scale(
+            raw_grp, sampling, 0
         )
+        raw_native_scale = utils.get_scale_info(raw_grp, 0)[1]["s0"]
+        raw_corner_offset = gp.Coordinate(
+            (0,) * len(sampling)
+        ) # raw corner-offset is 0 by definition
+        self.labels = labels
+        self.needs_downsampling = None
+        raw_voxel_size = gp.Coordinate(utils.ax_dict_to_list(sampling, raw_axes_names))
+        # raw_roi, raw_voxel_size = spatial_spec_from_xarray(self.stores[raw_arraykey])
+
         self.padding = base_padding
         for label, labelkey in self.labels.items():
             label_grp = fst.read(Path(label_store) / label)
-            label_scale, label_offset, label_shape = find_target_scale(label_grp, sampling)
-            label_offset = gp.Coordinate(
-                corner_offset(np.array(label_offset), np.array(raw_native_scale), np.array(sampling))
+            label_axes_names = utils.get_axes_names(label_grp)
+            label_scale, label_offset, _, label_shape = utils.find_target_scale(
+                label_grp, sampling
             )
-            if label_offset % raw_voxel_size == gp.Coordinate((0,) * len(sampling)):
-                self.needs_downsampling = False
-                self.secret_raw_offset = gp.Coordinate((0,) * len(sampling))
-            else:
-                self.needs_downsampling = True
-                logger.debug(f"Need to downsample raw for {label_store} to accomodate offset {label_offset}.")
-                raw_scale, raw_offset, raw_res, raw_shape = find_target_scale_by_offset(raw_grp, label_offset)
-                logger.debug(f"Reading raw from {raw_store}/ {raw_scale} with voxel_size {raw_res}")
-                self.stores[raw_arraykey] = fst.read(Path(raw_store) / raw_scale)
-                raw_roi = gp.Roi(
-                    gp.Coordinate((0,) * len(sampling)),
-                    gp.Coordinate(raw_shape) * gp.Coordinate(raw_res) - gp.Coordinate(sampling),
+            label_corner_offset = gp.Coordinate(utils.undecimal_arr(
+                utils.corner_offset(
+                    utils.decimal_arr(utils.ax_dict_to_list(label_offset, label_axes_names)),
+                    utils.decimal_arr(
+                        utils.ax_dict_to_list(raw_native_scale, raw_axes_names)
+                    ),
+                    utils.decimal_arr(utils.ax_dict_to_list(raw_res, raw_axes_names)),
                 )
-                raw_spec = gp.array_spec.ArraySpec(
-                    roi=raw_roi, voxel_size=raw_res, interpolatable=True, dtype=self.stores[raw_arraykey].dtype
-                )
-                self.secret_raw_offset = label_offset % gp.Coordinate(sampling)
-                label_offset -= self.secret_raw_offset
-
+            ))
             # label_offset = tuple(np.array(label_offset) - np.array(sampling)/2.)
-            self.stores[labelkey] = fst.read_xarray(Path(label_store) / label / label_scale)
-            # label_roi, label_voxel_size = spatial_spec_from_xarray(self.stores[labelkey])
-            cropsize = gp.Coordinate(label_shape) * gp.Coordinate(sampling)
-            label_roi = gp.Roi(label_offset, cropsize)
-
-            label_voxel_size = gp.Coordinate(sampling)
-            self.specs[labelkey] = gp.array_spec.ArraySpec(
-                roi=label_roi, voxel_size=label_voxel_size, interpolatable=False, dtype=self.stores[labelkey].dtype
+            self.stores[labelkey] = fst.read_xarray(
+                Path(label_store) / label / label_scale
             )
+            # label_roi, label_voxel_size = spatial_spec_from_xarray(self.stores[labelkey])
+            label_voxel_size = raw_voxel_size
+            cropsize = gp.Coordinate(utils.ax_dict_to_list(label_shape, label_axes_names)) * label_voxel_size
+            # this is a trick to avoid gunpowder problem of offsets needing to be divisible by the sampling
+            self.secret_raw_offset = label_corner_offset % raw_voxel_size
+            label_corner_offset -= self.secret_raw_offset
+            label_roi = gp.Roi(label_corner_offset, cropsize)
+
+            self.specs[labelkey] = gp.array_spec.ArraySpec(
+                roi=label_roi,
+                voxel_size=label_voxel_size,
+                interpolatable=False,
+                dtype=self.stores[labelkey].dtype,
+            )
+
+            if self.secret_raw_offset != gp.Coordinate((0,) * len(sampling)):
+                if self.needs_downsampling:
+                    msg = f"Inconsistent offsets in labels of {label_store}"
+                    raise ValueError(msg)
+                self.needs_downsampling = False
+            else:
+                if self.needs_downsampling is not None and not self.needs_downsampling:
+                    msg = f"Inconsistent offsets in labels of {label_store}"
+                    raise ValueError(msg)
+                self.needs_downsampling = True
+        if self.needs_downsampling:
+            logger.debug(
+                f"Need to downsample raw for {label_store} to accomodate offset {label_corner_offset}."
+            )
+            raw_up_scale, _, raw_up_res, raw_up_shape = (
+                utils.find_target_scale_by_offset(raw_grp, label_corner_offset)
+            )
+            logger.debug(
+                f"Reading raw from {raw_store}/ {raw_up_scale} with voxel_size {raw_up_res}"
+            )
+            sampling_up = (raw_up_res / raw_res) * sampling
+            # TODO make a drawing for this
+            raw_roi = gp.Roi(
+                raw_corner_offset,
+                gp.Coordinate(utils.ax_dict_to_list(raw_up_shape, raw_axes_names)) * gp.Coordinate(utils.ax_dict_to_list(sampling_up, raw_axes_names))
+                - raw_voxel_size,
+            )
+            self.stores[raw_arraykey] = fst.read(Path(raw_store) / raw_up_scale)
+            raw_spec = gp.array_spec.ArraySpec(
+                roi=raw_roi,
+                voxel_size=raw_up_res,
+                interpolatable=True,
+                dtype=self.stores[raw_arraykey].dtype,
+            )
+
+        else:
+            self.secret_raw_offset = gp.Coordinate((0,) * len(sampling))
+            raw_roi = gp.Roi(
+                raw_corner_offset,
+                gp.Coordinate(utils.ax_dict_to_list(sampling, raw_axes_names))
+                * gp.Coordinate(utils.ax_dict_to_list(raw_shape, raw_axes_names)),
+            )
+            self.stores[raw_arraykey] = fst.read(Path(raw_store) / raw_scale)
+
+            raw_spec = gp.array_spec.ArraySpec(
+                roi=raw_roi,
+                voxel_size=raw_voxel_size,
+                interpolatable=True,
+                dtype=self.stores[raw_arraykey].dtype,
+            )
+
             self.raw_arraykey = raw_arraykey
 
-        self.padding += gp.Coordinate(max(0, p) for p in self.max_request - (cropsize + self.padding * 2)) / 2.0
+        self.padding += (
+            gp.Coordinate(
+                max(0, p) for p in self.max_request - (cropsize + self.padding * 2)
+            )
+            / 2.0
+        )
         self.specs[raw_arraykey] = raw_spec
         self.sampling = sampling
 
@@ -121,12 +172,16 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
 
             if ak == self.raw_arraykey:
                 dataset_roi = rs.roi + self.secret_raw_offset
-                logger.debug(f"Shifting {ak} dataset_roi by secret raw offset {dataset_roi}")
+                logger.debug(
+                    f"Shifting {ak} dataset_roi by secret raw offset {dataset_roi}"
+                )
             else:
                 dataset_roi = rs.roi
             dataset_roi = dataset_roi / vs
             dataset_roi = dataset_roi - self.spec[ak].roi.offset / vs
-            logger.debug(f"Reading {ak} with dataset_roi {dataset_roi} ({dataset_roi.to_slices()})")
+            logger.debug(
+                f"Reading {ak} with dataset_roi {dataset_roi} ({dataset_roi.to_slices()})"
+            )
             # loc = {axis:slice(b, e, None) for b, e, axis in zip(rs.roi.get_begin(), rs.roi.get_end()-vs/2., "zyx")}
             # arr = self.stores[ak].sel(loc).to_numpy()
             arr = np.asarray(self.stores[ak][dataset_roi.to_slices()])
