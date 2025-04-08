@@ -98,7 +98,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
                 f"Need to downsample raw for {label_store} to accomodate offset {label_corner_offset}."
             )
             raw_up_scale, _, raw_up_res, raw_up_shape = (
-                utils.find_target_scale_by_offset(raw_grp, label_corner_offset)
+                utils.find_target_scale_by_offset(raw_grp, utils.list_to_ax_dict(label_corner_offset, label_axes_names))
             )
             logger.debug(
                 f"Reading raw from {raw_store}/ {raw_up_scale} with voxel_size {raw_up_res}"

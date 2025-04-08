@@ -185,7 +185,7 @@ def find_target_scale_by_offset(
     target_ms_name = None
 
     for ms_name, resolutions in ms_resolutions.items():
-        for scale, res in resolutions.items()[::-1]:
+        for scale, res in reversed(resolutions.items()):
             if all(off % res[ax] == 0 for ax, off in target_offset.items()):
                 target_scale = scale
                 target_ms_name = ms_name
@@ -379,6 +379,8 @@ def infer_nominal_transform(
 def ax_dict_to_list(ax_dict, axes_order):
     return [ax_dict[ax] for ax in axes_order]
 
+def list_to_ax_dict(iterable, axes_order):
+    return dict(zip(axes_order, iterable))
 
 def get_downsampling_factors(samplings):
     sorted_keys = sorted(samplings.keys(), key=lambda x: min(samplings[x].values()))
