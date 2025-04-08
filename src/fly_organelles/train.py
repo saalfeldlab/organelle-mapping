@@ -35,13 +35,13 @@ def make_data_pipeline(
     probs = []
     factors = {np.dtype("uint8"): 255, np.dtype("uint16"): 2**16 - 1}
     for dataset, ds_info in datasets["datasets"].items():
-        for crops in ds_info["crops"]:
+        for crops in ds_info["labels"]["crops"]:
             for crop in crops.split(","):
                 src = CellMapCropSource(
                     os.path.join(
-                        datasets["gt_path"], dataset, "groundtruth.zarr", crop
+                        ds_info["labels"]["data"], ds_info["labels"]["group"], crop
                     ),
-                    ds_info["raw"],
+                    os.path.join(ds_info["em"]["data"], ds_info["em"]["group"]),
                     label_keys,
                     raw,
                     sampling,
@@ -60,7 +60,7 @@ def make_data_pipeline(
                     src_pipe += gp.AsType(label_key, "float32")
                 factor = factors[src.specs[raw].dtype]
                 src_pipe += gp.Normalize(raw, factor=1.0 / factor)
-                minc, maxc = ds_info["contrast"]
+                minc, maxc = ds_info["em"]["contrast"]
                 src_pipe += gp.IntensityScaleShift(
                     raw, scale=(maxc - minc) / factor, shift=minc / factor
                 )
