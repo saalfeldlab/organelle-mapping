@@ -103,7 +103,10 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
             logger.debug(
                 f"Reading raw from {raw_store}/ {raw_up_scale} with voxel_size {raw_up_res}"
             )
-            sampling_up = (raw_up_res / raw_res) * sampling
+            sampling_up = {
+                ax: (raw_up_res[ax] / raw_res[ax]) * sampling[ax]
+                for ax in raw_axes_names
+            }
             # TODO make a drawing for this
             raw_roi = gp.Roi(
                 raw_corner_offset,
