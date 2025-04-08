@@ -78,7 +78,7 @@ def filter_crops_for_percent_annotated(
             myc = []
             for c in crop.split(","):
                 for label in labels:
-                    scale, _, shape = utils.find_target_scale(
+                    scale, _, _, shape = utils.find_target_scale(
                         fst.read(
                             Path(ds_info["labels"]["data"])
                             / ds_info["labels"]["group"]
@@ -94,7 +94,7 @@ def filter_crops_for_percent_annotated(
                         / label
                         / scale
                     ).attrs["cellmap"]["annotation"]
-                    voxels = np.prod(shape)
+                    voxels = np.prod(list(shape.values()))
                     if "unknown" in ann_attrs["complement_counts"]:
                         not_annotated = ann_attrs["complement_counts"]["unknown"]
                     else:
@@ -115,7 +115,7 @@ def filter_crops_for_percent_annotated(
 @cli.command()
 @click.argument("data-config-in", type=click.File("rb"))
 @click.argument("data-config-out", type=click.File("w"))
-@click.option("--sampling", type=float, nargs=3, required=True)
+@click.option("--sampling", type=(str, float), required=True, multiple=True)
 @click.option("--label", type=click.STRING, multiple=True, required=True)
 @click.option(
     "--threshold_percent_annotated", type=float, default=25, show_default=True
@@ -135,7 +135,7 @@ def filter_crop_list(
     filter_crop_list_func(
         data_config_in,
         data_config_out,
-        sampling,
+        dict(sampling),
         label,
         threshold_percent_annotated=threshold_percent_annotated,
         skip_filter_sampling=skip_filter_sampling,
