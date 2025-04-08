@@ -7,6 +7,7 @@ import gunpowder as gp
 import numpy as np
 import torch
 
+import fly_organelles.utils as utils
 from fly_organelles.data import CellMapCropSource, ExtractMask
 from fly_organelles.model import MaskedMultiLabelBCEwithLogits
 
@@ -21,7 +22,7 @@ def make_data_pipeline(
     labels: list[str],
     datasets: dict,
     pad_width_out: gp.Coordinate,
-    sampling: tuple[int],
+    sampling: dict[str, int],
     max_out_request: gp.Coordinate,
     displacement_sigma: gp.Coordinate,
     batch_size: int = 5,
@@ -49,7 +50,9 @@ def make_data_pipeline(
                 )
                 src_pipe = src
                 if src.needs_downsampling:
-                    src_pipe += corditea.AverageDownSample(raw, sampling)
+                    src_pipe += corditea.AverageDownSample(
+                        raw, utils.ax_dict_to_list(sampling, src.axes_order)
+                    )
                 probs.append(src.get_size() / len(crops.split(",")))
                 logging.debug(f"Padding {crop} with {src.padding}")
                 for label_key in label_keys.values():
@@ -95,7 +98,7 @@ def make_train_pipeline(
     label_weights: list[float],
     datasets: dict,
     pad_width_out: gp.Coordinate,
-    sampling: tuple[int],
+    sampling: dict[str, int],
     max_out_request: gp.Coordinate,
     displacement_sigma: gp.Coordinate,
     input_size: gp.Coordinate,
@@ -133,10 +136,14 @@ def make_train_pipeline(
     )
     snapshot_request = gp.BatchRequest()
     snapshot_request.add(
-        gp.ArrayKey("DUMMY"), input_size, voxel_size=gp.Coordinate(sampling)
+        gp.ArrayKey("DUMMY"),
+        input_size,
+        voxel_size=gp.Coordinate(list(sampling.values())),
     )
     snapshot_request.add(
-        gp.ArrayKey("NORM_OUTPUT"), output_size, voxel_size=gp.Coordinate(sampling)
+        gp.ArrayKey("NORM_OUTPUT"),
+        output_size,
+        voxel_size=gp.Coordinate(list(sampling.values())),
     )
     del snapshot_request[gp.ArrayKey("DUMMY")]
     pipeline += gp.Snapshot(

@@ -18,7 +18,12 @@ logger = logging.getLogger(__name__)
 def run(iterations, labels, label_weights, datasets):
     model = StandardUnet(len(labels))
 
-    voxel_size = (8, 8, 8)
+    sampling = {
+        "x": 8,
+        "y": 8,
+        "z": 8,
+    }
+    voxel_size = list(sampling.values())
     input_size = gp.Coordinate((178, 178, 178)) * gp.Coordinate(voxel_size)
     output_size = gp.Coordinate((56, 56, 56)) * gp.Coordinate(voxel_size)
     displacement_sigma = gp.Coordinate((24, 24, 24))
@@ -35,7 +40,7 @@ def run(iterations, labels, label_weights, datasets):
         label_weights=label_weights,
         datasets=datasets,
         pad_width_out=pad_width_out,
-        sampling=voxel_size,
+        sampling=sampling,
         max_out_request=max_out_request,
         displacement_sigma=displacement_sigma,
         input_size=input_size,
