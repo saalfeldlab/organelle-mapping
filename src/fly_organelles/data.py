@@ -10,7 +10,6 @@ import fly_organelles.utils as utils
 
 logger = logging.getLogger(__name__)
 
-
 class CellMapCropSource(gp.batch_provider.BatchProvider):
     def __init__(
         self,

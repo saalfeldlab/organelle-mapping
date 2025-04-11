@@ -8,8 +8,6 @@ import yaml
 from fly_organelles.model import StandardUnet
 from fly_organelles.train import make_train_pipeline
 
-logging.basicConfig(level=logging.INFO)
-
 logger = logging.getLogger(__name__)
 # loggp = logging.getLogger("gunpowder.nodes.pad")
 # loggp.setLevel(logging.DEBUG)
@@ -78,7 +76,17 @@ def run(iterations, labels, label_weights, datasets):
     default=["organelle", "all_mem"],
 )
 @click.option("--label_weights", "-lw", multiple=True, type=float)
-def main(data_config, iterations, labels, label_weights=None):
+@click.option(
+    "--log-level",
+    type=click.Choice(
+        ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False
+    ),
+    default="INFO",
+    help="Set the logging level.",
+)
+def main(data_config, iterations, labels, label_weights=None, log_level="INFO"):
+    pkg_logger = logging.getLogger("fly_organelles")
+    pkg_logger.setLevel(log_level.upper())
     if not label_weights:
         label_weights = [
             1.0 / len(labels),

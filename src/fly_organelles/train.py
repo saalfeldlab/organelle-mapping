@@ -11,7 +11,7 @@ import fly_organelles.utils as utils
 from fly_organelles.data import CellMapCropSource, ExtractMask
 from fly_organelles.model import MaskedMultiLabelBCEwithLogits
 
-logger = logging.getLogger("__name__")
+logger = logging.getLogger(__name__)
 
 
 def sigmoidify(arr):
@@ -34,6 +34,7 @@ def make_data_pipeline(
     srcs = []
     probs = []
     factors = {np.dtype("uint8"): 255, np.dtype("uint16"): 2**16 - 1}
+    logger.debug("Let's go")
     for dataset, ds_info in datasets["datasets"].items():
         for crops in ds_info["labels"]["crops"]:
             for crop in crops.split(","):

@@ -11,6 +11,8 @@ from skimage.transform import rescale
 
 from fly_organelles.model import load_eval_model
 
+logger = logging.getLogger(__name__)
+
 
 @click.group()
 @click.option(

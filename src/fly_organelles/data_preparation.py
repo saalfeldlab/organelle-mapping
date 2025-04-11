@@ -28,9 +28,7 @@ from xarray_ome_ngff import create_multiscale_group
 
 import fly_organelles.utils as utils
 
-logging.basicConfig()
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)  # Allow the root logger to control the level
 
 
 @click.group()
@@ -796,10 +794,10 @@ def add_nominal_multiscale_attr(data_config: BinaryIO):
     Args:
         data_config (BinaryIO): Yaml file describing data.
     """
-    _add_nominal_multiscale_attr(data_config)
+    add_nominal_multiscale_attr_func(data_config)
 
 
-def _add_nominal_multiscale_attr(data_config: BinaryIO):
+def add_nominal_multiscale_attr_func(data_config: BinaryIO):
     datas = yaml.safe_load(data_config)
     for key, ds_info in datas["datasets"].items():
         logger.info(f"Processing {key}")

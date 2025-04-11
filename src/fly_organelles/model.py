@@ -1,5 +1,9 @@
+import logging
+
 import funlib.learn.torch
 import torch
+
+logger = logging.getLogger(__name__)
 
 
 def load_eval_model(num_labels, checkpoint_path):

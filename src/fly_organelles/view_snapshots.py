@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 
 import dask
@@ -6,6 +7,8 @@ import fibsem_tools as fst
 import neuroglancer
 import neuroglancer.cli
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def create_lv(path, volume_type="segmentation", array_name="raw"):

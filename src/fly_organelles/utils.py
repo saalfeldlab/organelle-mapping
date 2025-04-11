@@ -1,4 +1,5 @@
 import itertools
+import logging
 import os
 from decimal import Decimal
 from statistics import mode
@@ -22,6 +23,7 @@ from pydantic_ome_ngff.v04.multiscale import (
 )
 from pydantic_ome_ngff.v04.transform import VectorScale, VectorTranslation
 
+logger = logging.getLogger(__name__)
 
 def decimal_arr(arr, precision: int = 2) -> np.ndarray:
     return np.array([Decimal(f"{a:.{precision}f}") for a in arr])
