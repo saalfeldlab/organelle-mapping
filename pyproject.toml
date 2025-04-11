@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "fly-organelles"
+name = "organelle-mapping"
 dynamic = ["version"]
-description = "Segmenting fly organelles"
+description = "Segmenting organelles"
 readme = "README.md"
 requires-python = ">=3.7"
 license = "MIT"
@@ -46,17 +46,17 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/saalfeldlab/fly-organelles#readme"
-Issues = "https://github.com/saalfeldlab/fly-organelles/issues"
-Source = "https://github.com/saalfeldlab/fly-organelles"
+Documentation = "https://github.com/saalfeldlab/organelle-mapping#readme"
+Issues = "https://github.com/saalfeldlab/organelle-mapping/issues"
+Source = "https://github.com/saalfeldlab/organelle-mapping"
 
 [project.scripts]
-data_prep = "fly_organelles.data_preparation:cli"
-train = "fly_organelles.run:main"
-inference = "fly_organelles.inference:cli"
+data_prep = "organelle_mapping.data_preparation:cli"
+train = "organelle_mapping.run:main"
+inference = "organelle_mapping.inference:cli"
 
 [tool.hatch.version]
-path = "src/fly_organelles/__about__.py"
+path = "src/organelle_mapping/__about__.py"
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -100,7 +100,7 @@ detached = true
 dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/fly_organelles tests}"
+typing = "mypy --install-types --non-interactive {args:src/organelle_mapping tests}"
 style = ["ruff {args:.}", "black --check --diff {args:.}"]
 fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
 all = ["style", "typing"]
@@ -162,7 +162,7 @@ unfixable = [
 ]
 
 [tool.ruff.isort]
-known-first-party = ["fly_organelles"]
+known-first-party = ["organelle_mapping"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -172,14 +172,14 @@ ban-relative-imports = "all"
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
-source_pkgs = ["fly_organelles", "tests"]
+source_pkgs = ["organelle_mapping", "tests"]
 branch = true
 parallel = true
-omit = ["src/fly_organelles/__about__.py"]
+omit = ["src/organelle_mapping/__about__.py"]
 
 [tool.coverage.paths]
-fly_organelles = ["src/fly_organelles", "*/fly-organelles/src/fly_organelles"]
-tests = ["tests", "*/fly-organelles/tests"]
+organelle_mapping = ["src/organelle_mapping", "*/organelle-mapping/src/organelle_mapping"]
+tests = ["tests", "*/organelle-mapping/tests"]
 
 [tool.coverage.report]
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]

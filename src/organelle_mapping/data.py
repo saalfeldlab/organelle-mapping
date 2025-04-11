@@ -6,7 +6,7 @@ import gunpowder as gp
 import numpy as np
 import xarray as xr
 
-import fly_organelles.utils as utils
+import organelle_mapping.utils as utils
 
 logger = logging.getLogger(__name__)
 

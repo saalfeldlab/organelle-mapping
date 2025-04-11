@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from fly_organelles.model import load_eval_model
+from organelle_mapping.model import load_eval_model
 
 logger = logging.getLogger(__name__)
 

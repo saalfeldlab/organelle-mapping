@@ -9,7 +9,7 @@ import torch
 from funlib.persistence import Array, open_ds, prepare_ds
 from skimage.transform import rescale
 
-from fly_organelles.model import load_eval_model
+from organelle_mapping.model import load_eval_model
 
 logger = logging.getLogger(__name__)
 

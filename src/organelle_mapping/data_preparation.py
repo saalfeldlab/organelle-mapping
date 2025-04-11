@@ -26,7 +26,7 @@ from xarray_multiscale import multiscale, windowed_mode
 # from fibsem_tools.io.multiscale import multiscale_group
 from xarray_ome_ngff import create_multiscale_group
 
-import fly_organelles.utils as utils
+import organelle_mapping.utils as utils
 
 logger = logging.getLogger(__name__)  # Allow the root logger to control the level
 

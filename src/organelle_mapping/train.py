@@ -7,9 +7,9 @@ import gunpowder as gp
 import numpy as np
 import torch
 
-import fly_organelles.utils as utils
-from fly_organelles.data import CellMapCropSource, ExtractMask
-from fly_organelles.model import MaskedMultiLabelBCEwithLogits
+import organelle_mapping.utils as utils
+from organelle_mapping.data import CellMapCropSource, ExtractMask
+from organelle_mapping.model import MaskedMultiLabelBCEwithLogits
 
 logger = logging.getLogger(__name__)
 

@@ -4,8 +4,8 @@ import gunpowder as gp
 import matplotlib.pyplot as plt
 import pytest
 
-from fly_organelles.data import CellMapCropSource  # , data_pipeline, add_augmentation
-from fly_organelles.train import make_data_pipeline
+from organelle_mapping.data import CellMapCropSource  # , data_pipeline, add_augmentation
+from organelle_mapping.train import make_data_pipeline
 
 loggp = logging.getLogger("gunpowder.nodes.intensity_augment")
 loggp.setLevel(logging.DEBUG)

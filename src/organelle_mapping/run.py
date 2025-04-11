@@ -5,8 +5,8 @@ import gunpowder as gp
 import numpy as np
 import yaml
 
-from fly_organelles.model import StandardUnet
-from fly_organelles.train import make_train_pipeline
+from organelle_mapping.model import StandardUnet
+from organelle_mapping.train import make_train_pipeline
 
 logger = logging.getLogger(__name__)
 # loggp = logging.getLogger("gunpowder.nodes.pad")
@@ -85,7 +85,7 @@ def run(iterations, labels, label_weights, datasets):
     help="Set the logging level.",
 )
 def main(data_config, iterations, labels, label_weights=None, log_level="INFO"):
-    pkg_logger = logging.getLogger("fly_organelles")
+    pkg_logger = logging.getLogger("organelle_mapping")
     pkg_logger.setLevel(log_level.upper())
     if not label_weights:
         label_weights = [
