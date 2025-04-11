@@ -375,15 +375,17 @@ def infer_nominal_transform(
     for ax, off in offset.items():
         pix_off = off / scale[ax]
         # assert np.isclose(int(pix_off * 2), pix_off * 2, 1e-4), f"{pix_off}"
-        nominal_offset[ax] = int(pix_off * nominal_scale_val)
+        nominal_offset[ax] = int(round(pix_off * nominal_scale_val))
     return nominal_scale, nominal_offset
 
 
 def ax_dict_to_list(ax_dict, axes_order):
     return [ax_dict[ax] for ax in axes_order]
 
+
 def list_to_ax_dict(iterable, axes_order):
     return dict(zip(axes_order, iterable))
+
 
 def get_downsampling_factors(samplings):
     sorted_keys = sorted(samplings.keys(), key=lambda x: min(samplings[x].values()))
