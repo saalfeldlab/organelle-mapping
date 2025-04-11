@@ -74,8 +74,8 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
             )
             # this is a trick to avoid gunpowder problem of offsets needing to be divisible by the sampling
             self.secret_raw_offset = label_corner_offset % raw_voxel_size
-            label_corner_offset -= self.secret_raw_offset
-            label_roi = gp.Roi(label_corner_offset, cropsize)
+            # label_corner_offset -= self.secret_raw_offset
+            label_roi = gp.Roi(label_corner_offset-self.secret_raw_offset, cropsize)
 
             self.specs[labelkey] = gp.array_spec.ArraySpec(
                 roi=label_roi,
@@ -84,7 +84,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
                 dtype=self.stores[labelkey].dtype,
             )
 
-            if self.secret_raw_offset != gp.Coordinate((0,) * len(sampling)):
+            if self.secret_raw_offset == gp.Coordinate((0,) * len(sampling)):
                 if self.needs_downsampling:
                     msg = f"Inconsistent offsets in labels of {label_store}"
                     raise ValueError(msg)
