@@ -120,7 +120,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
             self.stores[raw_arraykey] = fst.read(Path(raw_store) / raw_up_scale)
             raw_spec = gp.array_spec.ArraySpec(
                 roi=raw_roi,
-                voxel_size=raw_up_res,
+                voxel_size=utils.ax_dict_to_list(raw_up_res, raw_axes_names),
                 interpolatable=True,
                 dtype=self.stores[raw_arraykey].dtype,
             )
