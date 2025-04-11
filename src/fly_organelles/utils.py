@@ -192,6 +192,9 @@ def find_target_scale_by_offset(
                 break
         if target_scale is not None:
             break
+    if target_scale is None:
+        msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array compatible with target offset {target_offset}"
+        raise ValueError(msg)
     return (
         target_scale,
         ms_offsets[target_ms_name][target_scale],
