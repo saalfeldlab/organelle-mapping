@@ -29,6 +29,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         raw_grp = fst.read(raw_store)
         raw_axes_names = utils.get_axes_names(raw_grp)
         self.axes_order = raw_axes_names
+        self.raw_arraykey = raw_arraykey
         raw_scale, _, raw_res, raw_shape = utils.find_target_scale(raw_grp, sampling, 0)
         raw_native_scale = utils.get_scale_info(raw_grp, 0)[1]["s0"]
         raw_corner_offset = gp.Coordinate(
