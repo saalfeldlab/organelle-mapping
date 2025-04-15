@@ -120,7 +120,7 @@ def make_train_pipeline(
         model=model,
         loss=MaskedMultiLabelBCEwithLogits(label_weights),
         optimizer=torch.optim.Adam(lr=0.5e-4, params=model.parameters()),
-        inputs={"raw": gp.ArrayKey("RAW")},
+        inputs={0: gp.ArrayKey("RAW")},
         loss_inputs={
             "output": gp.ArrayKey("OUTPUT"),
             "target": gp.ArrayKey("LABELS"),
