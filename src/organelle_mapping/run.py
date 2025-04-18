@@ -2,6 +2,7 @@ import logging
 
 import click
 import gunpowder as gp
+import monai
 import numpy as np
 import yaml
 
@@ -14,16 +15,21 @@ logger = logging.getLogger(__name__)
 
 
 def run(iterations, labels, label_weights, datasets):
-    model = StandardUnet(len(labels))
-
+    # model = StandardUnet(len(labels))
+    input_size = (192, 192, 192)
+    model = monai.networks.nets.SwinUNETR(
+        img_size=input_size,
+        in_channels=1,
+        out_channels=len(labels),
+    )
     sampling = {
         "x": 8,
         "y": 8,
         "z": 8,
     }
     voxel_size = list(sampling.values())
-    input_size = gp.Coordinate((178, 178, 178)) * gp.Coordinate(voxel_size)
-    output_size = gp.Coordinate((56, 56, 56)) * gp.Coordinate(voxel_size)
+    input_size = gp.Coordinate(input_size) * gp.Coordinate(voxel_size)
+    output_size = gp.Coordinate((192, 192, 192)) * gp.Coordinate(voxel_size)
     displacement_sigma = gp.Coordinate((24, 24, 24))
     # max_in_request = gp.Coordinate((np.ceil(np.sqrt(sum(input_size**2))),)*len(input_size)) + displacement_sigma * 6
     max_out_request = (
@@ -43,7 +49,7 @@ def run(iterations, labels, label_weights, datasets):
         displacement_sigma=displacement_sigma,
         input_size=input_size,
         output_size=output_size,
-        batch_size=14,
+        batch_size=4,
     )
 
     with gp.build(pipeline) as pp:

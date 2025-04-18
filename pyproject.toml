@@ -42,7 +42,9 @@ dependencies = [
   "neuroglancer",
   "dask",
   "tensorboardX",
-  "xarray-ome-ngff"
+  "xarray-ome-ngff",
+  "monai",
+  "einops"
 ]
 
 [project.urls]
