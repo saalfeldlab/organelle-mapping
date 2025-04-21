@@ -8,6 +8,8 @@ class ArchitectureConfig(BaseModel, ABC):
     name: str
     input_shape: tuple[int,int,int]
     output_shape: tuple[int, int, int]
+    in_channels: int
+    out_channels: int
     model_config = {"discriminator": "name"}
 
     @abstractmethod
@@ -30,7 +32,7 @@ class SwinUNETRConfig(ArchitectureConfig):
     name: Literal["swin_unetr"]
     input_shape: tuple[int, int, int] = (196, 196, 196)
     output_shape: tuple[int, int, int] = (196, 196, 196)
-    in_channels: int = Field(..., gt=0)
+    in_channels: int = Field(1, gt=0)
     out_channels: int = Field(..., gt=0)
     depths: Sequence[int] = Field((2, 2, 2, 2), min_items=1)
     num_heads: Sequence[int] = Field((3, 6, 12, 24), min_items=1)
@@ -106,6 +108,7 @@ class StandardUnetConfig(ArchitectureConfig):
     name: Literal["standard_unet"]
     input_shape: tuple[int, int, int] = (196, 196, 196)
     output_shape: tuple[int, int, int] = (56, 56, 56)
+    in_channels: int = Field(1, gt=0)
     out_channels: int = Field(..., gt=0)
     num_fmaps: int = Field(16, gt=0)
     fmac_inc_factor: int = Field(6, gt=0)
