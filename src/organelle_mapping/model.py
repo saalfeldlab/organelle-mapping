@@ -2,6 +2,7 @@ import logging
 
 import funlib.learn.torch
 import torch
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -84,3 +85,5 @@ class StandardUnet(torch.nn.Module):
     def forward(self, raw):
         x = self.unet_backbone(raw)
         return self.final_conv(x)
+
+
