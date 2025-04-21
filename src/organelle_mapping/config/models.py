@@ -106,7 +106,7 @@ class SwinUNETRConfig(ArchitectureConfig):
 
 class StandardUnetConfig(ArchitectureConfig):
     name: Literal["standard_unet"]
-    input_shape: tuple[int, int, int] = (196, 196, 196)
+    input_shape: tuple[int, int, int] = (178, 178, 178)
     output_shape: tuple[int, int, int] = (56, 56, 56)
     in_channels: int = Field(1, gt=0)
     out_channels: int = Field(..., gt=0)

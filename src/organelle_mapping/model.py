@@ -33,18 +33,6 @@ class MaskedMultiLabelBCEwithLogits(torch.nn.BCEWithLogitsLoss):
         return bce
 
 
-# 154->148                                          28 -> 22
-#         74-> 68                         20 -> 14
-#                 34->28          16 -> 10
-#                        14-> 8
-
-
-# 154 -> 22
-# 162 -> 30
-# 170 -> 38
-# 178 -> 46
-# 186 -> 54
-# 194 -> 62
 class StandardUnet(torch.nn.Module):
     def __init__(
         self,
