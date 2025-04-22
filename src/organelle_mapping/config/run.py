@@ -57,7 +57,6 @@ class RunConfig(BaseModel):
     def normalize_weights(
         cls, value: Sequence[float], info: ValidationInfo
     ) -> Sequence[float]:
-        logging.warning(f"Label weights: {value}")
         if len(value) == 0:
             value = [1.0] * len(info.data["labels"])
         if len(value) != len(info.data["labels"]):

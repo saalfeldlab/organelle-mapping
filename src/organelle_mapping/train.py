@@ -35,8 +35,13 @@ def make_data_pipeline(
     for aug in run.augmentations.augmentations:
         if aug.name == "corditea_elastic_augment":
             if aug.rotation_interval[1] > 0:
+                logger.info(
+                    "Adapting maximum output request to account for rotation.")
                 max_out_request = gp.Coordinate(
+                    (np.ceil(np.sqrt(sum(output_size**2))), ) *
+                    len(output_size))
             if any(cpds > 0 for cpds in aug.control_point_displacement_sigma):
+                logger.info("Adapting maximum output request to account for control point displacement.")
                 max_out_request += aug.control_point_displacement_sigma * 6
             break
 
