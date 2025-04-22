@@ -25,6 +25,7 @@ from pydantic_ome_ngff.v04.transform import VectorScale, VectorTranslation
 
 logger = logging.getLogger(__name__)
 
+
 def decimal_arr(arr, precision: int = 2) -> np.ndarray:
     return np.array([Decimal(f"{a:.{precision}f}") for a in arr])
 
@@ -38,9 +39,7 @@ def corner_offset(center_off_arr, raw_res_arr, crop_res_arr):
 
 
 def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
-    corner_off_arr = corner_offset(
-        decimal_arr(center_off_arr), decimal_arr(raw_res_arr), decimal_arr(crop_res_arr)
-    )
+    corner_off_arr = corner_offset(decimal_arr(center_off_arr), decimal_arr(raw_res_arr), decimal_arr(crop_res_arr))
     # for co, rr, cr in zip(corner_off_arr, raw_res_arr, crop_res_arr):
     #     if not np.isclose(float(Decimal(str(co)) % Decimal(str(rr))),0):
     #         print(co, rr, co % rr)
@@ -49,10 +48,7 @@ def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
     #         print(co, cr, co % cr)
     #         return False
     # return True
-    if not (
-        np.all(corner_off_arr % raw_res_arr == Decimal(0))
-        and np.all(corner_off_arr % crop_res_arr == Decimal(0))
-    ):
+    if not (np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(corner_off_arr % crop_res_arr == Decimal(0))):
         print(
             center_off_arr,
             raw_res_arr,
@@ -60,9 +56,7 @@ def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
             corner_off_arr % raw_res_arr,
             corner_off_arr % crop_res_arr,
         )
-    return np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(
-        corner_off_arr % crop_res_arr == Decimal(0)
-    )
+    return np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(corner_off_arr % crop_res_arr == Decimal(0))
 
 
 def all_combinations(iterable):
@@ -86,9 +80,7 @@ def read_data_yaml(yaml_file: BinaryIO):
         for crop in ds_info["crops"]:
             copies = crop.split(",")
             for c in copies:
-                label_stores.append(
-                    os.path.join(datasets["gt_path"], dataset, "groundtruth.zarr", c)
-                )
+                label_stores.append(os.path.join(datasets["gt_path"], dataset, "groundtruth.zarr", c))
                 raw_stores.append(ds_info["raw"])
                 crop_copies.append(len(copies))
     return label_stores, raw_stores, crop_copies
@@ -112,9 +104,7 @@ def get_axes_names(zarr_grp, multiscale: str | int = 0) -> list[str]:
 def get_scale_info(
     zarr_grp,
     multiscale: str | int = 0,
-) -> tuple[
-    dict[str, dict[str, float]], dict[str, dict[str, float]], dict[str, dict[str, int]]
-]:
+) -> tuple[dict[str, dict[str, float]], dict[str, dict[str, float]], dict[str, dict[str, int]]]:
     """
     Extracts scale information, including resolutions, offsets, and shapes from a Zarr group.
 
@@ -153,12 +143,8 @@ def get_scale_info(
             msg = f"Multiscale with name '{multiscale}' not found in Zarr group at {zarr_grp.store.path}"
             raise KeyError(msg)
     for scale in attrs["multiscales"][index]["datasets"]:
-        resolutions[scale["path"]] = dict(
-            zip(axes_names, scale["coordinateTransformations"][0]["scale"])
-        )
-        offsets[scale["path"]] = dict(
-            zip(axes_names, scale["coordinateTransformations"][1]["translation"])
-        )
+        resolutions[scale["path"]] = dict(zip(axes_names, scale["coordinateTransformations"][0]["scale"]))
+        offsets[scale["path"]] = dict(zip(axes_names, scale["coordinateTransformations"][1]["translation"]))
         shapes[scale["path"]] = dict(zip(axes_names, zarr_grp[scale["path"]].shape))
     # offset = min(offsets.values())
     return offsets, resolutions, shapes
@@ -265,9 +251,7 @@ def find_target_scale(
     target_ms_name = None
     for ms_name, resolutions in ms_resolutions.items():
         for scale, res in resolutions.items():
-            if all(
-                np.isclose(res[ax], target_resolution[ax]) for ax in target_resolution
-            ):
+            if all(np.isclose(res[ax], target_resolution[ax]) for ax in target_resolution):
                 target_scale = scale
                 target_ms_name = ms_name
                 break
@@ -309,20 +293,14 @@ class SmoothSemanticSegmentation(SemanticSegmentation):
 
 
 class GeneralizedAnnotationArrayAttrs(AnnotationArrayAttrs):
-    complement_counts: (
-        dict[InstancePossibility, int] | dict[SemanticPossibility, int | float] | None
-    )
+    complement_counts: dict[InstancePossibility, int] | dict[SemanticPossibility, int | float] | None
 
 
-def generate_standard_multiscale(
-    dataset_paths, axes, base_resolution, base_offset, factors, name="nominal"
-):
+def generate_standard_multiscale(dataset_paths, axes, base_resolution, base_offset, factors, name="nominal"):
     axes_order = [ax.name for ax in axes]
     scale = np.array(ax_dict_to_list(base_resolution, axes_order))
     offset = np.array(ax_dict_to_list(base_offset, axes_order))
-    transforms = [
-        (VectorScale(scale=tuple(scale)), VectorTranslation(translation=tuple(offset)))
-    ]
+    transforms = [(VectorScale(scale=tuple(scale)), VectorTranslation(translation=tuple(offset)))]
     for f in factors:
         factor = np.array(ax_dict_to_list(f, axes_order))
         offset = offset + (factor - np.ones_like(factor)) * scale / 2.0
@@ -356,13 +334,9 @@ def get_axes_object(zarr_grp, multiscale_name: Optional[str] = None) -> list[Axi
     return msattrs.multiscales[index].axes
 
 
-def infer_nominal_transform(
-    scale: dict[str, float], offset: dict[str, float]
-) -> tuple[dict[str, int], dict[str, int]]:
+def infer_nominal_transform(scale: dict[str, float], offset: dict[str, float]) -> tuple[dict[str, int], dict[str, int]]:
     if offset.keys() != scale.keys():
-        msg = (
-            f"Keys of offset {offset.keys()} do not match keys of scale {scale.keys()}."
-        )
+        msg = f"Keys of offset {offset.keys()} do not match keys of scale {scale.keys()}."
     if len(set(scale.values())) == len(scale.values()):
         msg = "Scales along all axes are unique, cannot infer nominal transform."
         raise ValueError(msg)

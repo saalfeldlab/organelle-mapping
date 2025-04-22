@@ -32,12 +32,8 @@ def create_lv(path, volume_type="segmentation", array_name="raw"):
             dim_units.pop(dim)
             dim_scales.pop(dim)
             voxel_offset.pop(dim)
-    dims = neuroglancer.CoordinateSpace(
-        names=dim_names, units=dim_units, scales=dim_scales
-    )
-    return neuroglancer.LocalVolume(
-        arr, dimensions=dims, volume_type=volume_type, voxel_offset=voxel_offset
-    )
+    dims = neuroglancer.CoordinateSpace(names=dim_names, units=dim_units, scales=dim_scales)
+    return neuroglancer.LocalVolume(arr, dimensions=dims, volume_type=volume_type, voxel_offset=voxel_offset)
 
 
 def add_example_layers(state, snapshot_path, *, add_time=True):
@@ -55,15 +51,11 @@ def add_example_layers(state, snapshot_path, *, add_time=True):
     for layer_name, layer_type in layers.items():
         if layer_type == "image":
             state.layers[layer_name] = neuroglancer.ImageLayer(
-                source=lv_func(
-                    snapshot_path, volume_type=layer_type, array_name=layer_name
-                )
+                source=lv_func(snapshot_path, volume_type=layer_type, array_name=layer_name)
             )
         else:
             state.layers[layer_name] = neuroglancer.SegmentationLayer(
-                source=lv_func(
-                    snapshot_path, volume_type=layer_type, array_name=layer_name
-                )
+                source=lv_func(snapshot_path, volume_type=layer_type, array_name=layer_name)
             )
 
 
@@ -93,12 +85,8 @@ def create_lv_stacked(snapshot_path, volume_type="segmentation", array_name="raw
             dim_units.pop(dim)
             dim_scales.pop(dim)
             voxel_offset.pop(dim)
-    dims = neuroglancer.CoordinateSpace(
-        names=dim_names, units=dim_units, scales=dim_scales
-    )
-    return neuroglancer.LocalVolume(
-        dask_arrs, dimensions=dims, volume_type=volume_type, voxel_offset=voxel_offset
-    )
+    dims = neuroglancer.CoordinateSpace(names=dim_names, units=dim_units, scales=dim_scales)
+    return neuroglancer.LocalVolume(dask_arrs, dimensions=dims, volume_type=volume_type, voxel_offset=voxel_offset)
 
 
 if __name__ == "__main__":

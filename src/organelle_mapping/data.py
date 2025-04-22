@@ -9,6 +9,7 @@ import organelle_mapping.utils as utils
 
 logger = logging.getLogger(__name__)
 
+
 class CellMapCropSource(gp.batch_provider.BatchProvider):
     def __init__(
         self,
@@ -30,9 +31,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         self.raw_arraykey = raw_arraykey
         raw_scale, _, raw_res, raw_shape = utils.find_target_scale(raw_grp, sampling, 0)
         raw_native_scale = utils.get_scale_info(raw_grp, 0)[1]["s0"]
-        raw_corner_offset = gp.Coordinate(
-            (0,) * len(sampling)
-        )  # raw corner-offset is 0 by definition
+        raw_corner_offset = gp.Coordinate((0,) * len(sampling))  # raw corner-offset is 0 by definition
         self.labels = labels
         self.needs_downsampling = None
         raw_voxel_size = gp.Coordinate(utils.ax_dict_to_list(sampling, raw_axes_names))
@@ -42,38 +41,25 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         for label, labelkey in self.labels.items():
             label_grp = fst.read(Path(label_store) / label)
             label_axes_names = utils.get_axes_names(label_grp)
-            label_scale, label_offset, _, label_shape = utils.find_target_scale(
-                label_grp, sampling
-            )
+            label_scale, label_offset, _, label_shape = utils.find_target_scale(label_grp, sampling)
             label_corner_offset = gp.Coordinate(
                 utils.undecimal_arr(
                     utils.corner_offset(
-                        utils.decimal_arr(
-                            utils.ax_dict_to_list(label_offset, label_axes_names)
-                        ),
-                        utils.decimal_arr(
-                            utils.ax_dict_to_list(raw_native_scale, raw_axes_names)
-                        ),
-                        utils.decimal_arr(
-                            utils.ax_dict_to_list(raw_res, raw_axes_names)
-                        ),
+                        utils.decimal_arr(utils.ax_dict_to_list(label_offset, label_axes_names)),
+                        utils.decimal_arr(utils.ax_dict_to_list(raw_native_scale, raw_axes_names)),
+                        utils.decimal_arr(utils.ax_dict_to_list(raw_res, raw_axes_names)),
                     )
                 )
             )
             # label_offset = tuple(np.array(label_offset) - np.array(sampling)/2.)
-            self.stores[labelkey] = fst.read_xarray(
-                Path(label_store) / label / label_scale
-            )
+            self.stores[labelkey] = fst.read_xarray(Path(label_store) / label / label_scale)
             # label_roi, label_voxel_size = spatial_spec_from_xarray(self.stores[labelkey])
             label_voxel_size = raw_voxel_size
-            cropsize = (
-                gp.Coordinate(utils.ax_dict_to_list(label_shape, label_axes_names))
-                * label_voxel_size
-            )
+            cropsize = gp.Coordinate(utils.ax_dict_to_list(label_shape, label_axes_names)) * label_voxel_size
             # this is a trick to avoid gunpowder problem of offsets needing to be divisible by the sampling
             self.secret_raw_offset = label_corner_offset % raw_voxel_size
             # label_corner_offset -= self.secret_raw_offset
-            label_roi = gp.Roi(label_corner_offset-self.secret_raw_offset, cropsize)
+            label_roi = gp.Roi(label_corner_offset - self.secret_raw_offset, cropsize)
 
             self.specs[labelkey] = gp.array_spec.ArraySpec(
                 roi=label_roi,
@@ -93,22 +79,13 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
                     raise ValueError(msg)
                 self.needs_downsampling = True
         if self.needs_downsampling:
-            logger.debug(
-                f"Need to downsample raw for {label_store} to accomodate offset {label_corner_offset}."
+            logger.debug(f"Need to downsample raw for {label_store} to accomodate offset {label_corner_offset}.")
+            raw_up_scale, _, raw_up_res, raw_up_shape = utils.find_target_scale_by_offset(
+                raw_grp,
+                utils.list_to_ax_dict(label_corner_offset, label_axes_names),
             )
-            raw_up_scale, _, raw_up_res, raw_up_shape = (
-                utils.find_target_scale_by_offset(
-                    raw_grp,
-                    utils.list_to_ax_dict(label_corner_offset, label_axes_names),
-                )
-            )
-            logger.debug(
-                f"Reading raw from {raw_store}/ {raw_up_scale} with voxel_size {raw_up_res}"
-            )
-            sampling_up = {
-                ax: (raw_up_res[ax] / raw_res[ax]) * sampling[ax]
-                for ax in raw_axes_names
-            }
+            logger.debug(f"Reading raw from {raw_store}/ {raw_up_scale} with voxel_size {raw_up_res}")
+            sampling_up = {ax: (raw_up_res[ax] / raw_res[ax]) * sampling[ax] for ax in raw_axes_names}
             # TODO make a drawing for this
             raw_roi = gp.Roi(
                 raw_corner_offset,
@@ -142,12 +119,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
 
             self.raw_arraykey = raw_arraykey
 
-        self.padding += (
-            gp.Coordinate(
-                max(0, p) for p in self.max_request - (cropsize + self.padding * 2)
-            )
-            / 2.0
-        )
+        self.padding += gp.Coordinate(max(0, p) for p in self.max_request - (cropsize + self.padding * 2)) / 2.0
         self.specs[raw_arraykey] = raw_spec
         self.sampling = sampling
 
@@ -169,16 +141,12 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
 
             if ak == self.raw_arraykey:
                 dataset_roi = rs.roi + self.secret_raw_offset
-                logger.debug(
-                    f"Shifting {ak} dataset_roi by secret raw offset {dataset_roi}"
-                )
+                logger.debug(f"Shifting {ak} dataset_roi by secret raw offset {dataset_roi}")
             else:
                 dataset_roi = rs.roi
             dataset_roi = dataset_roi / vs
             dataset_roi = dataset_roi - self.spec[ak].roi.offset / vs
-            logger.debug(
-                f"Reading {ak} with dataset_roi {dataset_roi} ({dataset_roi.to_slices()})"
-            )
+            logger.debug(f"Reading {ak} with dataset_roi {dataset_roi} ({dataset_roi.to_slices()})")
             # loc = {axis:slice(b, e, None) for b, e, axis in zip(rs.roi.get_begin(), rs.roi.get_end()-vs/2., "zyx")}
             # arr = self.stores[ak].sel(loc).to_numpy()
             arr = np.asarray(self.stores[ak][dataset_roi.to_slices()])

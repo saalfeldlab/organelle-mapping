@@ -67,12 +67,8 @@ class StandardUnet(torch.nn.Module):
             constant_upsample=True,
         )
 
-        self.final_conv = torch.nn.Conv3d(
-            num_fmaps, out_channels, (1, 1, 1), padding="valid"
-        )
+        self.final_conv = torch.nn.Conv3d(num_fmaps, out_channels, (1, 1, 1), padding="valid")
 
     def forward(self, raw):
         x = self.unet_backbone(raw)
         return self.final_conv(x)
-
-

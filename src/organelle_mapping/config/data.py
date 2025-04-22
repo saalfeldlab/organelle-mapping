@@ -16,9 +16,7 @@ class EMConfig(BaseModel):
 class LabelsConfig(BaseModel):
     data: str = Field(..., description="Path to the labels data file")
     group: str = Field(..., description="Group within the labels data file")
-    crops: List[str] = Field(
-        default_factory=list, description="List of crop identifiers"
-    )
+    crops: List[str] = Field(default_factory=list, description="List of crop identifiers")
 
 
 class DatasetConfig(BaseModel):
@@ -27,6 +25,4 @@ class DatasetConfig(BaseModel):
 
 
 class DataConfig(BaseModel):
-    datasets: Dict[str, DatasetConfig] = Field(
-        ..., description="Mapping of dataset names to their configurations"
-    )
+    datasets: Dict[str, DatasetConfig] = Field(..., description="Mapping of dataset names to their configurations")

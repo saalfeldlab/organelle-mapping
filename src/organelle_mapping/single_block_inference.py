@@ -83,20 +83,13 @@ def single_block_inference(
     with torch.inference_mode():  # This turns off gradient computation
         if batched_mode:  # run predictions iteratively
             input_tensor = torch.from_numpy(np.concat(raw_arrs, 0))
-            predictions = (
-                model.forward(input_tensor.float().to(device)).detach().cpu().numpy()
-            )
+            predictions = model.forward(input_tensor.float().to(device)).detach().cpu().numpy()
             predictions = list(predictions)
         else:  # run predictions iteratively
             predictions = []
             for inp in raw_arrs:
                 input_tensor = torch.from_numpy(inp)
-                predictions.append(
-                    model.forward(input_tensor.float().to(device))
-                    .detach()
-                    .cpu()
-                    .numpy()[0]
-                )
+                predictions.append(model.forward(input_tensor.float().to(device)).detach().cpu().numpy()[0])
     return predictions
 
 

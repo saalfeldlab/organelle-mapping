@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator, TypeAda
 
 class ArchitectureConfig(BaseModel, ABC):
     name: str
-    input_shape: tuple[int,int,int]
+    input_shape: tuple[int, int, int]
     output_shape: tuple[int, int, int]
     in_channels: int
     out_channels: int
@@ -52,6 +52,7 @@ class SwinUNETRConfig(ArchitectureConfig):
             msg = f"input_shape ({self.input_shape}) and output_shape ({self.output_shape}) must be the same for SwinUNETR."
             raise ValueError(msg)
         return self
+
     @field_validator("norm_name", mode="after")
     @classmethod
     def validate_norm_name(cls, value):
@@ -61,6 +62,7 @@ class SwinUNETRConfig(ArchitectureConfig):
                 raise ValueError(msg)
             TypeAdapter(NormName).validate_python(value[0])
         return value
+
     @field_validator("feature_size")
     @classmethod
     def validate_feature_size(cls, value):
@@ -68,7 +70,7 @@ class SwinUNETRConfig(ArchitectureConfig):
             msg = f"feature_size ({value}) must be divisible by 12."
             raise ValueError(msg)
         return value
-    
+
     @model_validator(mode="after")
     def validate_depths_and_num_heads(self):
         if len(self.depths) != len(self.num_heads):
@@ -117,12 +119,8 @@ class StandardUnetConfig(ArchitectureConfig):
         (2, 2, 2),
         (2, 2, 2),
     )
-    kernel_size_down: Sequence[Sequence[tuple[int, int, int]]] = (
-        ((3, 3, 3), (3, 3, 3), (3, 3, 3)),
-    ) * 4
-    kernel_size_up: Sequence[Sequence[tuple[int, int, int]]] = (
-        ((3, 3, 3), (3, 3, 3), (3, 3, 3)),
-    ) * 3
+    kernel_size_down: Sequence[Sequence[tuple[int, int, int]]] = (((3, 3, 3), (3, 3, 3), (3, 3, 3)),) * 4
+    kernel_size_up: Sequence[Sequence[tuple[int, int, int]]] = (((3, 3, 3), (3, 3, 3), (3, 3, 3)),) * 3
 
     @model_validator(mode="after")
     def validate_kernel_sizes(self):
@@ -165,10 +163,8 @@ class StandardUnetConfig(ArchitectureConfig):
             kernel_size_up=self.kernel_size_up,
         )
 
+
 Architecture = Annotated[
-    Union[
-        StandardUnetConfig,
-        SwinUNETRConfig
-    ],
+    Union[StandardUnetConfig, SwinUNETRConfig],
     Field(discriminator="name"),
 ]

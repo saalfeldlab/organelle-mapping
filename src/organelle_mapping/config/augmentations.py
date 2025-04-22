@@ -20,9 +20,7 @@ class AugmentationConfig(BaseModel, ABC):
 class ArrayKeyField:
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type, handler):
-        return core_schema.no_info_after_validator_function(
-            cls._validate, core_schema.str_schema(strict=True)
-        )
+        return core_schema.no_info_after_validator_function(cls._validate, core_schema.str_schema(strict=True))
 
     @staticmethod
     def _validate(value):
@@ -34,9 +32,7 @@ class CoordinateField:
     def __get_pydantic_core_schema__(cls, source_type, handler):
         return core_schema.no_info_after_validator_function(
             cls._validate,
-            core_schema.tuple_schema(
-                [core_schema.int_schema()] * 3, min_length=3, max_length=3
-            ),
+            core_schema.tuple_schema([core_schema.int_schema()] * 3, min_length=3, max_length=3),
         )
 
     @staticmethod
@@ -47,21 +43,11 @@ class CoordinateField:
 class IntensityAugmentConfig(AugmentationConfig):
     name: Literal["intensity_augment"]
     array: ArrayKeyField
-    scale_min: float = Field(
-        0.75, description="Minimum scale for intensity augmentation."
-    )
-    scale_max: float = Field(
-        1.5, description="Maximum scale for intensity augmentation."
-    )
-    shift_min: float = Field(
-        -0.15, description="Minimum shift for intensity augmentation."
-    )
-    shift_max: float = Field(
-        0.15, description="Maximum shift for intensity augmentation."
-    )
-    z_section_wise: bool = Field(
-        False, description="Perform augmentation z-section-wise."
-    )
+    scale_min: float = Field(0.75, description="Minimum scale for intensity augmentation.")
+    scale_max: float = Field(1.5, description="Maximum scale for intensity augmentation.")
+    shift_min: float = Field(-0.15, description="Minimum shift for intensity augmentation.")
+    shift_max: float = Field(0.15, description="Maximum shift for intensity augmentation.")
+    z_section_wise: bool = Field(False, description="Perform augmentation z-section-wise.")
     clip: bool = True
     p: float = Field(
         1.0,
@@ -87,9 +73,7 @@ class GammaAugmentConfig(AugmentationConfig):
     name: Literal["gamma_augment"]
     arrays: list[ArrayKeyField]
     gamma_min: float = Field(0.75, description="Minimum gamma value for augmentation.")
-    gamma_max: float = Field(
-        4 / 3.0, description="Maximum gamma value for augmentation."
-    )
+    gamma_max: float = Field(4 / 3.0, description="Maximum gamma value for augmentation.")
 
     def instantiate(self):
         return corditea.GammaAugment(self.arrays, self.gamma_min, self.gamma_max)
@@ -124,8 +108,7 @@ class ElasticAugmentConfig(AugmentationConfig):
         default=gp.Coordinate((25, 25, 25)),
         description="Default control point spacing for elastic augmentation.",
     )
-    control_point_displacement_sigma: CoordinateField = Field(
-        default=gp.Coordinate((24, 24, 24)))
+    control_point_displacement_sigma: CoordinateField = Field(default=gp.Coordinate((24, 24, 24)))
     rotation_interval: tuple[float, float] = (0, math.pi / 2.0)
     subsample: int = 8
     augmentation_probability: float = Field(
@@ -154,11 +137,7 @@ class IntensityScaleShiftConfig(AugmentationConfig):
     shift: float
 
     def instantiate(self):
-        return gp.IntensityScaleShift(
-            self.array,
-            self.scale,
-            self.shift
-            )
+        return gp.IntensityScaleShift(self.array, self.scale, self.shift)
 
 
 class GaussianNoiseAugmentConfig(AugmentationConfig):

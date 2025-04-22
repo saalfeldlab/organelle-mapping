@@ -54,9 +54,7 @@ class RunConfig(BaseModel):
 
     @field_validator("label_weights", mode="after")
     @classmethod
-    def normalize_weights(
-        cls, value: Sequence[float], info: ValidationInfo
-    ) -> Sequence[float]:
+    def normalize_weights(cls, value: Sequence[float], info: ValidationInfo) -> Sequence[float]:
         if len(value) == 0:
             value = [1.0] * len(info.data["labels"])
         if len(value) != len(info.data["labels"]):

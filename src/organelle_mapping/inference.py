@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 @click.group()
 @click.option(
     "--log-level",
-    type=click.Choice(
-        ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False
-    ),
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
     default="INFO",
 )
 def cli(log_level):
@@ -107,9 +105,7 @@ def spawn_worker(
 @cli.command()
 @click.option("-ckpt", "--checkpoint", type=str)
 @click.option("-no", "--num_outputs", type=int)
-@click.option(
-    "-cs", "--channels", type=str
-)  # 0:ecs,1:plasma_membrane,2:ecs (comma seperated number:dataset_name)
+@click.option("-cs", "--channels", type=str)  # 0:ecs,1:plasma_membrane,2:ecs (comma seperated number:dataset_name)
 @click.option("-is", "--input_shape", nargs=3, type=int)
 @click.option("-os", "--output_shape", nargs=3, type=int)
 @click.option("-vs", "--voxel_size", nargs=3, type=int)
@@ -144,9 +140,7 @@ def spawn_worker(
     default=list(),
 )  # ignore
 @click.option("--instance", type=bool, default=False)  # this is for affinities
-@click.option(
-    "-tw", "--per-block-time-estimate", type=float, default=30, help="in seconds"
-)
+@click.option("-tw", "--per-block-time-estimate", type=float, default=30, help="in seconds")
 def predict(
     checkpoint,
     num_outputs,
@@ -177,10 +171,7 @@ def predict(
 
     if roi is not None:
         parsed_start, parsed_end = zip(
-            *[
-                tuple(int(coord) for coord in axis.split(":"))
-                for axis in roi.strip("[]").split(",")
-            ]
+            *[tuple(int(coord) for coord in axis.split(":")) for axis in roi.strip("[]").split(",")]
         )
         parsed_roi = daisy.Roi(
             daisy.Coordinate(parsed_start),
@@ -209,15 +200,9 @@ def predict(
                 chunk_shape = tuple((write_roi / output_voxel_size).shape)
                 axes = ["z", "y", "x"]
             else:
-                num_channels = len(
-                    range(int(indexes.split("-")[0]), int(indexes.split("-")[1]))
-                )
-                shape = (num_channels,) + tuple(
-                    (total_write_roi / output_voxel_size).shape
-                )
-                chunk_shape = (num_channels,) + tuple(
-                    (write_roi / output_voxel_size).shape
-                )
+                num_channels = len(range(int(indexes.split("-")[0]), int(indexes.split("-")[1])))
+                shape = (num_channels,) + tuple((total_write_roi / output_voxel_size).shape)
+                chunk_shape = (num_channels,) + tuple((write_roi / output_voxel_size).shape)
                 axes = ["c^"] + ["z", "y", "x"]
             prepare_ds(
                 f"{out_container}/{out_dataset}/{channel}",
@@ -335,10 +320,7 @@ def start_worker(
     model = load_eval_model(num_outputs, checkpoint)
     device = next(model.parameters()).device
     raw_dataset = open_ds(os.path.join(in_container, in_dataset), voxel_size=voxel_size)
-    mask_datasets = [
-        open_ds(mc, md, voxel_size=voxel_size)
-        for mc, md in zip(mask_container, mask_dataset)
-    ]
+    mask_datasets = [open_ds(mc, md, voxel_size=voxel_size) for mc, md in zip(mask_container, mask_dataset)]
 
     # voxel_size = raw_dataset.voxel_size
     output_voxel_size = daisy.Coordinate(voxel_size)
@@ -357,8 +339,7 @@ def start_worker(
         assert len(parsed_channels) == 1
         indexes, channel = parsed_channels[0]
         out_datasets = [
-            open_ds(out_container, f"{out_dataset}/{channel}__{i}", mode="r+")
-            for i in range(0, num_channels, 3)
+            open_ds(out_container, f"{out_dataset}/{channel}__{i}", mode="r+") for i in range(0, num_channels, 3)
         ]
 
     while True:
@@ -370,9 +351,7 @@ def start_worker(
                     [
                         np.any(
                             mask_dataset.to_ndarray(
-                                roi=block.read_roi.snap_to_grid(
-                                    mask_dataset.voxel_size
-                                ),
+                                roi=block.read_roi.snap_to_grid(mask_dataset.voxel_size),
                                 fill_value=0,
                             )
                         )
@@ -388,21 +367,13 @@ def start_worker(
             if not instance:
                 raw_input = (
                     2.0
-                    * (
-                        raw_dataset.to_ndarray(
-                            roi=block.read_roi, fill_value=shift + scale
-                        ).astype(np.float32)
-                        - shift
-                    )
+                    * (raw_dataset.to_ndarray(roi=block.read_roi, fill_value=shift + scale).astype(np.float32) - shift)
                     / scale
                 ) - 1.0
             else:
                 raise NotImplementedError("Instance prediction not implemented yet")
                 raw_input = (
-                    raw_dataset.to_ndarray(
-                        roi=block.read_roi, fill_value=shift + scale
-                    ).astype(np.float32)
-                    - shift
+                    raw_dataset.to_ndarray(roi=block.read_roi, fill_value=shift + scale).astype(np.float32) - shift
                 ) / scale
             raw_input = np.expand_dims(raw_input, (0, 1))
             write_roi = block.write_roi.intersect(out_datasets[0].roi)
@@ -413,10 +384,7 @@ def start_worker(
 
             with torch.no_grad():
                 predictions = Array(
-                    model.forward(torch.from_numpy(raw_input).float().to(device))
-                    .detach()
-                    .cpu()
-                    .numpy()[0],
+                    model.forward(torch.from_numpy(raw_input).float().to(device)).detach().cpu().numpy()[0],
                     block.write_roi.offset,
                     output_voxel_size,
                     axis_names=["c^", "z", "y", "x"],
@@ -432,17 +400,11 @@ def start_worker(
                         else:
                             indexes = [int(i)]
                         if len(indexes) > 1:
-                            out_dataset[write_roi] = np.stack(
-                                [write_data[j] for j in indexes], axis=0
-                            ).astype(np.uint8)
+                            out_dataset[write_roi] = np.stack([write_data[j] for j in indexes], axis=0).astype(np.uint8)
                         else:
-                            out_dataset[write_roi] = write_data[indexes[0]].astype(
-                                np.uint8
-                            )
+                            out_dataset[write_roi] = write_data[indexes[0]].astype(np.uint8)
                 else:
                     for i, out_dataset in zip(range(0, num_channels, 3), out_datasets):
-                        out_dataset[write_roi] = write_data[i : i + 3].astype(
-                            np.float32
-                        )
+                        out_dataset[write_roi] = write_data[i : i + 3].astype(np.float32)
 
             block.status = daisy.BlockStatus.SUCCESS
