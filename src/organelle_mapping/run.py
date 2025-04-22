@@ -54,5 +54,5 @@ def run(run: RunConfig):
 def main(run_config, log_level="INFO"):
     pkg_logger = logging.getLogger("organelle_mapping")
     pkg_logger.setLevel(log_level.upper())
-    config = TypeAdapter(RunConfig).validate_python(run_config)
+    config = TypeAdapter(RunConfig).validate_python(yaml.safe_load(run_config))
     run(config)
