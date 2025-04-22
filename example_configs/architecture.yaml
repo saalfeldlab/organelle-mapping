@@ -1,0 +1,13 @@
+name: "standard_unet"
+input_shape: 
+  - 196
+  - 196
+  - 196
+output_shape:
+  - 56
+  - 56
+  - 56
+out_channels: 9
+in_channels: 1
+num_fmaps: 16
+fmap_inc_factor: 6

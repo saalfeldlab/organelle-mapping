@@ -1,0 +1,34 @@
+iterations: 1000000
+labels:
+  - all_mem
+  - organelle
+  - mito
+  - er
+  - nuc
+  - pm
+  - ves
+  - ld 
+  - golgi
+label_weights:
+  - 3
+  - 3
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+sampling:
+  x: 8
+  y: 8
+  z: 8
+architecture: architecture.yaml
+data: all_data.yaml
+augmentations: augmentations.yaml
+precache_size: 48
+precache_workers: 20
+lr: 5e-5
+log_frequency: 20
+checkpoint_frequency: 1000
+batch_size: 14

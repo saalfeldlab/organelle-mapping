@@ -1,0 +1,42 @@
+augmentations:
+  - name: intensity_augment
+    array: RAW
+    scale_min: 0.75
+    scale_max: 1.5
+    shift_min: -0.15
+    shift_max: 0.15
+    z_section_wise: False
+    clip: True
+    p: 1.0
+  - name: gamma_augment
+    arrays:
+      - RAW
+    gamma_min: 0.75
+    gamma_max: 1.333
+  - name: simple_augment
+  - name: corditea_elastic_augment
+    control_point_spacing:
+      - 25
+      - 25
+      - 25
+    control_point_displacement_sigma:
+      - 24
+      - 24
+      - 24
+    rotation_interval:
+      - 0
+      - 1.5708
+    subsample: 8
+    uniform_3d_rotation: True
+    augmentation_probability: 0.6
+  - name: intensity_scale_shift
+    array: RAW
+    scale: 2
+    shift: -1
+  - name: gaussian_noise_augment
+    array: RAW
+    var_range: 
+      - 0
+      - 0.01
+    noise_prob: 0.5
+    clip: True
