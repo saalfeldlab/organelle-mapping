@@ -1,6 +1,5 @@
-import logging
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Sequence
 
 import yaml
 from pydantic import BaseModel, Field, TypeAdapter, ValidationInfo, field_validator
@@ -11,9 +10,8 @@ from organelle_mapping.config.models import Architecture
 
 
 def load_subconfig(value, target_cls):
-    print(value)
     if isinstance(value, str):
-        config = open(Path(value), "r")
+        config = open(Path(value))
         return TypeAdapter(target_cls).validate_python(yaml.safe_load(config))
 
     return value
@@ -58,6 +56,10 @@ class RunConfig(BaseModel):
         if len(value) == 0:
             value = [1.0] * len(info.data["labels"])
         if len(value) != len(info.data["labels"]):
-            raise ValueError("Length of label_weights must match the number of labels.")
+            msg = (
+                f"Length of label_weights ({len(value)}) does not match the number of labels "
+                f"({len(info.data['labels'])})."
+            )
+            raise ValueError(msg)
         normalizer = sum(value)
         return [lw / normalizer for lw in value]

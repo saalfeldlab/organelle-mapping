@@ -2,7 +2,6 @@ import logging
 
 import funlib.learn.torch
 import torch
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 

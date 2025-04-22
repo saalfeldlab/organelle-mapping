@@ -35,7 +35,7 @@ def undecimal_arr(arr, precision: int = 2) -> np.ndarray:
 
 
 def corner_offset(center_off_arr, raw_res_arr, crop_res_arr):
-    return center_off_arr + raw_res_arr / Decimal('2.0') - crop_res_arr / Decimal('2')
+    return center_off_arr + raw_res_arr / Decimal("2.0") - crop_res_arr / Decimal("2")
 
 
 def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):

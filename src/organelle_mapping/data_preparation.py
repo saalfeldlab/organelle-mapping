@@ -20,13 +20,10 @@ from cellmap_schemas.annotation import (
     SemanticSegmentation,
     wrap_attributes,
 )
-from pydantic_zarr.v2 import ArraySpec, GroupSpec
 from xarray_multiscale import multiscale, windowed_mode
-
-# from fibsem_tools.io.multiscale import multiscale_group
 from xarray_ome_ngff import create_multiscale_group
 
-import organelle_mapping.utils as utils
+from organelle_mapping import utils
 
 logger = logging.getLogger(__name__)  # Allow the root logger to control the level
 

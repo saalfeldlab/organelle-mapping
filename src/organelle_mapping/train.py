@@ -1,5 +1,4 @@
 import logging
-import math
 import os
 
 import corditea
@@ -7,7 +6,7 @@ import gunpowder as gp
 import numpy as np
 import torch
 
-import organelle_mapping.utils as utils
+from organelle_mapping import utils
 from organelle_mapping.config import RunConfig
 from organelle_mapping.data import CellMapCropSource, ExtractMask
 from organelle_mapping.model import MaskedMultiLabelBCEwithLogits
@@ -21,7 +20,7 @@ def sigmoidify(arr):
 
 def make_data_pipeline(
     run: RunConfig,
-    input_size: gp.Coordinate,
+    input_size: gp.Coordinate,  # noqa: ARG001
     output_size: gp.Coordinate,
 ):
     raw = gp.ArrayKey("RAW")

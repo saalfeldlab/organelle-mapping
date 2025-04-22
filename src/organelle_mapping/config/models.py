@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Annotated, Any, Literal, Sequence, Union
 
-from pydantic import BaseModel, Field, field_validator, model_validator, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
 
 
 class ArchitectureConfig(BaseModel, ABC):
@@ -49,7 +49,10 @@ class SwinUNETRConfig(ArchitectureConfig):
     @model_validator(mode="after")
     def validate_input_shape(self):
         if self.input_shape != self.output_shape:
-            msg = f"input_shape ({self.input_shape}) and output_shape ({self.output_shape}) must be the same for SwinUNETR."
+            msg = (
+                f"input_shape ({self.input_shape}) and output_shape ({self.output_shape}) "
+                f"must be the same for SwinUNETR."
+            )
             raise ValueError(msg)
         return self
 

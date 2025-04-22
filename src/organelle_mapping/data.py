@@ -4,8 +4,8 @@ from pathlib import Path
 import fibsem_tools as fst
 import gunpowder as gp
 import numpy as np
-import xarray as xr
-import organelle_mapping.utils as utils
+
+from organelle_mapping import utils
 
 logger = logging.getLogger(__name__)
 
