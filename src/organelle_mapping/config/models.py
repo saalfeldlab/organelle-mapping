@@ -156,6 +156,7 @@ class StandardUnetConfig(ArchitectureConfig):
         from organelle_mapping.model import StandardUnet
 
         return StandardUnet(
+            self.in_channels,
             self.out_channels,
             num_fmaps=self.num_fmaps,
             fmap_inc_factor=self.fmac_inc_factor,
