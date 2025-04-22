@@ -121,11 +121,12 @@ class SimpleAugmentConfig(AugmentationConfig):
 class ElasticAugmentConfig(AugmentationConfig):
     name: Literal["corditea_elastic_augment"]
     control_point_spacing: CoordinateField = Field(
-        default=(25, 25, 25),
+        default=gp.Coordinate((25, 25, 25)),
         description="Default control point spacing for elastic augmentation.",
     )
-    control_point_displacement_sigma: CoordinateField = Field(default=(24, 24, 24))
-    rotation_interval: tuple[float] = (0, math.pi / 2.0)
+    control_point_displacement_sigma: CoordinateField = Field(
+        default=gp.Coordinate((24, 24, 24)))
+    rotation_interval: tuple[float, float] = (0, math.pi / 2.0)
     subsample: int = 8
     augmentation_probability: float = Field(
         0.6,
@@ -135,7 +136,7 @@ class ElasticAugmentConfig(AugmentationConfig):
     )
     uniform_3d_rotation: bool = True
 
-    def instaniate(self):
+    def instantiate(self):
         return corditea.ElasticAugment(
             control_point_spacing=self.control_point_spacing,
             control_point_displacement_sigma=self.control_point_displacement_sigma,
@@ -144,6 +145,8 @@ class ElasticAugmentConfig(AugmentationConfig):
             augmentation_probability=self.augmentation_probability,
             uniform_3d_rotation=self.uniform_3d_rotation,
         )
+
+
 class IntensityScaleShiftConfig(AugmentationConfig):
     name: Literal["intensity_scale_shift"]
     array: ArrayKeyField
@@ -153,15 +156,16 @@ class IntensityScaleShiftConfig(AugmentationConfig):
     def instantiate(self):
         return gp.IntensityScaleShift(
             self.array,
-            self.scale, 
+            self.scale,
             self.shift
             )
+
 
 class GaussianNoiseAugmentConfig(AugmentationConfig):
     name: Literal["gaussian_noise_augment"]
     array: ArrayKeyField
     clip: bool = True
-    var_range: tuple[float] = (0, 0.01)
+    var_range: tuple[float, float] = (0, 0.01)
     noise_prob: float = Field(
         0.5,
         ge=0.0,
