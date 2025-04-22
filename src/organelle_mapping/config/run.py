@@ -35,6 +35,7 @@ class RunConfig(BaseModel):
     lr: float = 5e-5
     log_frequency: int = 20
     checkpoint_frequency: int = 2000
+    batch_size: int = 1
 
     @field_validator("augmentations", mode="before")
     @classmethod
