@@ -32,7 +32,7 @@ def make_data_pipeline(
     probs = []
     factors = {np.dtype("uint8"): 255, np.dtype("uint16"): 2**16 - 1}
     max_out_request = output_size
-    for aug in run.augmentations:
+    for aug in run.augmentations.augmentations:
         if aug.name == "corditea_elastic_augment":
             if aug.rotation_interval[1] > 0:
                 max_out_request = gp.Coordinate(
@@ -77,21 +77,8 @@ def make_data_pipeline(
                 srcs.append(src_pipe)
 
     pipeline = tuple(srcs) + gp.RandomProvider(probs)
-    for aug in run.augmentations:
+    for aug in run.augmentations.augmentations:
         pipeline += aug.instantiate()
-    # pipeline += gp.IntensityAugment(raw, 0.75, 1.5, -0.15, 0.15)
-    # pipeline += corditea.GammaAugment([raw], 0.75, 4 / 3.0)
-    # pipeline += gp.SimpleAugment()
-    # pipeline += corditea.ElasticAugment(
-    #     control_point_spacing=gp.Coordinate((25, 25, 25)),
-    #     control_point_displacement_sigma=displacement_sigma,
-    #     rotation_interval=(0, math.pi / 2.0),
-    #     subsample=8,
-    #     uniform_3d_rotation=True,
-    #     augmentation_probability=0.6,
-    # )
-    # pipeline += gp.IntensityScaleShift(raw, 2, -1)
-    # pipeline += corditea.GaussianNoiseAugment(raw, var_range=(0, 0.01), noise_prob=0.5)
     pipeline += gp.Unsqueeze(list(label_keys.values()))
     pipeline += corditea.Concatenate(list(label_keys.values()), gp.ArrayKey("LABELS"))
     pipeline += ExtractMask(gp.ArrayKey("LABELS"), gp.ArrayKey("MASK"))
