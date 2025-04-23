@@ -42,6 +42,7 @@ class StandardUnet(torch.nn.Module):
         downsample_factors=None,
         kernel_size_down=None,
         kernel_size_up=None,
+        padding="valid"
     ):
         super().__init__()
         if downsample_factors is None:
@@ -64,6 +65,7 @@ class StandardUnet(torch.nn.Module):
             downsample_factors=downsample_factors,
             kernel_size_down=kernel_size_down,
             constant_upsample=True,
+            padding=padding
         )
 
         self.final_conv = torch.nn.Conv3d(num_fmaps, out_channels, (1, 1, 1), padding="valid")

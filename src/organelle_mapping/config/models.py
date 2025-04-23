@@ -124,6 +124,7 @@ class StandardUnetConfig(ArchitectureConfig):
     )
     kernel_size_down: Sequence[Sequence[tuple[int, int, int]]] = (((3, 3, 3), (3, 3, 3), (3, 3, 3)),) * 4
     kernel_size_up: Sequence[Sequence[tuple[int, int, int]]] = (((3, 3, 3), (3, 3, 3), (3, 3, 3)),) * 3
+    padding: Literal["valid", "same"] = "valid"
 
     @model_validator(mode="after")
     def validate_kernel_sizes(self):
@@ -164,6 +165,7 @@ class StandardUnetConfig(ArchitectureConfig):
             downsample_factors=self.downsample_factors,
             kernel_size_down=self.kernel_size_down,
             kernel_size_up=self.kernel_size_up,
+            padding=self.padding,
         )
 
 
