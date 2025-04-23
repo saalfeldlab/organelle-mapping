@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_eval_model(num_labels, checkpoint_path):
-    model_backbone = StandardUnet(num_labels)
+    model_backbone = StandardUnet(1, num_labels)
     if torch.cuda.is_available():
         device = torch.device("cuda")
     else:
@@ -32,27 +32,17 @@ class MaskedMultiLabelBCEwithLogits(torch.nn.BCEWithLogitsLoss):
         return bce
 
 
-# 154->148                                          28 -> 22
-#         74-> 68                         20 -> 14
-#                 34->28          16 -> 10
-#                        14-> 8
-
-
-# 154 -> 22
-# 162 -> 30
-# 170 -> 38
-# 178 -> 46
-# 186 -> 54
-# 194 -> 62
 class StandardUnet(torch.nn.Module):
     def __init__(
         self,
+        in_channels,
         out_channels,
         num_fmaps=16,
         fmap_inc_factor=6,
         downsample_factors=None,
         kernel_size_down=None,
         kernel_size_up=None,
+        padding="valid"
     ):
         super().__init__()
         if downsample_factors is None:
@@ -69,17 +59,16 @@ class StandardUnet(torch.nn.Module):
             ] * len(downsample_factors)
 
         self.unet_backbone = funlib.learn.torch.models.UNet(
-            in_channels=1,
+            in_channels=in_channels,
             num_fmaps=num_fmaps,
             fmap_inc_factor=fmap_inc_factor,
             downsample_factors=downsample_factors,
             kernel_size_down=kernel_size_down,
             constant_upsample=True,
+            padding=padding
         )
 
-        self.final_conv = torch.nn.Conv3d(
-            num_fmaps, out_channels, (1, 1, 1), padding="valid"
-        )
+        self.final_conv = torch.nn.Conv3d(num_fmaps, out_channels, (1, 1, 1), padding="valid")
 
     def forward(self, raw):
         x = self.unet_backbone(raw)

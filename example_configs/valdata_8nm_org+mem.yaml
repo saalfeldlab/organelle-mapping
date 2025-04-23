@@ -1,0 +1,193 @@
+datasets:
+  jrc_cos7-1a:
+    em:
+      contrast:
+      - 65
+      - 193
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_cos7-1a/jrc_cos7-1a.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop239
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_cos7-1a/jrc_cos7-1a.zarr
+      group: recon-1/labels/groundtruth
+  jrc_cos7-1b:
+    em:
+      contrast:
+      - 65
+      - 203
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_cos7-1b/jrc_cos7-1b.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop242
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_cos7-1b/jrc_cos7-1b.zarr
+      group: recon-1/labels/groundtruth
+  jrc_ctl-id8-1:
+    em:
+      contrast:
+      - 176
+      - 218
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_ctl-id8-1/jrc_ctl-id8-1.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop130
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_ctl-id8-1/jrc_ctl-id8-1.zarr
+      group: recon-1/labels/groundtruth
+  jrc_fly-mb-1a:
+    em:
+      contrast:
+      - 44
+      - 195
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_fly-mb-1a/jrc_fly-mb-1a.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop122
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_fly-mb-1a/jrc_fly-mb-1a.zarr
+      group: recon-1/labels/groundtruth
+  jrc_fly-vnc-1:
+    em:
+      contrast:
+      - 158
+      - 233
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_fly-vnc-1/jrc_fly-vnc-1.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop176
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_fly-vnc-1/jrc_fly-vnc-1.zarr
+      group: recon-1/labels/groundtruth
+  jrc_hela-2:
+    em:
+      contrast:
+      - 89
+      - 207
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_hela-2/jrc_hela-2.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop16
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_hela-2/jrc_hela-2.zarr
+      group: recon-1/labels/groundtruth
+  jrc_hela-3:
+    em:
+      contrast:
+      - 0
+      - 255
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_hela-3/jrc_hela-3.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop34
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_hela-3/jrc_hela-3.zarr
+      group: recon-1/labels/groundtruth
+  jrc_jurkat-1:
+    em:
+      contrast:
+      - 215
+      - 238
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_jurkat-1/jrc_jurkat-1.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop38
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_jurkat-1/jrc_jurkat-1.zarr
+      group: recon-1/labels/groundtruth
+  jrc_macrophage-2:
+    em:
+      contrast:
+      - 209
+      - 238
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_macrophage-2/jrc_macrophage-2.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop40
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_macrophage-2/jrc_macrophage-2.zarr
+      group: recon-1/labels/groundtruth
+  jrc_mus-kidney:
+    em:
+      contrast:
+      - 40
+      - 191
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_mus-kidney/jrc_mus-kidney.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop148
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_mus-kidney/jrc_mus-kidney.zarr
+      group: recon-1/labels/groundtruth
+  jrc_mus-liver:
+    em:
+      contrast:
+      - 57
+      - 194
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_mus-liver/jrc_mus-liver.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop131
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_mus-liver/jrc_mus-liver.zarr
+      group: recon-1/labels/groundtruth
+  jrc_mus-liver-zon-1:
+    em:
+      contrast:
+      - 25
+      - 177
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_mus-liver-zon-1/jrc_mus-liver-zon-1.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop298
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_mus-liver-zon-1/jrc_mus-liver-zon-1.zarr
+      group: recon-1/labels/groundtruth
+  jrc_mus-liver-zon-2:
+    em:
+      contrast:
+      - 64
+      - 205
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_mus-liver-zon-2/jrc_mus-liver-zon-2.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop340
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_mus-liver-zon-2/jrc_mus-liver-zon-2.zarr
+      group: recon-1/labels/groundtruth
+  jrc_sum159-1:
+    em:
+      contrast:
+      - 191
+      - 221
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_sum159-1/jrc_sum159-1.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop20
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_sum159-1/jrc_sum159-1.zarr
+      group: recon-1/labels/groundtruth
+  jrc_sum159-4:
+    em:
+      contrast:
+      - 156
+      - 190
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_sum159-4/jrc_sum159-4.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop210
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_sum159-4/jrc_sum159-4.zarr
+      group: recon-1/labels/groundtruth
+  jrc_ut21-1413-003:
+    em:
+      contrast:
+      - 0
+      - 171
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_ut21-1413-003/jrc_ut21-1413-003.zarr
+      group: recon-1/em/fibsem-uint8
+    labels:
+      crops:
+      - crop192
+      data: /nrs/saalfeld/heinrichl/data/cellmap_labels/challenge/jrc_ut21-1413-003/jrc_ut21-1413-003.zarr
+      group: recon-1/labels/groundtruth
