@@ -9,7 +9,7 @@ import torch
 
 from fly_organelles.data import CellMapCropSource, ExtractMask
 from fly_organelles.model import MaskedMultiLabelBCEwithLogits, WeightedMSELoss
-from fly_organelles.utils import ShiftNorm, Binarize
+from fly_organelles.utils import ShiftNorm, Binarize, Distances
 
 logger = logging.getLogger("__name__")
 
@@ -17,6 +17,86 @@ logger = logging.getLogger("__name__")
 def sigmoidify(arr):
     return torch.nn.functional.sigmoid(torch.tensor(arr)).numpy()
 
+
+def make_distance_data_pipeline(
+    labels: list[str],
+    datasets: dict,
+    pad_width_out: gp.Coordinate,
+    sampling: tuple[int],
+    max_out_request: gp.Coordinate,
+    displacement_sigma: gp.Coordinate,
+    batch_size: int = 5,
+):
+    raw = gp.ArrayKey("RAW")
+    label_keys = {}
+    distances_keys = {}
+    gradients_keys = {}
+    for label in labels:
+        label_keys[label] = gp.ArrayKey(label.upper())
+        distances_keys[label] = gp.ArrayKey(f"dist_{label.upper()}")
+        gradients_keys[label] = gp.ArrayKey(f"grad_{label.upper()}")
+    srcs = []
+    probs = []
+    for dataset, ds_info in datasets["datasets"].items():
+        for crop in ds_info["crops"]:
+            # for crop in crops.split(","):
+            src = CellMapCropSource(
+                ds_info["crops"][crop],
+                ds_info["raw"],
+                label_keys,
+                raw,
+                sampling,
+                base_padding=pad_width_out,
+                max_request=max_out_request,
+            )
+            src_pipe = src
+            if src.needs_downsampling:
+                src_pipe += corditea.AverageDownSample(raw, sampling)
+            probs.append(src.get_size() / len(ds_info["crops"]))
+            logging.debug(f"Padding {crop} with {src.padding}")
+            for label_key in label_keys.values():
+                # src_pipe += Binarize(label_key)
+                src_pipe += Distances(
+                    label_key,
+                )
+                src_pipe += gp.Pad(label_key, src.padding, value=255)
+                src_pipe += gp.AsType(label_key, "float32")
+            # src_pipe += gp.Normalize(raw, factor=1.0 / factor)
+            # src_pipe += gp.Normalize(raw, factor=1.0)
+            minc, maxc = ds_info["contrast"]
+            src_pipe+= gp.AsType(raw, "float32")
+            src_pipe+= ShiftNorm(raw, minc, maxc)
+            # src_pipe += gp.IntensityScaleShift(raw, scale=1/(maxc - minc), shift=-(minc/(maxc-minc)) )
+
+            # src_pipe += gp.IntensityScaleShift(raw, scale=(maxc - minc) / factor, shift=minc / factor)
+            src_pipe += gp.Pad(raw, None, value=0)
+            src_pipe += gp.RandomLocation()
+            
+            srcs.append(src_pipe)
+
+    pipeline = tuple(srcs) + gp.RandomProvider(probs)
+    pipeline += gp.IntensityAugment(raw, 0.75, 1.5, -0.15, 0.15)
+    pipeline += corditea.GammaAugment([raw], 0.75, 4 / 3.0)
+    pipeline += gp.SimpleAugment()
+    pipeline += corditea.ElasticAugment(
+        control_point_spacing=gp.Coordinate((25, 25, 25)),
+        control_point_displacement_sigma=displacement_sigma,
+        rotation_interval=(0, math.pi / 2.0),
+        subsample=8,
+        uniform_3d_rotation=True,
+        augmentation_probability=0.6,
+    )
+    pipeline += gp.IntensityScaleShift(raw, 2, -1)
+    pipeline += corditea.GaussianNoiseAugment(raw, var_range=(0, 0.01), noise_prob=0.5)
+    pipeline += gp.Unsqueeze(list(label_keys.values()))
+    pipeline += corditea.Concatenate(list(label_keys.values()), gp.ArrayKey("LABELS"))
+
+    pipeline += ExtractMask(gp.ArrayKey("LABELS"), gp.ArrayKey("MASK"))
+    pipeline += gp.Unsqueeze([raw])
+    pipeline += gp.Stack(batch_size)
+    pipeline += gp.AsType(gp.ArrayKey("LABELS"), "float32")
+
+    return pipeline
 
 def make_affinities_data_pipeline(
     labels: list[str],
@@ -210,6 +290,7 @@ def make_train_pipeline(
     affinities = False,
     affinities_map = None,
     foreground_factor = 2,
+    distance = False,
 ):
     if affinities:
         pipeline = make_affinities_data_pipeline(
@@ -224,16 +305,28 @@ def make_train_pipeline(
         )
         loss_fn = WeightedMSELoss(foreground_factor=foreground_factor)
     else:
-        pipeline = make_data_pipeline(
-            labels,
-            datasets,
-            pad_width_out,
-            sampling,
-            max_out_request,
-            displacement_sigma,
-            batch_size,
-        )
-        loss_fn = MaskedMultiLabelBCEwithLogits(label_weights)
+        if distance:
+            pipeline = make_distance_data_pipeline(
+                labels,
+                datasets,
+                pad_width_out,
+                sampling,
+                max_out_request,
+                displacement_sigma,
+                batch_size,
+            )
+            loss_fn = WeightedMSELoss(foreground_factor=foreground_factor)
+        else:
+            pipeline = make_data_pipeline(
+                labels,
+                datasets,
+                pad_width_out,
+                sampling,
+                max_out_request,
+                displacement_sigma,
+                batch_size,
+            )
+            loss_fn = MaskedMultiLabelBCEwithLogits(label_weights)
     pipeline += gp.PreCache(48, 12)
 
     
