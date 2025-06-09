@@ -20,16 +20,16 @@ class WeightedMSELoss(torch.nn.MSELoss):
         super(WeightedMSELoss, self).__init__()
         self.foreground_factor = foreground_factor
 
-    def forward(self, output, target, mask):
+    def forward(self, loss_output, loss_target, loss_mask):
 
-        weights = torch.ones_like(target)
-        weights[target > 0] = self.foreground_factor
+        weights = torch.ones_like(loss_target)
+        weights[loss_target > 0] = self.foreground_factor
 
-        scaled = (mask * weights * (output - target) ** 2)
+        scaled = (loss_mask * weights * (loss_output - loss_target) ** 2)
 
         if len(torch.nonzero(scaled)) != 0:
 
-            masked = torch.masked_select(scaled, torch.gt(mask, 0))
+            masked = torch.masked_select(scaled, torch.gt(loss_mask, 0))
             loss = torch.mean(masked)
 
         else:
@@ -43,9 +43,9 @@ class MaskedMultiLabelBCEwithLogits(torch.nn.BCEWithLogitsLoss):
         self.loss_fn = super().__init__(reduction="none", pos_weight=pos_weight)
         self.spatial_dims = spatial_dims
 
-    def forward(self, output, target, mask):
-        bce = torch.sum(super().forward(output, target) * mask)
-        bce /= torch.sum(mask)
+    def forward(self, loss_output, loss_target, loss_mask):
+        bce = torch.sum(super().forward(loss_output, loss_target) * loss_mask)
+        bce /= torch.sum(loss_mask)
         return bce
 
 
