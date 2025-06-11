@@ -15,8 +15,136 @@ def load_eval_model(num_labels, checkpoint_path):
     return model
 
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class BalancedAffinitiesLoss(nn.Module):
+    def __init__(
+        self,
+        lsds_weight: float = 1.0,
+        affinities_weight: float = 1.0,
+        num_lsds_channels: int = 10,
+        eps: float = 1e-6,
+    ):
+        super().__init__()
+        self.lsds_weight = lsds_weight
+        self.affinities_weight = affinities_weight
+        self.num_lsds = num_lsds_channels
+        self.eps = eps
+
+    def forward(self, output: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        # sanity checks omitted…
+        bs = output.shape[0]
+
+        # --- LSDS branch ---
+        out_lsds  = output[:, :self.num_lsds]
+        tgt_lsds  = target[:, :self.num_lsds]
+        mask_lsds = mask[:, :self.num_lsds].float()
+
+        # flatten batch + all spatial dims
+        m_flat = mask_lsds.view(bs, self.num_lsds, -1)           # (B, C_lsds, V)
+        t_flat = (tgt_lsds > 0.0).float().view(bs, self.num_lsds, -1)
+
+        # count only where mask==1
+        total_valid = m_flat.sum(dim=(0,2))                     # per-channel valid counts
+        pos = (t_flat * m_flat).sum(dim=(0,2))                  # per-channel positives
+        neg = total_valid - pos
+
+        # compute pos/neg weights
+        pos_w = (neg / (total_valid + self.eps))
+        neg_w = (pos / (total_valid + self.eps))
+        # reshape to broadcast over spatial dims automatically
+        shape = [1, self.num_lsds] + [1] * (out_lsds.ndim-2)
+        pos_w = pos_w.view(*shape)
+        neg_w = neg_w.view(*shape)
+
+        # build per-voxel weight: for valid voxels use pos_w if tgt>0 else neg_w
+        weight_lsds = mask_lsds * ( (tgt_lsds>0.0).float()*pos_w + (tgt_lsds==0.0).float()*neg_w )
+
+        # apply sigmoid + MSE
+        mse    = F.mse_loss(out_lsds, tgt_lsds, reduction="none")
+        w_mse  = mse * weight_lsds
+
+        # safe weighted mean
+        denom = weight_lsds.sum()
+        if denom.item() < self.eps:
+            loss_lsds = mse.mean()
+        else:
+            loss_lsds = w_mse.sum() / (denom + self.eps) / self.num_lsds
+
+
+        # --- Affinities branch ---
+        out_aff  = output[:, self.num_lsds:]
+        tgt_aff  = target[:, self.num_lsds:]
+        mask_aff = mask[:, self.num_lsds:].float()
+        C_aff    = out_aff.shape[1]
+
+        m_flat = mask_aff.view(bs, C_aff, -1)
+        t_flat = (tgt_aff > 0.0).float().view(bs, C_aff, -1)
+        total_valid = m_flat.sum(dim=(0,2))
+        pos = (t_flat * m_flat).sum(dim=(0,2))
+        neg = total_valid - pos
+
+        pos_w = (neg / (total_valid + self.eps))
+        neg_w = (pos / (total_valid + self.eps))
+        shape = [1, C_aff] + [1] * (out_aff.ndim-2)
+        pos_w = pos_w.view(*shape)
+        neg_w = neg_w.view(*shape)
+
+        weight_aff = mask_aff * ( (tgt_aff>0.0).float()*pos_w + (tgt_aff==0.0).float()*neg_w )
+        bce    = F.binary_cross_entropy_with_logits(out_aff, tgt_aff, reduction="none")
+        w_bce  = bce * weight_aff
+
+        denom = weight_aff.sum()
+        if denom.item() < self.eps:
+            loss_aff = bce.mean()
+        else:
+            loss_aff = w_bce.sum() / (denom + self.eps) / C_aff
+
+        return self.lsds_weight * loss_lsds + self.affinities_weight * loss_aff
+    
+class AffinitiesLoss(nn.Module):
+    def __init__(self, lsds_weight: float = 1.0, affinities_weight: float = 1.0):
+        super().__init__()
+        self.lsds_weight = lsds_weight
+        self.affinities_weight = affinities_weight
+
+    def forward(self,
+                output: torch.Tensor,
+                target: torch.Tensor,
+                mask: torch.Tensor) -> torch.Tensor:
+
+        # Validate channel and mask dimensions
+        if output.shape != target.shape:
+            raise ValueError(f"Output and target must have the same shape, got {output.shape} vs {target.shape}")
+        if mask.shape != output.shape:
+            raise ValueError(f"Mask must match output shape, got {mask.shape} vs {output.shape}")
+        if output.shape[1] < 10:
+            raise ValueError(f"Expected at least 10 LSDS channels, got {output.shape[1]}")
+
+        # Split predictions, targets, and mask into LSDS and affinities parts
+        out_lsds = output[:, :10]
+        tgt_lsds = target[:, :10]
+        mask_lsds = mask[:, :10].float()
+
+        out_aff = output[:, 10:]
+        tgt_aff = target[:, 10:]
+        mask_aff = mask[:, 10:].float()
+
+        loss_lsds = torch.nn.MSELoss(reduction="none")(torch.nn.Sigmoid()(out_lsds), tgt_lsds)* mask_lsds
+
+        print(loss_lsds.mean())
+
+        bce = torch.nn.BCEWithLogitsLoss(reduction="none")(out_aff, tgt_aff) * mask_aff
+
+        print(bce.mean())
+        return self.lsds_weight * loss_lsds.mean() + self.affinities_weight * bce.mean()
+
+
 class WeightedMSELoss(torch.nn.MSELoss):
-    def __init__(self, foreground_factor=2):
+    def __init__(self, eps: float = 1e-6, foreground_factor: float = 1.0):
         super(WeightedMSELoss, self).__init__()
         self.foreground_factor = foreground_factor
 
