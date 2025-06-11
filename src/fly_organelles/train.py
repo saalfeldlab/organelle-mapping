@@ -8,15 +8,18 @@ import numpy as np
 import torch
 
 from fly_organelles.data import CellMapCropSource, ExtractMask
+
 from fly_organelles.model import MaskedMultiLabelBCEwithLogits, WeightedMSELoss, BalancedAffinitiesLoss
-from fly_organelles.utils import ShiftNorm, Binarize
+
 from lsd.train.gp import AddLocalShapeDescriptor
+
+from fly_organelles.utils import ShiftNorm, Binarize
+
 logger = logging.getLogger("__name__")
 
 
 def sigmoidify(arr):
     return torch.nn.functional.sigmoid(torch.tensor(arr)).numpy()
-
 
 def make_affinities_data_pipeline(
     labels: list[str],
