@@ -19,66 +19,27 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class BalancedAffinitiesLoss(nn.Module):
     def __init__(
         self,
-        lsds_weight: float = 1.0,
         affinities_weight: float = 1.0,
-        num_lsds_channels: int = 10,
+        lsds_weight: float = 1.0,
+        num_affinities_channels: int = 3,
         eps: float = 1e-6,
     ):
         super().__init__()
-        self.lsds_weight = lsds_weight
         self.affinities_weight = affinities_weight
-        self.num_lsds = num_lsds_channels
+        self.lsds_weight = lsds_weight
+        self.num_affinities = num_affinities_channels
         self.eps = eps
 
     def forward(self, output: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        # sanity checks omitted…
         bs = output.shape[0]
 
-        # --- LSDS branch ---
-        out_lsds  = output[:, :self.num_lsds]
-        tgt_lsds  = target[:, :self.num_lsds]
-        mask_lsds = mask[:, :self.num_lsds].float()
-
-        # flatten batch + all spatial dims
-        m_flat = mask_lsds.view(bs, self.num_lsds, -1)           # (B, C_lsds, V)
-        t_flat = (tgt_lsds > 0.0).float().view(bs, self.num_lsds, -1)
-
-        # count only where mask==1
-        total_valid = m_flat.sum(dim=(0,2))                     # per-channel valid counts
-        pos = (t_flat * m_flat).sum(dim=(0,2))                  # per-channel positives
-        neg = total_valid - pos
-
-        # compute pos/neg weights
-        pos_w = (neg / (total_valid + self.eps))
-        neg_w = (pos / (total_valid + self.eps))
-        # reshape to broadcast over spatial dims automatically
-        shape = [1, self.num_lsds] + [1] * (out_lsds.ndim-2)
-        pos_w = pos_w.view(*shape)
-        neg_w = neg_w.view(*shape)
-
-        # build per-voxel weight: for valid voxels use pos_w if tgt>0 else neg_w
-        weight_lsds = mask_lsds * ( (tgt_lsds>0.0).float()*pos_w + (tgt_lsds==0.0).float()*neg_w )
-
-        # apply sigmoid + MSE
-        mse    = F.mse_loss(out_lsds, tgt_lsds, reduction="none")
-        w_mse  = mse * weight_lsds
-
-        # safe weighted mean
-        denom = weight_lsds.sum()
-        if denom.item() < self.eps:
-            loss_lsds = mse.mean()
-        else:
-            loss_lsds = w_mse.sum() / (denom + self.eps) / self.num_lsds
-
-
         # --- Affinities branch ---
-        out_aff  = output[:, self.num_lsds:]
-        tgt_aff  = target[:, self.num_lsds:]
-        mask_aff = mask[:, self.num_lsds:].float()
+        out_aff  = output[:, :self.num_affinities]
+        tgt_aff  = target[:, :self.num_affinities]
+        mask_aff = mask[:, :self.num_affinities].float()
         C_aff    = out_aff.shape[1]
 
         m_flat = mask_aff.view(bs, C_aff, -1)
@@ -103,7 +64,35 @@ class BalancedAffinitiesLoss(nn.Module):
         else:
             loss_aff = w_bce.sum() / (denom + self.eps) / C_aff
 
-        return self.lsds_weight * loss_lsds + self.affinities_weight * loss_aff
+        # --- LSDS branch ---
+        out_lsds  = output[:, self.num_affinities:]
+        tgt_lsds  = target[:, self.num_affinities:]
+        mask_lsds = mask[:, self.num_affinities:].float()
+        C_lsds    = out_lsds.shape[1]
+
+        m_flat = mask_lsds.view(bs, C_lsds, -1)
+        t_flat = (tgt_lsds > 0.0).float().view(bs, C_lsds, -1)
+        total_valid = m_flat.sum(dim=(0,2))
+        pos = (t_flat * m_flat).sum(dim=(0,2))
+        neg = total_valid - pos
+
+        pos_w = (neg / (total_valid + self.eps))
+        neg_w = (pos / (total_valid + self.eps))
+        shape = [1, C_lsds] + [1] * (out_lsds.ndim-2)
+        pos_w = pos_w.view(*shape)
+        neg_w = neg_w.view(*shape)
+
+        weight_lsds = mask_lsds * ( (tgt_lsds>0.0).float()*pos_w + (tgt_lsds==0.0).float()*neg_w )
+        mse    = F.mse_loss(out_lsds, tgt_lsds, reduction="none")
+        w_mse  = mse * weight_lsds
+
+        denom = weight_lsds.sum()
+        if denom.item() < self.eps:
+            loss_lsds = mse.mean()
+        else:
+            loss_lsds = w_mse.sum() / (denom + self.eps) / C_lsds
+
+        return self.affinities_weight * loss_aff + self.lsds_weight * loss_lsds
     
 class AffinitiesLoss(nn.Module):
     def __init__(self, lsds_weight: float = 1.0, affinities_weight: float = 1.0):

@@ -257,7 +257,7 @@ def make_train_pipeline(
             affinities_map= affinities_map,
             min_mask=min_mask,
         )
-        loss_fn = BalancedAffinitiesLoss()
+        loss_fn = BalancedAffinitiesLoss(num_affinities_channels=len(affinities_map))
     else:
         pipeline = make_data_pipeline(
             labels,
