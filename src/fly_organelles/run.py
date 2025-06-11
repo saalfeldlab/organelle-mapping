@@ -43,6 +43,7 @@ def match_heads(checkpoint_weights, current_model_weights, old_head, new_head, e
 
 
 
+
 def run(model,iterations, labels, label_weights, datasets,voxel_size = (8, 8, 8),batch_size = 14, l_rate=0.5e-4, log_dir = "logs",  affinities = False, affinities_map = None, min_mask = None ):
     input_size = gp.Coordinate((178, 178, 178)) * gp.Coordinate(voxel_size)
     output_size = gp.Coordinate((56, 56, 56)) * gp.Coordinate(voxel_size)

@@ -1,10 +1,16 @@
 import itertools
 import os
 from typing import BinaryIO
-
+from funlib.geometry import Coordinate
+from scipy.ndimage.morphology import distance_transform_edt
+import edt
 import gunpowder as gp
 import numpy as np
 import yaml
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def corner_offset(center_off_arr, raw_res_arr, crop_res_arr):
@@ -114,3 +120,176 @@ class Binarize(BatchFilter):
         data[data > 0] = 1
         data[data < 1] = 0
         raw.data = data
+
+
+class Distances(BatchFilter):
+    def __init__(self, array,
+                 norm = "tanh",
+                 dt_scale_factor = 80.0):
+        self.array = array
+        self.norm = norm
+        self.dt_scale_factor = dt_scale_factor
+
+    def process(self, batch, request):
+        if self.array not in batch.arrays:
+            return
+        
+        voxel_size = self.spec[self.array].voxel_size
+
+        raw = batch.arrays[self.array]
+        if raw.data.any():
+            logger.debug(f"Computing distances for {raw.data.shape} with voxel size {voxel_size}")
+
+            distances = self.compute_distance(raw.data, voxel_size, self.norm, self.dt_scale_factor)
+            raw.data = distances[0]
+
+    def compute_distance(
+        self,
+        labels: np.ndarray,
+        voxel_size: Coordinate,
+        normalize=None,
+        normalize_args=None,
+    ):
+        """
+        Process the labels array and convert it to one-hot encoding.
+
+        Args:
+            labels (np.ndarray): The labels array.
+            voxel_size (Coordinate): The voxel size.
+            normalize (str): The normalization method.
+            normalize_args: The normalization arguments.
+        Returns:
+            np.ndarray: The distances array.
+        Raises:
+            NotImplementedError: This method is not implemented.
+        Examples:
+            >>> predictor.process(labels, voxel_size, normalize, normalize_args)
+
+        """
+
+        num_dims = len(labels.shape)
+        if num_dims == voxel_size.dims:
+            channel_dim = False
+        elif num_dims == voxel_size.dims + 1:
+            channel_dim = True
+        else:
+            raise ValueError("Cannot handle multiple channel dims")
+
+        if not channel_dim:
+            labels = labels[np.newaxis]
+
+        all_distances = np.zeros(labels.shape, dtype=np.float32) - 1
+
+        for ii, channel in enumerate(labels):
+            boundaries = self.__find_boundaries(channel)
+
+            # mark boundaries with 0 (not 1)
+            boundaries = 1.0 - boundaries
+
+            if np.sum(boundaries == 0) == 0:
+                max_distance = min(
+                    dim * vs / 2 for dim, vs in zip(channel.shape, voxel_size)
+                )
+                if np.sum(channel) == 0:
+                    distances = -np.ones(channel.shape, dtype=np.float32) * max_distance
+                else:
+                    distances = np.ones(channel.shape, dtype=np.float32) * max_distance
+            else:
+                # get distances (voxel_size/2 because image is doubled)
+                sampling = tuple(float(v) / 2 for v in voxel_size)
+                # fixing the sampling for 2D images
+                if len(boundaries.shape) < len(sampling):
+                    sampling = sampling[-len(boundaries.shape) :]
+                distances = distance_transform_edt(boundaries, sampling=sampling)
+                distances = distances.astype(np.float32)
+
+                # restore original shape
+                downsample = (slice(None, None, 2),) * distances.ndim
+                distances = distances[downsample]
+
+                # todo: inverted distance
+                distances[channel == 0] = -distances[channel == 0]
+
+            if normalize is not None:
+                distances = self.__normalize(distances, normalize, normalize_args)
+
+            all_distances[ii] = distances
+
+        return all_distances
+
+    def __find_boundaries(self, labels: np.ndarray):
+        """
+        Find the boundaries in the labels.
+
+        Args:
+            labels: The labels.
+        Returns:
+            The boundaries.
+        Raises:
+            NotImplementedError: This method is not implemented.
+        Examples:
+            >>> predictor.__find_boundaries(labels)
+
+        """
+        # labels: 1 1 1 1 0 0 2 2 2 2 3 3       n
+        # shift :   1 1 1 1 0 0 2 2 2 2 3       n - 1
+        # diff  :   0 0 0 1 0 1 0 0 0 1 0       n - 1
+        # bound.: 00000001000100000001000      2n - 1
+
+        if labels.dtype == bool:
+            # raise ValueError("Labels should not be bools")
+            labels = labels.astype(np.uint8)
+
+        logger.debug(f"computing boundaries for {labels.shape}")
+
+        dims = len(labels.shape)
+        in_shape = labels.shape
+        out_shape = tuple(2 * s - 1 for s in in_shape)
+
+        boundaries = np.zeros(out_shape, dtype=bool)
+
+        logger.debug(f"boundaries shape is {boundaries.shape}")
+
+        for d in range(dims):
+            logger.debug(f"processing dimension {d}")
+
+            shift_p = [slice(None)] * dims
+            shift_p[d] = slice(1, in_shape[d])
+
+            shift_n = [slice(None)] * dims
+            shift_n[d] = slice(0, in_shape[d] - 1)
+
+            diff = (labels[tuple(shift_p)] - labels[tuple(shift_n)]) != 0
+
+            logger.debug(f"diff shape is {diff.shape}")
+
+            target = [slice(None, None, 2)] * dims
+            target[d] = slice(1, out_shape[d], 2)
+
+            logger.debug(f"target slices are {target}")
+
+            boundaries[tuple(target)] = diff
+
+        return boundaries
+
+    def __normalize(self, distances, norm, normalize_args):
+        """
+        Normalize the distances.
+
+        Args:
+            distances: The distances to normalize.
+            norm: The normalization method.
+            normalize_args: The normalization arguments.
+        Returns:
+            The normalized distances.
+        Raises:
+            ValueError: If the normalization method is not supported.
+        Examples:
+            >>> predictor.__normalize(distances, norm, normalize_args)
+
+        """
+        if norm == "tanh":
+            scale = normalize_args
+            return np.tanh(distances / scale)
+        else:
+            raise ValueError("Only tanh is supported for normalization")
