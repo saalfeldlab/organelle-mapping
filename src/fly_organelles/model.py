@@ -33,13 +33,13 @@ class BalancedAffinitiesLoss(nn.Module):
         self.num_affinities = num_affinities_channels
         self.eps = eps
 
-    def forward(self, output: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        bs = output.shape[0]
+    def forward(self, loss_output: torch.Tensor, loss_target: torch.Tensor, loss_mask: torch.Tensor) -> torch.Tensor:
+        bs = loss_output.shape[0]
 
         # --- Affinities branch ---
-        out_aff  = output[:, :self.num_affinities]
-        tgt_aff  = target[:, :self.num_affinities]
-        mask_aff = mask[:, :self.num_affinities].float()
+        out_aff  = loss_output[:, :self.num_affinities]
+        tgt_aff  = loss_target[:, :self.num_affinities]
+        mask_aff = loss_mask[:, :self.num_affinities].float()
         C_aff    = out_aff.shape[1]
 
         m_flat = mask_aff.view(bs, C_aff, -1)
@@ -65,9 +65,9 @@ class BalancedAffinitiesLoss(nn.Module):
             loss_aff = w_bce.sum() / (denom + self.eps) / C_aff
 
         # --- LSDS branch ---
-        out_lsds  = output[:, self.num_affinities:]
-        tgt_lsds  = target[:, self.num_affinities:]
-        mask_lsds = mask[:, self.num_affinities:].float()
+        out_lsds  = loss_output[:, self.num_affinities:]
+        tgt_lsds  = loss_target[:, self.num_affinities:]
+        mask_lsds = loss_mask[:, self.num_affinities:].float()
         C_lsds    = out_lsds.shape[1]
 
         m_flat = mask_lsds.view(bs, C_lsds, -1)
