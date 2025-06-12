@@ -270,7 +270,7 @@ def make_train_pipeline(
             min_mask=min_mask,
         )
         loss_fn = MaskedMultiLabelBCEwithLogits(label_weights)
-    pipeline += gp.PreCache(30, 10)
+    pipeline += gp.PreCache(20, 10)
 
     
     
