@@ -73,13 +73,13 @@ def run(model,iterations, labels, label_weights, datasets,voxel_size = (8, 8, 8)
         min_mask = min_mask,
     )
 
+    request = gp.BatchRequest()
+    request.add(gp.ArrayKey("OUTPUT"), output_size, voxel_size=gp.Coordinate(voxel_size))
+    request.add(gp.ArrayKey("RAW"), input_size, voxel_size=gp.Coordinate(voxel_size))
+    request.add(gp.ArrayKey("LABELS"), output_size, voxel_size=gp.Coordinate(voxel_size))
+    request.add(gp.ArrayKey("MASK"), output_size, voxel_size=gp.Coordinate(voxel_size))
     with gp.build(pipeline) as pp:
         for i in range(iterations):
-            request = gp.BatchRequest()
-            request.add(gp.ArrayKey("OUTPUT"), output_size, voxel_size=gp.Coordinate(voxel_size))
-            request.add(gp.ArrayKey("RAW"), input_size, voxel_size=gp.Coordinate(voxel_size))
-            request.add(gp.ArrayKey("LABELS"), output_size, voxel_size=gp.Coordinate(voxel_size))
-            request.add(gp.ArrayKey("MASK"), output_size, voxel_size=gp.Coordinate(voxel_size))
             pp.request_batch(request)
 
 

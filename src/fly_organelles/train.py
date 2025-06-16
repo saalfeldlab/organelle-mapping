@@ -9,7 +9,7 @@ import torch
 
 from fly_organelles.data import CellMapCropSource, ExtractMask
 
-from fly_organelles.model import MaskedMultiLabelBCEwithLogits, WeightedMSELoss, BalancedAffinitiesLoss
+from fly_organelles.model import MaskedMultiLabelBCEwithLogits, WeightedMSELoss, BalancedAffinitiesLoss, AffinitiesLoss
 
 from lsd.train.gp import AddLocalShapeDescriptor
 
@@ -31,9 +31,9 @@ def make_affinities_data_pipeline(
     batch_size: int = 5,
     min_mask: float = None,
     affinities_map = [
-                        [3, 0, 0],
-                        [0, 3, 0],
-                        [0, 0, 3],]
+                        [1, 0, 0],
+                        [0, 1, 0],
+                        [0, 0, 1],]
 ):
     raw = gp.ArrayKey("RAW")
     all_labels_key = gp.ArrayKey("LABELS")
@@ -42,15 +42,10 @@ def make_affinities_data_pipeline(
     affinities_keys = {}
     lsds_keys = {}
     merged_keys = {}
-    weight_affinities_keys = {}
-    weight_lsds_keys = {}
     for label in labels:
         label_keys[label] = gp.ArrayKey(label.upper())
         affinities_keys[label] = gp.ArrayKey('AFF_'+label.upper())
         lsds_keys[label] = gp.ArrayKey('LSD_'+label.upper())
-
-        weight_affinities_keys[label] = gp.ArrayKey('WEIGHT_AFF_'+label.upper())
-        weight_lsds_keys[label] = gp.ArrayKey('WEIGHT_LSD_'+label.upper())
         merged_keys[label] = gp.ArrayKey('MERGED_'+label.upper())
     
     
@@ -77,7 +72,7 @@ def make_affinities_data_pipeline(
             if src.needs_downsampling:
                 src_pipe += corditea.AverageDownSample(raw, sampling)
             probs.append(src.get_size() / len(ds_info["crops"]))
-            logging.debug(f"Padding {crop} with {src.padding}")
+            # logging.debug(f"Padding {crop} with {src.padding}")
             for label_key, aff_key, lsd_keys, merged_key in zip(label_keys.values(), affinities_keys.values(), lsds_keys.values(), merged_keys.values()):
                 # src_pipe += Binarize(label_key)
                 
@@ -165,7 +160,6 @@ def make_data_pipeline(
     }
     for dataset, ds_info in datasets["datasets"].items():
         for crop in ds_info["crops"]:
-            # for crop in crops.split(","):
             src = CellMapCropSource(
                 ds_info["crops"][crop],
                 ds_info["raw"],
@@ -257,7 +251,8 @@ def make_train_pipeline(
             affinities_map= affinities_map,
             min_mask=min_mask,
         )
-        loss_fn = BalancedAffinitiesLoss(num_affinities_channels=len(affinities_map))
+        # loss_fn = BalancedAffinitiesLoss(num_affinities_channels=len(affinities_map))
+        loss_fn = AffinitiesLoss(nb_affinities=len(affinities_map))
     else:
         pipeline = make_data_pipeline(
             labels,
@@ -290,21 +285,21 @@ def make_train_pipeline(
 
 
     
-    pipeline += corditea.LambdaFilter(sigmoidify, gp.ArrayKey("OUTPUT"), gp.ArrayKey("NORM_OUTPUT"))
-    snapshot_request = gp.BatchRequest()
-    snapshot_request.add(gp.ArrayKey("DUMMY"), input_size, voxel_size=gp.Coordinate(sampling))
-    snapshot_request.add(gp.ArrayKey("NORM_OUTPUT"), output_size, voxel_size=gp.Coordinate(sampling))
-    del snapshot_request[gp.ArrayKey("DUMMY")]
-    pipeline += gp.Snapshot(
-        {
-            gp.ArrayKey("LABELS"): "labels",
-            gp.ArrayKey("RAW"): "raw",
-            gp.ArrayKey("MASK"): "mask",
-            gp.ArrayKey("OUTPUT"): "output",
-            gp.ArrayKey("NORM_OUTPUT"): "norm_output",
-        },
-        output_filename="{iteration:08d}.zarr",
-        every=500,
-        additional_request=snapshot_request,
-    )
+    # pipeline += corditea.LambdaFilter(sigmoidify, gp.ArrayKey("OUTPUT"), gp.ArrayKey("NORM_OUTPUT"))
+    # snapshot_request = gp.BatchRequest()
+    # snapshot_request.add(gp.ArrayKey("DUMMY"), input_size, voxel_size=gp.Coordinate(sampling))
+    # snapshot_request.add(gp.ArrayKey("NORM_OUTPUT"), output_size, voxel_size=gp.Coordinate(sampling))
+    # del snapshot_request[gp.ArrayKey("DUMMY")]
+    # pipeline += gp.Snapshot(
+    #     {
+    #         gp.ArrayKey("LABELS"): "labels",
+    #         gp.ArrayKey("RAW"): "raw",
+    #         gp.ArrayKey("MASK"): "mask",
+    #         gp.ArrayKey("OUTPUT"): "output",
+    #         gp.ArrayKey("NORM_OUTPUT"): "norm_output",
+    #     },
+    #     output_filename="{iteration:08d}.zarr",
+    #     every=500,
+    #     additional_request=snapshot_request,
+    # )
     return pipeline

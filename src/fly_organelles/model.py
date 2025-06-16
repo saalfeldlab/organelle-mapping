@@ -95,10 +95,11 @@ class BalancedAffinitiesLoss(nn.Module):
         return self.affinities_weight * loss_aff + self.lsds_weight * loss_lsds
     
 class AffinitiesLoss(nn.Module):
-    def __init__(self, lsds_weight: float = 1.0, affinities_weight: float = 1.0):
+    def __init__(self, lsds_weight: float = 1.0, affinities_weight: float = 1.0, nb_affinities: int = 3):
         super().__init__()
         self.lsds_weight = lsds_weight
         self.affinities_weight = affinities_weight
+        self.nb_affinities = nb_affinities
 
     def forward(self,
                 output: torch.Tensor,
@@ -110,26 +111,25 @@ class AffinitiesLoss(nn.Module):
             raise ValueError(f"Output and target must have the same shape, got {output.shape} vs {target.shape}")
         if mask.shape != output.shape:
             raise ValueError(f"Mask must match output shape, got {mask.shape} vs {output.shape}")
-        if output.shape[1] < 10:
-            raise ValueError(f"Expected at least 10 LSDS channels, got {output.shape[1]}")
+        if output.shape[1] < self.nb_affinities:
+            raise ValueError(f"Expected at least {self.nb_affinities} affinity channels, got {output.shape[1]}")
 
-        # Split predictions, targets, and mask into LSDS and affinities parts
-        out_lsds = output[:, :10]
-        tgt_lsds = target[:, :10]
-        mask_lsds = mask[:, :10].float()
+        # Split predictions, targets, and mask into affinities and LSDS parts
+        out_aff = output[:, :self.nb_affinities]
+        tgt_aff = target[:, :self.nb_affinities]
+        mask_aff = mask[:, :self.nb_affinities].float()
 
-        out_aff = output[:, 10:]
-        tgt_aff = target[:, 10:]
-        mask_aff = mask[:, 10:].float()
-
-        loss_lsds = torch.nn.MSELoss(reduction="none")(torch.nn.Sigmoid()(out_lsds), tgt_lsds)* mask_lsds
-
-        print(loss_lsds.mean())
+        out_lsds = output[:, self.nb_affinities:]
+        tgt_lsds = target[:, self.nb_affinities:]
+        mask_lsds = mask[:, self.nb_affinities:].float()
 
         bce = torch.nn.BCEWithLogitsLoss(reduction="none")(out_aff, tgt_aff) * mask_aff
-
         print(bce.mean())
-        return self.lsds_weight * loss_lsds.mean() + self.affinities_weight * bce.mean()
+
+        loss_lsds = torch.nn.MSELoss(reduction="none")(torch.nn.Sigmoid()(out_lsds), tgt_lsds) * mask_lsds
+        print(loss_lsds.mean())
+
+        return self.affinities_weight * bce.mean() + self.lsds_weight * loss_lsds.mean()
 
 
 class WeightedMSELoss(torch.nn.MSELoss):
