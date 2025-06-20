@@ -6,8 +6,8 @@ import torch
 logger = logging.getLogger(__name__)
 
 
-def load_eval_model(num_labels, checkpoint_path):
-    model_backbone = StandardUnet(1, num_labels)
+def load_eval_model(architecture_config, checkpoint_path):
+    model_backbone = architecture_config.instantiate()
     if torch.cuda.is_available():
         device = torch.device("cuda")
     else:
