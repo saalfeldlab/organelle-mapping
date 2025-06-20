@@ -7,16 +7,13 @@ name = "organelle-mapping"
 dynamic = ["version"]
 description = "Segmenting organelles"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 license = "MIT"
 keywords = []
 authors = [{ name = "Larissa Heinrich", email = "heinrichl@janelia.hhmi.org" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: Implementation :: CPython",
@@ -67,6 +64,7 @@ source-layout = "src"
 
 [tool.hatch.envs.default]
 dependencies = []
+skip-install = false
 
 [tool.hatch.envs.default.env-vars]
 MKL_NUM_THREADS = "1"
@@ -82,7 +80,7 @@ cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
+python = ["3.10", "3.11"]
 
 
 [tool.hatch.envs.dev]
