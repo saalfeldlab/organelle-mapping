@@ -160,6 +160,10 @@ cython_debug/
 #.idea/
 .vscode/
 
+# Pixi
+.pixi/
+pixi.lock
+
 # Gunpowder
 
 snapshots/
