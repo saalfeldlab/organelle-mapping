@@ -44,7 +44,7 @@ def match_heads(checkpoint_weights, current_model_weights, old_head, new_head, e
 
 
 
-def run(model,iterations, labels, label_weights, datasets,voxel_size = (8, 8, 8),batch_size = 14, l_rate=0.5e-4, log_dir = "logs",  affinities = False, affinities_map = None, min_mask = None, input_size = gp.Coordinate((178, 178, 178)), output_size = gp.Coordinate((56, 56, 56)) ):
+def run(model,iterations, labels, label_weights, datasets,voxel_size = (8, 8, 8),batch_size = 14, l_rate=0.5e-4, log_dir = "logs",  affinities = False, affinities_map = None, min_mask = None, input_size = gp.Coordinate((178, 178, 178)), output_size = gp.Coordinate((56, 56, 56)), distance_sigma=None ):
     input_size = gp.Coordinate(input_size) * gp.Coordinate(voxel_size)
     output_size = gp.Coordinate(output_size) * gp.Coordinate(voxel_size)
     displacement_sigma = gp.Coordinate((24, 24, 24))
@@ -71,6 +71,7 @@ def run(model,iterations, labels, label_weights, datasets,voxel_size = (8, 8, 8)
         affinities = affinities,
         affinities_map = affinities_map,
         min_mask = min_mask,
+        distance_sigma = distance_sigma,
     )
 
     request = gp.BatchRequest()

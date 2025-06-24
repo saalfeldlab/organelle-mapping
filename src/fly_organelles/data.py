@@ -139,16 +139,47 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         return batch
 
 
+# class ExtractMask(gp.BatchFilter):
+#     def __init__(self, label_key, mask_key, mask_value=255):
+#         super().__init__()
+#         self.mask_key = mask_key
+#         self.mask_value = mask_value
+#         self.label_key = label_key
+
+#     def setup(self):
+#         assert self.label_key in self.spec, f"Need {self.label_key}"
+#         spec = self.spec[self.label_key].copy()
+#         self.provides(self.mask_key, spec)
+
+#     def prepare(self, request):
+#         deps = gp.BatchRequest()
+#         deps[self.label_key] = request[self.mask_key].copy()
+#         return deps
+
+#     def process(self, batch, request):
+#         outputs = gp.Batch()
+#         label_arr = batch[self.label_key].data
+#         mask = label_arr != self.mask_value
+#         spec = self.spec[self.label_key].copy()
+#         spec.roi = request[self.label_key].roi
+#         outputs.arrays[self.mask_key] = gp.Array(mask.astype(spec.dtype), spec)
+#         return outputs
+
+
+
 class ExtractMask(gp.BatchFilter):
     def __init__(self, label_key, mask_key, mask_value=255):
         super().__init__()
         self.mask_key = mask_key
         self.mask_value = mask_value
         self.label_key = label_key
+        self.count_bg = 0
+        self.count_fg = 0
 
     def setup(self):
         assert self.label_key in self.spec, f"Need {self.label_key}"
         spec = self.spec[self.label_key].copy()
+        spec.dtype = np.float32
         self.provides(self.mask_key, spec)
 
     def prepare(self, request):
@@ -159,8 +190,22 @@ class ExtractMask(gp.BatchFilter):
     def process(self, batch, request):
         outputs = gp.Batch()
         label_arr = batch[self.label_key].data
-        mask = label_arr != self.mask_value
+        mask = (label_arr != self.mask_value).astype(np.float32)
+        self.count_bg += np.sum(label_arr == 0)
+        self.count_fg += np.sum((label_arr != 0) & (label_arr != self.mask_value))
+        weight_fg = self.count_fg / (self.count_fg + self.count_bg)
+        weight_bg = self.count_bg / (self.count_fg + self.count_bg)
+        logger.debug(f"Count: fg={self.count_fg}, bg={self.count_bg}")
+        logger.debug(f"Weighting: fg={weight_fg}, bg={weight_bg}")
+        if weight_bg == 0:
+            weight_bg = 1.0
+        if weight_fg == 0:
+            weight_fg = 1.0
+        
+        mask[label_arr == 0] *= weight_fg
+        mask[label_arr != 0] *= weight_bg
         spec = self.spec[self.label_key].copy()
+        spec.dtype = np.float32
         spec.roi = request[self.label_key].roi
         outputs.arrays[self.mask_key] = gp.Array(mask.astype(spec.dtype), spec)
         return outputs

@@ -1,6 +1,10 @@
 import funlib.learn.torch
 import torch
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 def load_eval_model(num_labels, checkpoint_path):
     model_backbone = StandardUnet(num_labels)
     if torch.cuda.is_available():
@@ -14,85 +18,6 @@ def load_eval_model(num_labels, checkpoint_path):
     model.eval()
     return model
 
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-class BalancedAffinitiesLoss(nn.Module):
-    def __init__(
-        self,
-        affinities_weight: float = 1.0,
-        lsds_weight: float = 1.0,
-        num_affinities_channels: int = 3,
-        eps: float = 1e-6,
-    ):
-        super().__init__()
-        self.affinities_weight = affinities_weight
-        self.lsds_weight = lsds_weight
-        self.num_affinities = num_affinities_channels
-        self.eps = eps
-
-    def forward(self, output: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        bs = output.shape[0]
-
-        # --- Affinities branch ---
-        out_aff  = output[:, :self.num_affinities]
-        tgt_aff  = target[:, :self.num_affinities]
-        mask_aff = mask[:, :self.num_affinities].float()
-        C_aff    = out_aff.shape[1]
-
-        m_flat = mask_aff.view(bs, C_aff, -1)
-        t_flat = (tgt_aff > 0.0).float().view(bs, C_aff, -1)
-        total_valid = m_flat.sum(dim=(0,2))
-        pos = (t_flat * m_flat).sum(dim=(0,2))
-        neg = total_valid - pos
-
-        pos_w = (neg / (total_valid + self.eps))
-        neg_w = (pos / (total_valid + self.eps))
-        shape = [1, C_aff] + [1] * (out_aff.ndim-2)
-        pos_w = pos_w.view(*shape)
-        neg_w = neg_w.view(*shape)
-
-        weight_aff = mask_aff * ( (tgt_aff>0.0).float()*pos_w + (tgt_aff==0.0).float()*neg_w )
-        bce    = F.binary_cross_entropy_with_logits(out_aff, tgt_aff, reduction="none")
-        w_bce  = bce * weight_aff
-
-        denom = weight_aff.sum()
-        if denom.detach().item() < self.eps:
-            loss_aff = bce.mean()
-        else:
-            loss_aff = w_bce.sum() / (denom + self.eps) / C_aff
-
-        # --- LSDS branch ---
-        out_lsds  = output[:, self.num_affinities:]
-        tgt_lsds  = target[:, self.num_affinities:]
-        mask_lsds = mask[:, self.num_affinities:].float()
-        C_lsds    = out_lsds.shape[1]
-
-        m_flat = mask_lsds.view(bs, C_lsds, -1)
-        t_flat = (tgt_lsds > 0.0).float().view(bs, C_lsds, -1)
-        total_valid = m_flat.sum(dim=(0,2))
-        pos = (t_flat * m_flat).sum(dim=(0,2))
-        neg = total_valid - pos
-
-        pos_w = (neg / (total_valid + self.eps))
-        neg_w = (pos / (total_valid + self.eps))
-        shape = [1, C_lsds] + [1] * (out_lsds.ndim-2)
-        pos_w = pos_w.view(*shape)
-        neg_w = neg_w.view(*shape)
-
-        weight_lsds = mask_lsds * ( (tgt_lsds>0.0).float()*pos_w + (tgt_lsds==0.0).float()*neg_w )
-        mse    = F.mse_loss(out_lsds, tgt_lsds, reduction="none")
-        w_mse  = mse * weight_lsds
-
-        denom = weight_lsds.sum()
-        if denom.detach().item() < self.eps:
-            loss_lsds = mse.mean()
-        else:
-            loss_lsds = w_mse.sum() / (denom + self.eps) / C_lsds
-
-        return self.affinities_weight * loss_aff + self.lsds_weight * loss_lsds
     
 class AffinitiesLoss(nn.Module):
     def __init__(self, lsds_weight: float = 1.0, affinities_weight: float = 1.0, nb_affinities: int = 3):
@@ -124,10 +49,10 @@ class AffinitiesLoss(nn.Module):
         mask_lsds = mask[:, self.nb_affinities:].float()
 
         bce = torch.nn.BCEWithLogitsLoss(reduction="none")(out_aff, tgt_aff) * mask_aff
-        print(bce.mean())
+        # print(bce.mean())
 
-        loss_lsds = torch.nn.MSELoss(reduction="none")(torch.nn.Sigmoid()(out_lsds), tgt_lsds) * mask_lsds
-        print(loss_lsds.mean())
+        loss_lsds = torch.nn.MSELoss(reduction="none")(out_lsds, tgt_lsds) * mask_lsds
+        # print(loss_lsds.mean())
 
         return self.affinities_weight * bce.mean() + self.lsds_weight * loss_lsds.mean()
 
@@ -139,10 +64,7 @@ class WeightedMSELoss(torch.nn.MSELoss):
 
     def forward(self, output, target, mask):
 
-        weights = torch.ones_like(target)
-        weights[target > 0] = self.foreground_factor
-
-        scaled = (mask * weights * (output - target) ** 2)
+        scaled = (mask * (output - target) ** 2)
 
         if len(torch.nonzero(scaled)) != 0:
 

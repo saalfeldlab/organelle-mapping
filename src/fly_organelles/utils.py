@@ -12,9 +12,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 def corner_offset(center_off_arr, raw_res_arr, crop_res_arr):
-    return center_off_arr + raw_res_arr / 2.0 - crop_res_arr / 2.0
+    return np.round((center_off_arr + raw_res_arr / 2.0 - crop_res_arr / 2.0)/crop_res_arr)*crop_res_arr
+
+# def corner_offset(center_off_arr, raw_res_arr, crop_res_arr):
+#     return center_off_arr + raw_res_arr / 2.0 - crop_res_arr / 2.0
 
 
 def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
@@ -106,7 +108,22 @@ class ShiftNorm(BatchFilter):
         raw.data /= (self.max-self.min)
         # print(f"new min: {raw.data.min()}, new max: {raw.data.max()}")
 
+from edt import edt
+class Distance(gp.BatchFilter):
 
+  def __init__(self, array,sigma=10.0):
+    self.array = array
+    self.sigma = sigma
+
+  def setup(self):
+    self.spec[self.array].dtype = np.float32
+
+  def process(self, batch, request):
+
+    data = batch[self.array].data
+    data = np.tanh((edt(data) - edt(data == 0)) / self.sigma)
+    batch[self.array].data = data.astype(np.float32)
+    
 class Binarize(BatchFilter):
     def __init__(self, array):
         self.array = array
