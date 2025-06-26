@@ -61,7 +61,8 @@ for domain in \
     "dualstack.python.map.fastly.net" \
     "conda.anaconda.org" \
     "repo.anaconda.com" \
-    "conda-forge.org"; do
+    "conda-forge.org" \
+    "conda-mapping.prefix.dev"; do
     echo "Resolving $domain..."
     ips=$(dig +short A "$domain")
     if [ -z "$ips" ]; then

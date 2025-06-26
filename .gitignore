@@ -162,6 +162,7 @@ cython_debug/
 
 # Pixi
 .pixi/
+.pixi-container/
 pixi.lock
 
 # Gunpowder

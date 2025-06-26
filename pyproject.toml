@@ -201,8 +201,13 @@ typecheck = "mypy --install-types --non-interactive src/organelle_mapping tests"
 [tool.pixi.dependencies]
 python = "3.11.*"
 
-[tool.pixi.pypi-dependencies]
+[tool.pixi.feature.dev.pypi-dependencies]
 organelle-mapping = { path = ".", editable = true }
+
+[tool.pixi.feature.default.pypi-packages]
+organelle-mapping = { path = "."}
+
+
 
 [tool.pixi.feature.dev.dependencies]
 pytest = ">=7.3"
@@ -212,12 +217,6 @@ ruff = ">=0.1.0"
 mypy = ">=1.0"
 black = ">=23.1.0"
 
-[tool.pixi.feature.notebooks.dependencies]
-jupyter = ">=1.0"
-jupyterlab = ">=4.0"
-ipykernel = ">=6.23"
-
 [tool.pixi.environments]
 default = { solve-group = "default" }
-dev = { features = ["dev"], solve-group = "default" }
-notebooks = { features = ["notebooks"], solve-group = "default" }
+dev = { features = ["dev", "notebooks"], solve-group = "default" }
