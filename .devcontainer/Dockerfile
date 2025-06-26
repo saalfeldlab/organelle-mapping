@@ -92,6 +92,9 @@ RUN mkdir -p /home/node/.config/fish && \
     echo 'export PATH="/home/node/.pixi/bin:$PATH"' >> /home/node/.bashrc && \
     echo 'export PATH="/home/node/.pixi/bin:$PATH"' >> /home/node/.zshrc
 
+# Configure pixi to use detached environments for container
+RUN echo 'detached-environments = "/workspace/.pixi-container"' > /home/node/.pixi/config.toml
+
 # Copy setup scripts
 COPY init-firewall.sh /usr/local/bin/
 COPY setup-pixi-envs.sh /usr/local/bin/

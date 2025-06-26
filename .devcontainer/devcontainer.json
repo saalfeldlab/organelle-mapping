@@ -47,7 +47,9 @@
   "remoteUser": "node",
   "mounts": [
     "source=claude-code-bashhistory,target=/commandhistory,type=volume",
-    "source=claude-code-config,target=/home/node/.claude,type=volume"
+    "source=claude-code-config,target=/home/node/.claude,type=volume",
+    "source=/nrs/saalfeld/heinrichl/organelle-mapping,target=/experiments,type=bind",
+    "source=/nrs/cellmap/data,target=/data,readonly,type=bind"
   ],
   "remoteEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
