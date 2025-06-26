@@ -43,7 +43,7 @@ dependencies = [
   "monai",
   "einops",
   "pydantic",
-  "cellmap-flow@git+ssh://git@github.com/neptunes5thmoon/cellmap-flow.git@9a2ffc888e55c698b09302a62d37b52b3d34fc6a"
+  "cellmap-flow@git+ssh://git@github.com/janelia-cellmap/cellmap-flow.git"
 ]
 
 [project.urls]
