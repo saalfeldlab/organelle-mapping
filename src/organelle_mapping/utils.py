@@ -27,18 +27,59 @@ logger = logging.getLogger(__name__)
 
 
 def decimal_arr(arr, precision: int = 2) -> np.ndarray:
+    """Convert array values to high-precision Decimal objects.
+    
+    Args:
+        arr: Array-like object to convert
+        precision: Number of decimal places to maintain (default: 2)
+        
+    Returns:
+        numpy.ndarray: Array of Decimal objects with specified precision
+    """
     return np.array([Decimal(f"{a:.{precision}f}") for a in arr])
 
 
 def undecimal_arr(arr, precision: int = 2) -> np.ndarray:
+    """Convert Decimal array back to float array with specified precision.
+    
+    Args:
+        arr: Array of Decimal objects to convert
+        precision: Number of decimal places to round to (default: 2)
+        
+    Returns:
+        numpy.ndarray: Array of float values rounded to specified precision
+    """
     return np.array([float(round(a, precision)) for a in arr])
 
 
 def corner_offset(center_off_arr, raw_res_arr, crop_res_arr):
+    """Calculate corner offset from center offset and resolution arrays.
+    
+    Args:
+        center_off_arr: Array of center offsets
+        raw_res_arr: Array of raw resolution values
+        crop_res_arr: Array of crop resolution values
+        
+    Returns:
+        Corner offset array calculated from center offset and resolutions
+    """
     return center_off_arr + raw_res_arr / Decimal("2.0") - crop_res_arr / Decimal("2")
 
 
 def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
+    """Check if center offset produces valid corner offset aligned to both resolutions.
+    
+    Args:
+        center_off_arr: Array of center offsets
+        raw_res_arr: Array of raw resolution values
+        crop_res_arr: Array of crop resolution values
+        
+    Returns:
+        bool: True if corner offset is aligned to both raw and crop resolutions
+        
+    Note:
+        Prints debug information if offset is not valid
+    """
     corner_off_arr = corner_offset(decimal_arr(center_off_arr), decimal_arr(raw_res_arr), decimal_arr(crop_res_arr))
     # for co, rr, cr in zip(corner_off_arr, raw_res_arr, crop_res_arr):
     #     if not np.isclose(float(Decimal(str(co)) % Decimal(str(rr))),0):
@@ -60,11 +101,31 @@ def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
 
 
 def all_combinations(iterable):
+    """Generate all possible combinations of different lengths from an iterable.
+    
+    Args:
+        iterable: Input iterable to generate combinations from
+        
+    Yields:
+        All combinations of lengths 1 to len(iterable)
+        
+    Example:
+        >>> list(all_combinations([1, 2, 3]))
+        [(1,), (2,), (3,), (1, 2), (1, 3), (2, 3), (1, 2, 3)]
+    """
     for r in range(1, len(iterable) + 1):
         yield from itertools.combinations(iterable, r)
 
 
 def read_label_yaml(yaml_file: BinaryIO) -> dict[str, set[str]]:
+    """Read label configuration from YAML file and convert to sets.
+    
+    Args:
+        yaml_file: Binary file object containing YAML label configuration
+        
+    Returns:
+        dict[str, set[str]]: Dictionary mapping label names to sets of atom names
+    """
     classes = yaml.safe_load(yaml_file)
     for lbl, atoms in classes.items():
         classes[lbl] = set(atoms)
@@ -72,6 +133,17 @@ def read_label_yaml(yaml_file: BinaryIO) -> dict[str, set[str]]:
 
 
 def read_data_yaml(yaml_file: BinaryIO):
+    """Read data configuration from YAML file and extract store information.
+    
+    Args:
+        yaml_file: Binary file object containing YAML data configuration
+        
+    Returns:
+        tuple: Contains:
+            - label_stores (list): Paths to label data stores
+            - raw_stores (list): Paths to raw data stores  
+            - crop_copies (list): Number of copies for each crop
+    """
     datasets = yaml.safe_load(yaml_file)
     label_stores = []
     raw_stores = []
@@ -87,6 +159,18 @@ def read_data_yaml(yaml_file: BinaryIO):
 
 
 def get_axes_names(zarr_grp, multiscale: str | int = 0) -> list[str]:
+    """Get axis names from a multiscale Zarr group.
+    
+    Args:
+        zarr_grp: Zarr group containing multiscale data
+        multiscale: Name or index of the multiscale to get axes from (default: 0)
+        
+    Returns:
+        list[str]: List of axis names
+        
+    Raises:
+        KeyError: If the specified multiscale is not found
+    """
     if isinstance(multiscale, int):
         index = multiscale
     else:
@@ -155,6 +239,23 @@ def find_target_scale_by_offset(
     target_offset: dict[str, float],
     multiscale: Optional[str | int | tuple[str | int]] = None,
 ) -> tuple[str, dict[str, float], dict[str, float], dict[str, int]]:
+    """Find the scale in a Zarr group that is compatible with the target offset.
+    
+    Args:
+        zarr_grp: Zarr group containing multiscale data
+        target_offset: Dictionary specifying target offset for each axis
+        multiscale: Multiscale name(s) or index(es) to search (default: all)
+        
+    Returns:
+        tuple: Contains:
+            - target_scale (str): Name of the compatible scale
+            - offset (dict[str, float]): Offset for the target scale
+            - resolution (dict[str, float]): Resolution for the target scale
+            - shape (dict[str, int]): Shape for the target scale
+            
+    Raises:
+        ValueError: If no compatible scale is found
+    """
     if multiscale is None:
         multiscale = get_multiscale_names(zarr_grp)
     if isinstance(multiscale, (str, int)):
@@ -269,7 +370,11 @@ def find_target_scale(
 
 
 class SmoothSemanticSegmentation(SemanticSegmentation):
-    """
+    """Metadata for smooth semantic segmentation with continuous values.
+    
+    Extends SemanticSegmentation to handle smooth/continuous semantic segmentation
+    where values can be continuous rather than discrete integers.
+    
     Metadata for a semantic segmentation, i.e. a segmentation where unique
     numerical values represent separate semantic classes.
 
@@ -293,10 +398,28 @@ class SmoothSemanticSegmentation(SemanticSegmentation):
 
 
 class GeneralizedAnnotationArrayAttrs(AnnotationArrayAttrs):
+    """Extended annotation array attributes with complement counts.
+    
+    Adds complement_counts field to track additional statistics about
+    the annotation data.
+    """
     complement_counts: dict[InstancePossibility, int] | dict[SemanticPossibility, int | float] | None
 
 
 def generate_standard_multiscale(dataset_paths, axes, base_resolution, base_offset, factors, name="nominal"):
+    """Generate standard multiscale metadata for a dataset.
+    
+    Args:
+        dataset_paths: List of dataset paths for each scale level
+        axes: List of Axis objects defining the coordinate system
+        base_resolution: Base resolution dictionary for each axis
+        base_offset: Base offset dictionary for each axis
+        factors: List of downsampling factors for each scale level
+        name: Name for the multiscale (default: "nominal")
+        
+    Returns:
+        MultiscaleMetadata: Multiscale metadata object with transforms
+    """
     axes_order = [ax.name for ax in axes]
     scale = np.array(ax_dict_to_list(base_resolution, axes_order))
     offset = np.array(ax_dict_to_list(base_offset, axes_order))
@@ -320,6 +443,18 @@ def generate_standard_multiscale(dataset_paths, axes, base_resolution, base_offs
 
 
 def get_axes_object(zarr_grp, multiscale_name: Optional[str] = None) -> list[Axis]:
+    """Get Axis objects from a multiscale Zarr group.
+    
+    Args:
+        zarr_grp: Zarr group containing multiscale data
+        multiscale_name: Name of the multiscale to get axes from (default: first)
+        
+    Returns:
+        list[Axis]: List of Axis objects
+        
+    Raises:
+        KeyError: If the specified multiscale is not found
+    """
     if multiscale_name is None:
         index = 0
     else:
@@ -335,6 +470,20 @@ def get_axes_object(zarr_grp, multiscale_name: Optional[str] = None) -> list[Axi
 
 
 def infer_nominal_transform(scale: dict[str, float], offset: dict[str, float]) -> tuple[dict[str, int], dict[str, int]]:
+    """Infer nominal transform from scale and offset information.
+    
+    Args:
+        scale: Dictionary of scale values for each axis
+        offset: Dictionary of offset values for each axis
+        
+    Returns:
+        tuple: Contains:
+            - nominal_scale (dict[str, int]): Nominal scale values
+            - nominal_offset (dict[str, int]): Nominal offset values
+            
+    Raises:
+        ValueError: If scales are all unique or dominant scale is not integer
+    """
     if offset.keys() != scale.keys():
         msg = f"Keys of offset {offset.keys()} do not match keys of scale {scale.keys()}."
     if len(set(scale.values())) == len(scale.values()):
@@ -356,14 +505,40 @@ def infer_nominal_transform(scale: dict[str, float], offset: dict[str, float]) -
 
 
 def ax_dict_to_list(ax_dict, axes_order):
+    """Convert axis dictionary to list using specified axis order.
+    
+    Args:
+        ax_dict: Dictionary mapping axis names to values
+        axes_order: List of axis names specifying the desired order
+        
+    Returns:
+        list: Values from ax_dict in the order specified by axes_order
+    """
     return [ax_dict[ax] for ax in axes_order]
 
 
 def list_to_ax_dict(iterable, axes_order):
+    """Convert list to axis dictionary using specified axis order.
+    
+    Args:
+        iterable: Iterable of values
+        axes_order: List of axis names to use as keys
+        
+    Returns:
+        dict: Dictionary mapping axis names to values
+    """
     return dict(zip(axes_order, iterable))
 
 
 def get_downsampling_factors(samplings):
+    """Calculate downsampling factors between consecutive sampling levels.
+    
+    Args:
+        samplings: Dictionary mapping scale names to sampling dictionaries
+        
+    Returns:
+        list: List of downsampling factor dictionaries for each transition
+    """
     sorted_keys = sorted(samplings.keys(), key=lambda x: min(samplings[x].values()))
     factors = []
     for sc1, sc2 in itertools.pairwise(sorted_keys):
