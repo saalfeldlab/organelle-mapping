@@ -7,14 +7,7 @@ from pydantic import BaseModel, Field, TypeAdapter, ValidationInfo, field_valida
 from organelle_mapping.config.augmentations import AugmentationPipeline
 from organelle_mapping.config.data import DataConfig
 from organelle_mapping.config.models import Architecture
-
-
-def load_subconfig(value, target_cls):
-    if isinstance(value, str):
-        config = open(Path(value))
-        return TypeAdapter(target_cls).validate_python(yaml.safe_load(config))
-
-    return value
+from organelle_mapping.config.utils import load_subconfig
 
 
 class RunConfig(BaseModel):
