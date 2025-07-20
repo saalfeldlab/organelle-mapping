@@ -43,6 +43,7 @@ dependencies = [
   "monai",
   "einops",
   "pydantic",
+  "scikit-learn",
   "cellmap-flow@git+ssh://git@github.com/janelia-cellmap/cellmap-flow.git"
 ]
 
