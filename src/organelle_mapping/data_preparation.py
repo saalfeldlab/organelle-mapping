@@ -381,10 +381,10 @@ class Crop:
                 arr[arr == label_encoding["absent"]] = encoding["absent"]
             self.save_class(label, arr, encoding, overwrite=True)
 
-    def smooth_multiscale(self, label: Optional[str] = None):
+    def smooth_multiscale(self, label: Optional[str] = None, force: bool = False):
         if label is None:
             for lbl in self.get_annotated_classes():
-                self.smooth_multiscale(lbl)
+                self.smooth_multiscale(lbl, force=force)
         else:
             logger.info(f"Generating smooth multiscale for {label}")
             if self.get_annotation_type(label) != "semantic_segmentation":
@@ -396,16 +396,17 @@ class Crop:
                 raise ValueError(msg)
             scalelevels = self.get_scalelevels(label)
             # check if scales are already smoothed
-            try:
-                annotation_types = [self.get_annotation_type(label, sc) for sc in scalelevels]
-                done = [annotype == "smooth_semantic_segmentation" for annotype in annotation_types]
-                if any(done):
-                    start = done.index(True)
-                    if all(done[start:]):
-                        logger.info(f"All scales already smoothed for {label}")
-                        return
-            except KeyError:
-                pass
+            if not force:
+                try:
+                    annotation_types = [self.get_annotation_type(label, sc) for sc in scalelevels]
+                    done = [annotype == "smooth_semantic_segmentation" for annotype in annotation_types]
+                    if any(done):
+                        start = done.index(True)
+                        if all(done[start:]):
+                            logger.info(f"All scales already smoothed for {label}")
+                            return
+                except KeyError:
+                    pass
             # check whether downsampling is trivial
             full_scale = scalelevels[0]
             full_scale_histo = self.get_attributes(label, full_scale)["cellmap"]["annotation"]["complement_counts"]
@@ -419,7 +420,9 @@ class Crop:
                 if multi_valued:
                     src = self.get_array(label, l1)
                     down = skimage.transform.downscale_local_mean(src, 2).astype("float32")
-                    downslice = tuple(slice(sh) for sh in (np.array(down.shape) // 2) * 2)
+                    # Only crop if source dimension was odd (which causes an extra voxel)
+                    downslice = tuple(slice(down.shape[i] - 1 if src.shape[i] % 2 == 1 else down.shape[i]) 
+                                      for i in range(len(down.shape)))
                     down = down[downslice]
                     down[down > max(encoding["present"], encoding["absent"])] = encoding["unknown"]
                     histo = {}
@@ -459,11 +462,12 @@ class Crop:
 @cli.command()
 @click.argument("label-config", type=click.File("rb"))
 @click.argument("data-config", type=click.File("rb"))
-def smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO):
-    _smooth_multiscale(label_config, data_config)
+@click.option("--force", is_flag=True, help="Force regeneration even if already smoothed")
+def smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO, force: bool):
+    _smooth_multiscale(label_config, data_config, force=force)
 
 
-def _smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO):
+def _smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO, force: bool = False):
     datas = yaml.safe_load(data_config)
     classes = utils.read_label_yaml(label_config)
     for dataset, ds_info in datas["datasets"].items():
@@ -474,7 +478,7 @@ def _smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO):
                     classes,
                     f"{ds_info['labels']['data']}/{ds_info['labels']['group']}/{cropname}",
                 )
-                crop.smooth_multiscale()
+                crop.smooth_multiscale(force=force)
 
 
 @cli.command()
