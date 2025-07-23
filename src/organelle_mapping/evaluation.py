@@ -13,6 +13,7 @@ from pydantic import TypeAdapter
 
 from organelle_mapping.config.run import RunConfig
 from organelle_mapping.config.data import DataConfig
+from organelle_mapping.config.evaluation import EvaluationConfig
 from organelle_mapping.model import load_eval_model
 from organelle_mapping.metrics import dice_score, jaccard
 from organelle_mapping.utils import find_target_scale, get_axes_names
@@ -146,6 +147,7 @@ def evaluate_predictions(
     predictions: np.ndarray,
     ground_truth: np.ndarray,
     channel_names: Optional[Dict[int, str]] = None,
+    thresholds: list = None,
 ) -> Dict[str, Dict[str, float]]:
     """Evaluate predictions against ground truth for all channels with threshold sweep."""
     assert predictions.shape == ground_truth.shape, (
@@ -154,9 +156,6 @@ def evaluate_predictions(
     
     n_channels = predictions.shape[0]
     results = {}
-    
-    # Define thresholds to sweep
-    thresholds = np.linspace(0.01, 0.5, 50)
     
     for channel in range(n_channels):
         pred_channel = predictions[channel]
@@ -203,190 +202,280 @@ def evaluate_predictions(
     return results
 
 
-@click.command()
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
 @click.option(
-    "--run-config",
-    "-r",
+    "--eval-config",
+    "-e",
     type=click.Path(exists=True),
     required=True,
-    help="Path to run configuration YAML file",
+    help="Path to evaluation configuration YAML file",
 )
 @click.option(
-    "--checkpoint",
-    "-c",
-    type=click.Path(exists=True),
-    required=True,
-    help="Path to model checkpoint",
-)
-@click.option(
-    "--data-config",
-    "-d",
-    type=click.Path(exists=True),
-    required=False,
-    help="Path to data configuration YAML file (overrides run config's data)",
-)
-@click.option(
-    "--dataset-name",
-    "-dn",
+    "--dataset",
+    "-ds",
     type=str,
     required=False,
     help="Dataset name from data config to evaluate (default: all datasets)",
 )
 @click.option(
-    "--crop-name",
-    "-cn",
+    "--crop",
+    "-c",
     type=str,
     required=False,
-    help="Name of the crop to evaluate (default: all crops)",
+    multiple=True,
+    help="Specific crop(s) to evaluate (can be used multiple times, default: all crops)",
+)
+@click.option(
+    "--checkpoint",
+    "-ckpt",
+    type=str,
+    required=False,
+    multiple=True,
+    help="Specific checkpoint(s) to evaluate (can be used multiple times, default: all checkpoints in config)",
+)
+@click.option(
+    "--threshold",
+    "-t",
+    type=float,
+    required=False,
+    multiple=True,
+    help="Specific threshold(s) to evaluate (can be used multiple times, default: all thresholds in config)",
+)
+@click.option(
+    "--label",
+    "-l",
+    type=str,
+    required=False,
+    multiple=True,
+    help="Specific label(s) to evaluate (can be used multiple times, default: all labels)",
 )
 @click.option(
     "--log-level",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
     default="INFO",
 )
-def evaluate(
-    run_config: str,
-    checkpoint: str,
-    data_config: Optional[str],
-    dataset_name: Optional[str],
-    crop_name: Optional[str],
+def run(
+    eval_config: str,
+    dataset: Optional[str],
+    crop: tuple,
+    checkpoint: tuple,
+    threshold: tuple,
+    label: tuple,
     log_level: str,
 ):
-    """Evaluate model predictions on a validation block."""
+    """Evaluate model predictions on validation data."""
     pkg_logger = logging.getLogger("organelle_mapping")
     pkg_logger.setLevel(log_level.upper())
     
-    # Load run config
-    logger.info(f"Loading run config from {run_config}")
-    with open(run_config) as f:
-        run_config_dict = yaml.safe_load(f)
-    config = TypeAdapter(RunConfig).validate_python(run_config_dict)
+    # Load evaluation config
+    logger.info(f"Loading evaluation config from {eval_config}")
+    with open(eval_config) as f:
+        eval_config_dict = yaml.safe_load(f)
+    eval_cfg = TypeAdapter(EvaluationConfig).validate_python(eval_config_dict)
     
-    # Get architecture and labels from run config
-    network_config = config.architecture
-    label_list = list(config.labels)
-    sampling = config.sampling
+    # Get configuration components
+    run_config = eval_cfg.experiment_run
+    network_config = eval_cfg.eval_architecture  # Uses experiment_run.architecture if None
+    all_labels = list(run_config.labels)
+    sampling = run_config.sampling
+    data_cfg = eval_cfg.data
+    
+    # Filter labels if specific ones requested
+    if label:
+        requested_labels = set(label)
+        available_labels = set(all_labels)
+        if not requested_labels.issubset(available_labels):
+            invalid_labels = requested_labels - available_labels
+            raise ValueError(f"Invalid labels: {invalid_labels}. Available: {all_labels}")
+        # Preserve order from run config
+        label_list = [l for l in all_labels if l in requested_labels]
+        logger.info(f"Evaluating specific labels: {label_list}")
+    else:
+        label_list = all_labels
+    
+    # Filter checkpoints if specific ones requested
+    if checkpoint:
+        requested_checkpoints = set(checkpoint)
+        available_checkpoints = set(eval_cfg.checkpoints)
+        if not requested_checkpoints.issubset(available_checkpoints):
+            invalid_checkpoints = requested_checkpoints - available_checkpoints
+            raise ValueError(f"Invalid checkpoints: {invalid_checkpoints}. Available: {eval_cfg.checkpoints}")
+        # Preserve order from config
+        checkpoints = [c for c in eval_cfg.checkpoints if c in requested_checkpoints]
+        logger.info(f"Evaluating specific checkpoints: {checkpoints}")
+    else:
+        checkpoints = eval_cfg.checkpoints
+    
+    # Filter thresholds if specific ones requested
+    if threshold:
+        requested_thresholds = set(threshold)
+        available_thresholds = set(eval_cfg.thresholds)
+        if not requested_thresholds.issubset(available_thresholds):
+            invalid_thresholds = requested_thresholds - available_thresholds
+            raise ValueError(f"Invalid thresholds: {invalid_thresholds}. Available: {eval_cfg.thresholds}")
+        # Keep sorted order
+        thresholds = sorted(requested_thresholds)
+        logger.info(f"Evaluating specific thresholds: {thresholds}")
+    else:
+        thresholds = eval_cfg.thresholds
+    
+
+    
     logger.info(f"Labels to evaluate: {label_list}")
     logger.info(f"Target sampling: {sampling}")
-    
-    # Load model
-    logger.info(f"Loading model from {checkpoint}")
-    model = load_eval_model(network_config, checkpoint)
-    device = next(model.parameters()).device
-    
-    # Load data config if provided, otherwise use the one from run config
-    if data_config:
-        logger.info(f"Loading data config from {data_config}")
-        with open(data_config) as f:
-            data_dict = yaml.safe_load(f)
-        data_cfg = TypeAdapter(DataConfig).validate_python(data_dict)
-    else:
-        logger.info("Using data config from run config")
-        data_cfg = config.data
+    logger.info(f"Architecture: {network_config.name} (padding={network_config.padding})")
+    logger.info(f"Checkpoints to evaluate: {checkpoints}")
+    logger.info(f"Number of thresholds: {len(thresholds)}")
     
     # Determine which datasets and crops to evaluate
-    if dataset_name:
-        if dataset_name not in data_cfg.datasets:
-            raise ValueError(f"Dataset '{dataset_name}' not found in data config")
-        datasets_to_eval = {dataset_name: data_cfg.datasets[dataset_name]}
+    if dataset:
+        if dataset not in data_cfg.datasets:
+            raise ValueError(f"Dataset '{dataset}' not found in data config")
+        datasets_to_eval = {dataset: data_cfg.datasets[dataset]}
     else:
         datasets_to_eval = data_cfg.datasets
         logger.info(f"Evaluating all {len(datasets_to_eval)} datasets")
     
-    # Store results for all evaluations
-    all_results = {}
-    
-    # Iterate over datasets
-    for ds_name, dataset_info in datasets_to_eval.items():
-        logger.info(f"\nEvaluating dataset: {ds_name}")
-        
-        # Get contrast values for normalization
-        min_raw, max_raw = dataset_info.em.contrast
-        
-        # Determine which crops to evaluate
-        if crop_name:
-            # Check if crop exists
-            crop_found = False
+    # Filter crops if specific ones requested
+    if crop:
+        # Get all available crops across all datasets
+        all_crops = []
+        for dataset_info in datasets_to_eval:
             for crop_group in dataset_info.labels.crops:
-                if crop_name in crop_group.split(","):
-                    crops_to_eval = [crop_name]
-                    crop_found = True
-                    break
-            if not crop_found:
-                logger.warning(f"Crop '{crop_name}' not found in dataset '{ds_name}', skipping")
-                continue
-        else:
-            # Get all crops
-            crops_to_eval = []
-            for crop_group in dataset_info.labels.crops:
-                crops_to_eval.extend(crop_group.split(","))
-            logger.info(f"Evaluating {len(crops_to_eval)} crops")
+                all_crops.extend(crop_group.split(","))
         
-        # Evaluate each crop
-        for crop in crops_to_eval:
-            logger.info(f"\nEvaluating crop: {crop}")
-            try:
-                results = evaluate_single_crop(
-                    network_config=network_config,
-                    model=model,
-                    device=device,
-                    dataset_info=dataset_info,
-                    crop_name=crop,
-                    label_list=label_list,
-                    sampling=sampling,
-                    min_raw=min_raw,
-                    max_raw=max_raw,
-                )
-                all_results[f"{ds_name}/{crop}"] = results
-            except Exception as e:
-                logger.error(f"Failed to evaluate {ds_name}/{crop}: {e}", exc_info=True)
-                continue
+        requested_crops = set(crop)
+        available_crops = set(all_crops)
+        if not requested_crops.issubset(available_crops):
+            invalid_crops = requested_crops - available_crops
+            raise ValueError(f"Invalid crops: {invalid_crops}. Available: {sorted(all_crops)}")
+        crops_to_eval = list(crop)
+        logger.info(f"Evaluating specific crops: {crops_to_eval}")
+    else:
+        crops_to_eval = None
+    # Store results for all checkpoints
+    checkpoint_results = {}
     
-    # Print summary of all results
-    print("\n" + "=" * 70)
-    print("EVALUATION SUMMARY")
-    print("=" * 70)
+    # Evaluate each checkpoint
+    for checkpoint in checkpoints:
+        logger.info(f"\n{'='*70}")
+        logger.info(f"Evaluating checkpoint: {checkpoint}")
+        logger.info(f"{'='*70}")
+        
+        # Load model
+        logger.info(f"Loading model from {checkpoint}")
+        model = load_eval_model(network_config, checkpoint)
+        device = next(model.parameters()).device
+        
+        # Store results for all evaluations for this checkpoint
+        all_results = {}
+        
+        # Iterate over datasets
+        for ds_name, dataset_info in datasets_to_eval.items():
+            logger.info(f"\nEvaluating dataset: {ds_name}")
+            
+            # Get contrast values for normalization
+            min_raw, max_raw = dataset_info.em.contrast
+            
+            # Determine which crops to evaluate for this dataset
+            if crops_to_eval is not None:
+                # Filter crops for this specific dataset
+                dataset_crops = []
+                for crop_group in dataset_info.labels.crops:
+                    dataset_crops.extend(crop_group.split(","))
+                
+                # Only evaluate crops that exist in this dataset
+                crops_for_dataset = [c for c in crops_to_eval if c in dataset_crops]
+                
+                if not crops_for_dataset:
+                    logger.info(f"None of the requested crops found in dataset '{ds_name}', skipping")
+                    continue
+                
+                logger.info(f"Evaluating crops: {crops_for_dataset}")
+            else:
+                # Get all crops for this dataset
+                crops_for_dataset = []
+                for crop_group in dataset_info.labels.crops:
+                    crops_for_dataset.extend(crop_group.split(","))
+                logger.info(f"Evaluating {len(crops_for_dataset)} crops")
+            
+            # Evaluate each crop
+            for crop_name in crops_for_dataset:
+                logger.info(f"\nEvaluating crop: {crop_name}")
+                try:
+                    results = evaluate_single_crop(
+                        network_config=network_config,
+                        model=model,
+                        device=device,
+                        dataset_info=dataset_info,
+                        crop_name=crop_name,
+                        label_list=label_list,
+                        sampling=sampling,
+                        min_raw=min_raw,
+                        max_raw=max_raw,
+                        thresholds=thresholds,
+                    )
+                    all_results[f"{ds_name}/{crop_name}"] = results
+                except Exception as e:
+                    logger.error(f"Failed to evaluate {ds_name}/{crop_name}: {e}", exc_info=True)
+                    continue
+        
+        # Store results for this checkpoint
+        checkpoint_results[checkpoint] = all_results
+        
+        # Print summary for this checkpoint
+        print(f"\n{'='*60}")
+        print(f"CHECKPOINT {checkpoint} SUMMARY")
+        print(f"{'='*60}")
+        
+        if not all_results:
+            print("No crops were successfully evaluated.")
+            continue
+        
+        # Calculate overall statistics for this checkpoint
+        all_dice_scores = []
+        all_jaccard_scores = []
+        label_dice_scores = {label: [] for label in label_list}
+        label_jaccard_scores = {label: [] for label in label_list}
+        
+        for crop_id, crop_results in all_results.items():
+            for label, metrics in crop_results.items():
+                all_dice_scores.append(metrics['dice'])
+                all_jaccard_scores.append(metrics['jaccard'])
+                label_dice_scores[label].append(metrics['dice'])
+                label_jaccard_scores[label].append(metrics['jaccard'])
+        
+        # Print per-label averages
+        print("\nPer-label averages:")
+        for label in label_list:
+            if label_dice_scores[label]:
+                avg_dice = np.mean(label_dice_scores[label])
+                std_dice = np.std(label_dice_scores[label])
+                print(f"  {label}: Dice={avg_dice:.4f} ± {std_dice:.4f}")
+        
+        # Print overall average
+        print(f"\nOverall mean Dice: {np.mean(all_dice_scores):.4f} ± {np.std(all_dice_scores):.4f}")
+        print(f"Total crops evaluated: {len(all_results)}")
     
-    if not all_results:
-        print("No crops were successfully evaluated.")
-        return
+    # Print final summary across all checkpoints
+    print("\n" + "="*70)
+    print("FINAL SUMMARY - ALL CHECKPOINTS")
+    print("="*70)
     
-    # Calculate overall statistics
-    all_dice_scores = []
-    all_jaccard_scores = []
-    label_dice_scores = {label: [] for label in label_list}
-    label_jaccard_scores = {label: [] for label in label_list}
-    
-    for crop_id, crop_results in all_results.items():
-        print(f"\n{crop_id}:")
-        for label, metrics in crop_results.items():
-            print(f"  {label}: Dice={metrics['dice']:.4f} (thr={metrics['dice_threshold']:.3f}), "
-                  f"Jaccard={metrics['jaccard']:.4f} (thr={metrics['jaccard_threshold']:.3f})")
-            all_dice_scores.append(metrics['dice'])
-            all_jaccard_scores.append(metrics['jaccard'])
-            label_dice_scores[label].append(metrics['dice'])
-            label_jaccard_scores[label].append(metrics['jaccard'])
-    
-    # Print per-label averages
-    print("\n" + "-" * 50)
-    print("Per-label averages:")
-    for label in label_list:
-        if label_dice_scores[label]:
-            avg_dice = np.mean(label_dice_scores[label])
-            avg_jaccard = np.mean(label_jaccard_scores[label])
-            std_dice = np.std(label_dice_scores[label])
-            std_jaccard = np.std(label_jaccard_scores[label])
-            print(f"  {label}:")
-            print(f"    Dice:    {avg_dice:.4f} ± {std_dice:.4f}")
-            print(f"    Jaccard: {avg_jaccard:.4f} ± {std_jaccard:.4f}")
-    
-    # Print overall averages
-    print("\n" + "-" * 50)
-    print("Overall averages:")
-    print(f"  Mean Dice Score:    {np.mean(all_dice_scores):.4f} ± {np.std(all_dice_scores):.4f}")
-    print(f"  Mean Jaccard Score: {np.mean(all_jaccard_scores):.4f} ± {np.std(all_jaccard_scores):.4f}")
-    print(f"  Total crops evaluated: {len(all_results)}")
-    print("=" * 70)
+    for checkpoint, results in checkpoint_results.items():
+        if results:
+            all_scores = []
+            for crop_results in results.values():
+                for metrics in crop_results.values():
+                    all_scores.append(metrics['dice'])
+            print(f"\n{checkpoint}:")
+            print(f"  Mean Dice: {np.mean(all_scores):.4f} ± {np.std(all_scores):.4f}")
+            print(f"  Crops evaluated: {len(results)}")
 
 
 def evaluate_single_crop(
@@ -399,6 +488,7 @@ def evaluate_single_crop(
     sampling: dict,
     min_raw: float,
     max_raw: float,
+    thresholds: list,
 ) -> Dict[str, Dict[str, float]]:
     """Evaluate a single crop and return results."""
     
@@ -525,12 +615,6 @@ def evaluate_single_crop(
     logger.info("Evaluating predictions...")
     # Create channel name map from label names
     channel_name_map = {i: label for i, label in enumerate(label_list)}
-    results = evaluate_predictions(predictions, gt_data, channel_name_map)
+    results = evaluate_predictions(predictions, gt_data, channel_name_map, thresholds)
     
     return results
-
-
-
-
-if __name__ == "__main__":
-    evaluate()

@@ -56,6 +56,7 @@ Source = "https://github.com/saalfeldlab/organelle-mapping"
 data_prep = "organelle_mapping.data_preparation:cli"
 train = "organelle_mapping.run:main"
 inference = "organelle_mapping.inference:cli"
+evaluate = "organelle_mapping.evaluation:cli"
 
 [tool.hatch.version]
 path = "src/organelle_mapping/__about__.py"
