@@ -8,7 +8,7 @@ import torch
 
 from organelle_mapping import utils
 from organelle_mapping.config import RunConfig
-from organelle_mapping.data import CellMapCropSource, ExtractMask
+from organelle_mapping.data import CellMapCropSource, ExtractMask, CollapseAny
 from organelle_mapping.model import MaskedMultiLabelBCEwithLogits
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,13 @@ def make_data_pipeline(
     pipeline += gp.Unsqueeze(list(label_keys.values()))
     pipeline += corditea.Concatenate(list(label_keys.values()), gp.ArrayKey("LABELS"))
     pipeline += ExtractMask(gp.ArrayKey("LABELS"), gp.ArrayKey("MASK"))
+    if run.min_valid_fraction > 0:
+        # Create collapsed mask for rejection (valid where ANY label is valid)
+        pipeline += CollapseAny(gp.ArrayKey("MASK"), gp.ArrayKey("VALID"))
+        pipeline += gp.Reject(
+            mask=gp.ArrayKey("VALID"),
+            min_masked=run.min_valid_fraction
+        )
     pipeline += gp.Unsqueeze([raw])
     pipeline += gp.Stack(run.batch_size)
     pipeline += gp.AsType(gp.ArrayKey("LABELS"), "float32")

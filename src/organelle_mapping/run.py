@@ -26,6 +26,8 @@ def run(run: RunConfig):
             request.add(gp.ArrayKey("RAW"), input_size, voxel_size=gp.Coordinate(voxel_size))
             request.add(gp.ArrayKey("LABELS"), output_size, voxel_size=gp.Coordinate(voxel_size))
             request.add(gp.ArrayKey("MASK"), output_size, voxel_size=gp.Coordinate(voxel_size))
+            if run.min_valid_fraction > 0:
+                request.add(gp.ArrayKey("VALID"), output_size, voxel_size=gp.Coordinate(voxel_size))
             pp.request_batch(request)
 
 
