@@ -1,1 +1,0 @@
-bsub -J "flyrun04" -n 12 -q gpu_a100 -gpu "num=1" -o output.log -e error.log ./run_a100.sh·
