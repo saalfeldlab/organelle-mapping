@@ -21,12 +21,12 @@ classifiers = [
 ]
 dependencies = [
   "daisy",
-  "funlib.persistence@git+ssh://git@github.com/funkelab/funlib.persistence.git@main",
+  "funlib.persistence@git+https://git@github.com/funkelab/funlib.persistence.git@main",
   "fibsem-tools>=6.0",
   "matplotlib",
-  "funlib.learn.torch@git+ssh://git@github.com/funkelab/funlib.learn.torch.git",
+  "funlib.learn.torch@git+https://git@github.com/funkelab/funlib.learn.torch.git",
   "gunpowder",
-  "corditea@git+ssh://git@github.com/saalfeldlab/corditea.git ",
+  "corditea@git+https://git@github.com/saalfeldlab/corditea.git",
   "torch",
   "click",
   "xarray",
