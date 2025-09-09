@@ -27,6 +27,12 @@ class RunConfig(BaseModel):
     log_frequency: int = 20
     checkpoint_frequency: int = 2000
     batch_size: int = 1
+    min_valid_fraction: float = Field(
+        default=0.0,
+        description="Minimum fraction of valid (non-unknown) area required in a sample to avoid rejection",
+        ge=0.0,
+        le=1.0,
+    )
 
     @field_validator("augmentations", mode="before")
     @classmethod

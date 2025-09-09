@@ -25,12 +25,15 @@ from xarray_ome_ngff import create_multiscale_group
 
 from organelle_mapping import utils
 
-logger = logging.getLogger(__name__)  # Allow the root logger to control the level
+logger = logging.getLogger(__name__)
 
 
 @click.group()
-def cli():
-    pass
+@click.option("--log-level", type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False), default="INFO")
+def cli(log_level: str):
+    """Data preparation utilities for organelle mapping."""
+    pkg_logger = logging.getLogger("organelle_mapping")
+    pkg_logger.setLevel(log_level.upper())
 
 
 def filter_crops_for_sampling(datasets, sampling, labels):
@@ -262,6 +265,7 @@ class Crop:
         encoding = {"absent": 0, "unknown": 255, "present": 1}
         n_arr = encoding["unknown"] * np.ones(self.get_shape(), dtype=np.uint8)
         subcombos = []
+        parent_labels = []
         for l in self.get_annotated_classes():
             label_encoding = self.get_encoding(l)
             l_set = self.classes[l]
@@ -274,6 +278,9 @@ class Crop:
                     subcombos.append(l)
             elif atoms.isdisjoint(l_set):
                 n_arr[self.get_array(l) == label_encoding["present"]] = encoding["absent"]
+            elif atoms < l_set:
+                n_arr[self.get_array(l) == label_encoding["absent"]] = encoding["absent"]
+                parent_labels.append(l)
         if atoms <= self.get_annotated_classes():
             n_arr[np.logical_and.reduce([self.get_array(a) == self.get_encoding(a)["absent"] for a in atoms])] = (
                 encoding["absent"]
@@ -288,6 +295,23 @@ class Crop:
                         [self.get_array(c) == self.get_encoding(c)["absent"] for c in missing.union(combo)]
                     )
                 ] = encoding["absent"]
+        
+        # Check parent combinations for intersection logic
+        if parent_labels and len(parent_labels) > 1:
+            for parent_combo in utils.all_combinations(parent_labels):
+                if len(parent_combo) < 2:
+                    continue
+                # Check if target atoms equal intersection of parent atoms
+                parent_intersection = set.intersection(*[self.classes[p] for p in parent_combo])
+                if atoms == parent_intersection:
+                    # All parents in combo must be present
+                    parent_present_masks = [
+                        self.get_array(p) == self.get_encoding(p)["present"] 
+                        for p in parent_combo
+                    ]
+                    all_parents_present = np.logical_and.reduce(parent_present_masks)
+                    n_arr[all_parents_present] = encoding["present"]
+        
         return n_arr.astype(np.uint8), encoding
 
     def save_class(
@@ -511,6 +535,45 @@ def _add_class_to_all_crops_func(label_config: BinaryIO, data_config: BinaryIO, 
                     logger.info(f"Label {new_label} already exists in {cropname}")
                 else:
                     c.add_new_class(new_label)
+
+
+@cli.command()
+@click.argument("label-config", type=click.File("rb"))
+@click.argument("data-config", type=click.File("rb"))
+def add_missing_classes(label_config: BinaryIO, data_config: BinaryIO):
+    """Add all classes defined in label config but missing from crops."""
+    _add_missing_classes_func(label_config, data_config)
+
+
+def _add_missing_classes_func(label_config: BinaryIO, data_config: BinaryIO):
+    """Add all classes defined in label config but missing from crops."""
+
+    classes = utils.read_label_yaml(label_config)
+    datas = yaml.safe_load(data_config)
+    all_defined_classes = set(classes.keys())
+    
+    # Process each dataset and crop
+    for key, ds_info in datas["datasets"].items():
+        logger.info(f"Processing dataset: {key}")
+        for crop in ds_info["labels"]["crops"]:
+            for cropname in crop.split(","):
+                crop_path = Path(ds_info["labels"]["data"]) / ds_info["labels"]["group"] / cropname
+                c = Crop(classes, crop_path)
+                
+                # Find missing classes
+                existing_classes = c.get_annotated_classes()
+                missing_classes = all_defined_classes - existing_classes
+                
+                if missing_classes:
+                    logger.info(f"  Processing {cropname}: adding {len(missing_classes)} missing classes")
+                    for class_name in sorted(missing_classes):
+                        try:
+                            logger.info(f"    Adding {class_name}")
+                            c.add_new_class(class_name)
+                        except Exception as e:
+                            logger.warning(f"  Failed to add {class_name}: {e}")
+                else:
+                    logger.info(f"  Processing {cropname}: all classes already present")
 
 
 @cli.command()

@@ -184,3 +184,30 @@ class ExtractMask(gp.BatchFilter):
         spec.roi = request[self.label_key].roi
         outputs.arrays[self.mask_key] = gp.Array(mask.astype(spec.dtype), spec)
         return outputs
+
+
+class CollapseAny(gp.BatchFilter):
+    def __init__(self, mask_key, collapsed_mask_key):
+        super().__init__()
+        self.mask_key = mask_key
+        self.collapsed_mask_key = collapsed_mask_key
+
+    def setup(self):
+        assert self.mask_key in self.spec, f"Need {self.mask_key}"
+        spec = self.spec[self.mask_key].copy()
+        self.provides(self.collapsed_mask_key, spec)
+
+    def prepare(self, request):
+        deps = gp.BatchRequest()
+        deps[self.mask_key] = request[self.collapsed_mask_key].copy()
+        return deps
+
+    def process(self, batch, request):
+        outputs = gp.Batch()
+        mask_arr = batch[self.mask_key].data
+        # Collapse across channel dimension (axis=0): valid where ANY label is valid
+        collapsed = mask_arr.any(axis=0, keepdims=True).astype(mask_arr.dtype)
+        spec = self.spec[self.mask_key].copy()
+        spec.roi = request[self.collapsed_mask_key].roi
+        outputs.arrays[self.collapsed_mask_key] = gp.Array(collapsed, spec)
+        return outputs
