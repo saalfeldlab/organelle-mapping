@@ -10,7 +10,7 @@
       "Task"
     ],
     "deny": [
-      "git push"
+      "Git push"
     ]
   }
 }
