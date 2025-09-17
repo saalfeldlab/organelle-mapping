@@ -23,7 +23,8 @@ RUN apt update && apt install -y less \
   jq \
   python3 \
   python3-pip \
-  python3-venv 
+  python3-venv \
+  vim 
 
 RUN rm -rf /var/lib/apt/lists/*
 
@@ -102,4 +103,12 @@ USER root
 RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/setup-pixi-envs.sh && \
   echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
   chmod 0440 /etc/sudoers.d/node-firewall
+
+# Install gosu for user switching
+RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
+
+# Copy entrypoint script
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 USER node
