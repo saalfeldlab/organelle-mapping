@@ -43,7 +43,10 @@ dependencies = [
   "monai",
   "einops",
   "pydantic",
-  "cellmap-flow@git+ssh://git@github.com/janelia-cellmap/cellmap-flow.git"
+  "scikit-learn",
+  "cellmap-flow@git+https://git@github.com/neptunes5thmoon/cellmap-flow.git@fix/include_model_file",
+  "funlib.show.neuroglancer",
+  "tensorboard"
 ]
 
 [project.urls]
@@ -201,7 +204,7 @@ typecheck = "mypy --install-types --non-interactive src/organelle_mapping tests"
 [tool.pixi.dependencies]
 python = "3.11.*"
 
-[tool.pixi.feature.dev.pypi-dependencies]
+[tool.pixi.pypi-dependencies]
 organelle-mapping = { path = ".", editable = true }
 
 [tool.pixi.feature.default.pypi-packages]
