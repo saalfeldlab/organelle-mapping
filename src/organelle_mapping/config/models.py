@@ -116,7 +116,7 @@ class StandardUnetConfig(ArchitectureConfig):
     in_channels: int = Field(1, gt=0)
     out_channels: int = Field(..., gt=0)
     num_fmaps: int = Field(16, gt=0)
-    fmac_inc_factor: int = Field(6, gt=0)
+    fmap_inc_factor: int = Field(6, gt=0)
     downsample_factors: Sequence[tuple[int, int, int]] = (
         (2, 2, 2),
         (2, 2, 2),
@@ -161,7 +161,7 @@ class StandardUnetConfig(ArchitectureConfig):
             self.in_channels,
             self.out_channels,
             num_fmaps=self.num_fmaps,
-            fmap_inc_factor=self.fmac_inc_factor,
+            fmap_inc_factor=self.fmap_inc_factor,
             downsample_factors=self.downsample_factors,
             kernel_size_down=self.kernel_size_down,
             kernel_size_up=self.kernel_size_up,
