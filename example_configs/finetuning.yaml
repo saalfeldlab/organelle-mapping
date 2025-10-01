@@ -1,0 +1,7 @@
+finetuning:
+  source_experiment: ../../run09/all/run.yaml
+  source_iteration: ../../run09/all/model_checkpoint_400000
+  transfer_labels:
+    - er
+    - organelle
+    - organelle
