@@ -11,6 +11,8 @@
     "vscode": {
       "extensions": [
         "ms-python.python",
+        "anthropic.claude-code",
+        "ms-python.black-formatter",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
         "eamodio.gitlens",
