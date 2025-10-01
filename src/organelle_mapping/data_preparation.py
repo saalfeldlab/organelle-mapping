@@ -24,6 +24,7 @@ from xarray_multiscale import multiscale, windowed_mode
 from xarray_ome_ngff import create_multiscale_group
 
 from organelle_mapping import utils
+from organelle_mapping.utils import setup_package_logger
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +33,7 @@ logger = logging.getLogger(__name__)
 @click.option("--log-level", type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False), default="INFO")
 def cli(log_level: str):
     """Data preparation utilities for organelle mapping."""
-    pkg_logger = logging.getLogger("organelle_mapping")
-    pkg_logger.setLevel(log_level.upper())
+    setup_package_logger(log_level)
 
 
 def filter_crops_for_sampling(datasets, sampling, labels):

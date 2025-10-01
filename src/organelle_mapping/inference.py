@@ -10,6 +10,7 @@ from funlib.persistence import Array, open_ds, prepare_ds
 from skimage.transform import rescale
 
 from organelle_mapping.model import load_eval_model
+from organelle_mapping.utils import setup_package_logger
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
     default="INFO",
 )
 def cli(log_level):
-    logging.basicConfig(level=getattr(logging, log_level.upper()))
+    setup_package_logger(log_level)
 
 
 def spawn_worker(

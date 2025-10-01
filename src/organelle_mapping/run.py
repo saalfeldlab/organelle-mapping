@@ -7,6 +7,7 @@ from pydantic import TypeAdapter
 
 from organelle_mapping.config import RunConfig
 from organelle_mapping.train import make_train_pipeline
+from organelle_mapping.utils import setup_package_logger
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def run(run: RunConfig):
     help="Set the logging level.",
 )
 def main(run_config, log_level="INFO"):
-    pkg_logger = logging.getLogger("organelle_mapping")
-    pkg_logger.setLevel(log_level.upper())
-    config = TypeAdapter(RunConfig).validate_python(yaml.safe_load(run_config))
+    setup_package_logger(log_level)
+
+    config = TypeAdapter(RunConfig).validate_python(yaml.safe_load(run_config), context={"base_dir": Path(run_config.name).parent})
     run(config)
