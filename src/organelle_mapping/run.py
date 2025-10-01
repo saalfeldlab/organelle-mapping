@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import click
 import gunpowder as gp
@@ -6,6 +7,7 @@ import yaml
 from pydantic import TypeAdapter
 
 from organelle_mapping.config import RunConfig
+from organelle_mapping.checkpoint_edit import create_transfer_checkpoint
 from organelle_mapping.train import make_train_pipeline
 from organelle_mapping.utils import setup_package_logger
 
@@ -13,6 +15,16 @@ logger = logging.getLogger(__name__)
 
 
 def run(run: RunConfig):
+
+    # Handle finetuning checkpoint preparation if configured
+    if run.finetuning is not None:
+        checkpoint_path = Path(run.finetuning.source_checkpoint.name)
+        # Only prepare if checkpoint doesn't exist (for resumability)
+        if not checkpoint_path.exists():
+            logger.info(f"Preparing finetuning checkpoint from {run.finetuning.source_experiment}")
+            create_transfer_checkpoint(run.finetuning)
+        else:
+            logger.info(f"Checkpoint {checkpoint_path} already exists, skipping preparation")
 
     voxel_size = list(run.sampling.values())
     input_size = gp.Coordinate(run.architecture.input_shape) * gp.Coordinate(voxel_size)

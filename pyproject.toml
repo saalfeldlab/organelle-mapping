@@ -61,6 +61,7 @@ Source = "https://github.com/saalfeldlab/organelle-mapping"
 data_prep = "organelle_mapping.data_preparation:cli"
 train = "organelle_mapping.run:main"
 inference = "organelle_mapping.inference:cli"
+remap-weights = "organelle_mapping.checkpoint_edit:main"
 
 [tool.hatch.version]
 path = "src/organelle_mapping/__about__.py"

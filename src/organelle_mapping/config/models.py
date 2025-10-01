@@ -28,6 +28,10 @@ ActivationStr = Annotated[str, BeforeValidator(validate_activation_string)]
 
 class ArchitectureConfig(BaseModel, ABC):
     name: str
+    output_head_keys: Sequence[str] | None = Field(
+        default=None,
+        description="State dict keys for the output head layers (weight and bias). If None, assumes last two keys."
+    )
     input_shape: tuple[int, int, int]
     output_shape: tuple[int, int, int]
     in_channels: int
@@ -67,6 +71,7 @@ class SwinUNETRConfig(ArchitectureConfig):
     use_checkpoint: bool = True
     downsample: Literal["merging", "mergingv2"] = "merging"
     use_v2: bool = False
+    output_head_keys: Sequence[str] = ["out.conv.conv.weight", "out.conv.conv.bias"]
 
     @model_validator(mode="after")
     def validate_input_shape(self):
@@ -147,6 +152,7 @@ class StandardUnetConfig(ArchitectureConfig):
     kernel_size_down: Sequence[Sequence[tuple[int, int, int]]] = (((3, 3, 3), (3, 3, 3), (3, 3, 3)),) * 4
     kernel_size_up: Sequence[Sequence[tuple[int, int, int]]] = (((3, 3, 3), (3, 3, 3), (3, 3, 3)),) * 3
     padding: Literal["valid", "same"] = "valid"
+    output_head_keys: Sequence[str] = ["final_conv.weight", "final_conv.bias"]
 
     @model_validator(mode="after")
     def validate_kernel_sizes(self):
@@ -210,6 +216,9 @@ class TemsUnetConfig(ArchitectureConfig):
     upsample_mode: Literal["nearest", "trilinear"] = "trilinear"
     activation: ActivationStr = "ReLU"
     final_activation: ActivationStr = "Identity"
+    output_head_keys: Sequence[str] = ["final_conv.weight", "final_conv.bias"]
+
+
     @model_validator(mode="after")
     def validate_kernel_sizes(self):
 
