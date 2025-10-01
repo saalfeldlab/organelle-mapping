@@ -107,8 +107,4 @@ RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/setup-pixi-envs.sh &
 # Install gosu for user switching
 RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
 
-# Copy entrypoint script
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
 USER node
