@@ -23,6 +23,7 @@ dependencies = [
   "daisy",
   "funlib.persistence@git+https://git@github.com/funkelab/funlib.persistence.git@main",
   "fibsem-tools>=6.0",
+  "xarray-datatree",
   "matplotlib",
   "funlib.learn.torch@git+https://git@github.com/funkelab/funlib.learn.torch.git",
   "gunpowder",
@@ -46,7 +47,9 @@ dependencies = [
   "scikit-learn",
   "cellmap-flow@git+https://git@github.com/neptunes5thmoon/cellmap-flow.git@fix/include_model_file",
   "funlib.show.neuroglancer",
-  "tensorboard"
+  "tensorboard",
+  "tems>=1.0.4",
+  "torchinfo"
 ]
 
 [project.urls]
