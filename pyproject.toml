@@ -207,9 +207,6 @@ python = "3.11.*"
 [tool.pixi.pypi-dependencies]
 organelle-mapping = { path = ".", editable = true }
 
-[tool.pixi.feature.default.pypi-packages]
-organelle-mapping = { path = "."}
-
 
 
 [tool.pixi.feature.dev.dependencies]
@@ -219,6 +216,11 @@ coverage = ">=6.5"
 ruff = ">=0.1.0"
 mypy = ">=1.0"
 black = ">=23.1.0"
+
+[tool.pixi.feature.notebooks.dependencies]
+jupyter = ">=1.0"
+jupyterlab = ">=4.0"
+ipykernel = ">=6.23"
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
