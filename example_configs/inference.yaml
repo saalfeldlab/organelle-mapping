@@ -1,0 +1,41 @@
+# Example inference configuration file
+checkpoint: /experiments/run05_ft-run01/val/model_checkpoint_479000
+
+# Architecture configuration (can be a path to yaml or inline)
+architecture: /experiments/run05_ft-run01/val/architecture.yaml
+
+# Input data configuration
+input_data:
+  container: /data/jrc_fly-vnc-1/jrc_fly-vnc-1.zarr
+  dataset: recon-1/em/fibsem-uint8/s1
+  voxel_size: [8, 8, 8]  # in nm
+  min_raw: 0
+  max_raw: 255
+
+# Output data configuration  
+output_data:
+  container: /experiments/run05_ft-run01/predictions/jrc_fly-vnc-1
+  dataset: predictions
+  outputs:
+    - name: all_mem
+      channels: "0"
+    - name: organelle  
+      channels: "1"
+    - name: mito
+      channels: "2"
+    - name: er
+      channels: "3"
+    - name: nuc
+      channels: "4"
+    - name: pm
+      channels: "5"
+    - name: ves
+      channels: "6"
+    - name: ld
+      channels: "7"
+    - name: golgi
+      channels: "8"
+  # Optional ROI specification (in world coordinates)
+  roi:
+    start: [0, 0, 0]
+    end: [8000, 8000, 8000]

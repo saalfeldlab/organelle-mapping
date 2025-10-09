@@ -6,10 +6,14 @@ import click
 import daisy
 import numpy as np
 import torch
+import yaml
 from funlib.persistence import Array, open_ds, prepare_ds
+from pathlib import Path
 from skimage.transform import rescale
 
 from organelle_mapping.model import load_eval_model
+from organelle_mapping.config.inference import InferenceConfig
+from organelle_mapping.utils import setup_package_logger
 
 logger = logging.getLogger(__name__)
 
@@ -25,18 +29,9 @@ def cli(log_level):
 
 
 def spawn_worker(
-    checkpoint,
-    num_outputs,
-    channels,
-    voxel_size,
-    out_container,
-    out_dataset,
-    in_container,
-    in_dataset,
+    config,
     billing,
     local=True,
-    min_raw=0,
-    max_raw=255,
     mask_containers=list(),
     mask_datasets=list(),
     instance: bool = False,
@@ -49,26 +44,8 @@ def spawn_worker(
         process_cmd = [
             "inference",
             "start-worker",
-            "-ckpt",
-            f"{checkpoint}",
-            "-no",
-            f"{num_outputs}",
-            "-cs",
-            f"{channels}",
-            "-vs",
-            *map(str, voxel_size),
-            "-oc",
-            f"{out_container}",
-            "-od",
-            f"{out_dataset}",
-            "-ic",
-            f"{in_container}",
-            "-id",
-            f"{in_dataset}",
-            "--min-raw",
-            f"{min_raw}",
-            "--max-raw",
-            f"{max_raw}",
+            "-c",
+            f"{config}",
             "--instance",
             f"{instance}",
             *mask_args,
@@ -103,28 +80,10 @@ def spawn_worker(
 
 
 @cli.command()
-@click.option("-ckpt", "--checkpoint", type=str)
-@click.option("-no", "--num_outputs", type=int)
-@click.option("-cs", "--channels", type=str)  # 0:ecs,1:plasma_membrane,2:ecs (comma seperated number:dataset_name)
-@click.option("-is", "--input_shape", nargs=3, type=int)
-@click.option("-os", "--output_shape", nargs=3, type=int)
-@click.option("-vs", "--voxel_size", nargs=3, type=int)
-@click.option("-oc", "--out_container", type=click.Path(file_okay=False))  # zarr file
-@click.option("-od", "--out_dataset", type=str)  # zarr group
-@click.option("-ic", "--in_container", type=click.Path(exists=True, file_okay=False))
-@click.option("-id", "--in_dataset", type=str)
-@click.option("-w", "--workers", type=int, default=1)  # number of workers
-@click.option(
-    "-roi",
-    "--roi",
-    type=str,
-    required=False,
-    help="The roi to predict on. Passed in as [lower:upper, lower:upper, ... ]",
-)  # "[0:480000,10000:120000,15000:180000]" (in world coordinates)
-@click.option("--local/--bsub", default=True)
-@click.option("--billing", default=None)
-@click.option("--min-raw", type=float, default=0)
-@click.option("--max-raw", type=float, default=255)
+@click.option("-c", "--config", type=click.Path(exists=True), help="Path to inference config YAML file")
+@click.option("-w", "--workers", type=int, default=1, help="Number of workers for parallel processing")
+@click.option("--local/--bsub", default=True, help="Run locally vs on cluster")
+@click.option("--billing", default=None, help="Billing account for cluster runs")
 @click.option(
     "-mc",
     "--mask-container",
@@ -139,25 +98,13 @@ def spawn_worker(
     multiple=True,
     default=list(),
 )  # ignore
-@click.option("--instance", type=bool, default=False)  # this is for affinities
-@click.option("-tw", "--per-block-time-estimate", type=float, default=30, help="in seconds")
+@click.option("--instance", type=bool, default=False, help="For affinity predictions")
+@click.option("-tw", "--per-block-time-estimate", type=float, default=30, help="Time estimate per block in seconds")
 def predict(
-    checkpoint,
-    num_outputs,
-    channels,
-    input_shape,
-    output_shape,
-    voxel_size,
-    out_container,
-    out_dataset,
-    in_container,
-    in_dataset,
+    config,
     workers,
-    roi,
     local,
     billing,
-    min_raw,
-    max_raw,
     mask_container,
     mask_dataset,
     instance,
@@ -165,20 +112,44 @@ def predict(
 ):
     if not local:
         assert billing is not None
-    parsed_channels = [channel.split(":") for channel in channels.split(",")]
+    
+    # Load config
+    inference_config = InferenceConfig.model_validate(yaml.safe_load(open(config)), context={"base_dir": Path(config).parent})
+    
+    # Extract values from config
+    checkpoint = inference_config.checkpoint
     assert os.path.exists(checkpoint)
+    
+    # Parse channels from output config
+    channels_str = ",".join([f"{out.channels}:{out.name}" for out in inference_config.output_data.outputs])
+    parsed_channels = [[out.channels, out.name] for out in inference_config.output_data.outputs]
+    
+    # Get architecture details
+    input_shape = inference_config.architecture.input_shape
+    output_shape = inference_config.architecture.output_shape
+    num_outputs = inference_config.architecture.out_channels
+    
+    # Get input/output details
+    in_container = inference_config.input_data.container
+    in_dataset = inference_config.input_data.dataset
+    voxel_size = inference_config.input_data.voxel_size
+    min_raw = inference_config.input_data.min_raw
+    max_raw = inference_config.input_data.max_raw
+    
+    out_container = inference_config.output_data.container
+    out_dataset = inference_config.output_data.dataset
+    
+    # Open raw dataset
     raw = open_ds(os.path.join(in_container, in_dataset), voxel_size=voxel_size)
-
-    if roi is not None:
-        parsed_start, parsed_end = zip(
-            *[tuple(int(coord) for coord in axis.split(":")) for axis in roi.strip("[]").split(",")]
-        )
+    
+    # Handle ROI
+    if inference_config.output_data.roi is not None:
         parsed_roi = daisy.Roi(
-            daisy.Coordinate(parsed_start),
-            daisy.Coordinate(parsed_end) - daisy.Coordinate(parsed_start),
+            daisy.Coordinate(inference_config.output_data.roi.start), 
+            daisy.Coordinate(inference_config.output_data.roi.end)
         )
     else:
-        parsed_roi = raw.roi  # * daisy.Coordinate(voxel_size)
+        parsed_roi = raw.roi
 
     total_write_roi = raw.roi
     output_voxel_size = daisy.Coordinate(voxel_size)
@@ -238,18 +209,9 @@ def predict(
         read_roi=read_roi,
         write_roi=write_roi,
         process_function=spawn_worker(
-            checkpoint,
-            num_outputs,
-            channels,
-            voxel_size,
-            out_container,
-            out_dataset,
-            in_container,
-            in_dataset,
+            config,
             billing,
             local,
-            min_raw,
-            max_raw,
             mask_container,
             mask_dataset,
             instance,
@@ -267,16 +229,7 @@ def predict(
 
 
 @cli.command()
-@click.option("-ckpt", "--checkpoint", type=str)
-@click.option("-no", "--num_outputs", type=int)
-@click.option("-cs", "--channels", type=str)
-@click.option("-vs", "--voxel_size", nargs=3, type=int)
-@click.option("-oc", "--out_container", type=click.Path(exists=True, file_okay=False))
-@click.option("-od", "--out_dataset", type=str)
-@click.option("-ic", "--in_container", type=click.Path(exists=True, file_okay=False))
-@click.option("-id", "--in_dataset", type=str)
-@click.option("--min-raw", type=float, default=0)
-@click.option("--max-raw", type=float, default=255)
+@click.option("-c", "--config", type=click.Path(exists=True), help="Path to inference config YAML file")
 @click.option(
     "-mc",
     "--mask-container",
@@ -297,27 +250,32 @@ def predict(
     default=False,
 )
 def start_worker(
-    checkpoint,
-    num_outputs,
-    channels,
-    voxel_size,
-    out_container,
-    out_dataset,
-    in_container,
-    in_dataset,
-    min_raw,
-    max_raw,
+    config,
     mask_container,
     mask_dataset,
     instance,
 ):
+    # Load config
+    inference_config = InferenceConfig.model_validate(yaml.safe_load(open(config)), context={"base_dir": Path(config).parent})
+    
+    # Extract values from config
+    checkpoint = inference_config.checkpoint
+    num_outputs = inference_config.architecture.out_channels
+    in_container = inference_config.input_data.container
+    in_dataset = inference_config.input_data.dataset
+    voxel_size = inference_config.input_data.voxel_size
+    min_raw = inference_config.input_data.min_raw
+    max_raw = inference_config.input_data.max_raw
+    out_container = inference_config.output_data.container
+    out_dataset = inference_config.output_data.dataset
+    
     shift = min_raw
     scale = max_raw - min_raw
-    parsed_channels = [channel.split(":") for channel in channels.split(",")]
+    parsed_channels = [[out.channels, out.name] for out in inference_config.output_data.outputs]
 
     client = daisy.Client()
 
-    model = load_eval_model(num_outputs, checkpoint)
+    model = load_eval_model(inference_config.architecture, checkpoint)
     device = next(model.parameters()).device
     raw_dataset = open_ds(os.path.join(in_container, in_dataset), voxel_size=voxel_size)
     mask_datasets = [open_ds(mc, md, voxel_size=voxel_size) for mc, md in zip(mask_container, mask_dataset)]
