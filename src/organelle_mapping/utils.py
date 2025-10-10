@@ -322,7 +322,7 @@ def generate_standard_multiscale(dataset_paths, axes, base_resolution, base_offs
     for f in factors:
         factor = np.array(ax_dict_to_list(f, axes_order))
         offset = offset + (factor - np.ones_like(factor)) * scale / 2.0
-     >   scale = scale * factor
+        scale = scale * factor
         transforms.append(
             (
                 VectorScale(scale=tuple(scale)),
