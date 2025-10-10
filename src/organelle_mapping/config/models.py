@@ -169,7 +169,4 @@ class StandardUnetConfig(ArchitectureConfig):
         )
 
 
-Architecture = Annotated[
-    Union[StandardUnetConfig, SwinUNETRConfig],
-    Field(discriminator="name"),
-]
+Architecture = Union[StandardUnetConfig, SwinUNETRConfig]
