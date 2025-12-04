@@ -197,6 +197,16 @@ class GaussianNoiseAugmentConfig(AugmentationConfig):
         )
 
 
+class IntensityClipConfig(AugmentationConfig):
+    name: Literal["intensity_clip"]
+    array: ArrayKeyField
+    min_value: float = Field(description="Minimum value to clip to.")
+    max_value: float = Field(description="Maximum value to clip to.")
+
+    def instantiate(self):
+        return corditea.IntensityCrop(self.array, self.min_value, self.max_value)
+
+
 Augmentation = Annotated[
     Union[
         IntensityAugmentConfig,
@@ -205,6 +215,7 @@ Augmentation = Annotated[
         ElasticAugmentConfig,
         IntensityScaleShiftConfig,
         GaussianNoiseAugmentConfig,
+        IntensityClipConfig,
     ],
     Field(discriminator="name"),
 ]
