@@ -40,6 +40,7 @@ class RunConfig(BaseModel):
         ge=0.0,
         le=1.0,
     )
+    snapshot_frequency: int = 2000
 
     @field_validator("augmentations", mode="before")
     @classmethod

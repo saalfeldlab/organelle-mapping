@@ -161,6 +161,6 @@ def make_train_pipeline(run, input_size, output_size):
             gp.ArrayKey("OUTPUT"): "output",
         },
         output_filename="{iteration:08d}.zarr",
-        every=500,
+        every=run.snapshot_frequency,
     )
     return pipeline
