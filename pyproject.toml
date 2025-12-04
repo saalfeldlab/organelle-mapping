@@ -45,7 +45,6 @@ dependencies = [
   "einops",
   "pydantic",
   "scikit-learn",
-  "cellmap-flow@git+https://git@github.com/neptunes5thmoon/cellmap-flow.git@fix/include_model_file",
   "funlib.show.neuroglancer",
   "tensorboard"
 ]
