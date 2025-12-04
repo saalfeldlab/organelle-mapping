@@ -141,6 +141,8 @@ def make_train_pipeline(run, input_size, output_size):
         log_dir="logs",
         save_every=run.checkpoint_frequency,
     )
+    pipeline += corditea.LogBatch(mask_key=gp.ArrayKey("MASK"), log_every=run.log_frequency, logger=logger)
+
     # Build channel activations for normalization
     channel_activations = []
     for target in run.targets:
