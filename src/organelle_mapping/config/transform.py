@@ -85,6 +85,21 @@ class TransformConfig(BaseModel, ABC):
         """
         return max_extent
 
+    @property
+    def channel_descriptors(self) -> list[str]:
+        """Generate descriptors for each output channel.
+
+        Returns:
+            List of channel descriptor strings, one per output channel.
+            Format: "{source}_{type}" for single-channel transforms,
+                    "{source}_{type}_{index}" for multi-channel transforms.
+        """
+        if self.num_channels == 1:
+            return [f"{self.source}_{self.type}"]
+        else:
+            return [f"{self.source}_{self.type}_{i}" for i in range(self.num_channels)]
+
+
 class BinaryConfig(TransformConfig):
     """Configuration for binary segmentation output transform."""
 

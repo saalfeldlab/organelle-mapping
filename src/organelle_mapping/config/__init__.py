@@ -14,4 +14,5 @@ from organelle_mapping.config.transform import (
     LSDConfig,
     Transform
 )
+from organelle_mapping.config.checkpoint_edit import CheckpointEditConfig
 

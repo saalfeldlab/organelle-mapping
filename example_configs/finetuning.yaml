@@ -1,0 +1,15 @@
+source_checkpoint: /path/to/source/model_checkpoint_6000
+source_experiment: /path/to/source/run.yaml
+channel_mapping:
+  mito_lsd_0: organelle_lsd_0
+  mito_lsd_1: organelle_lsd_1
+  mito_lsd_2: organelle_lsd_2
+  mito_lsd_3: organelle_lsd_3
+  mito_lsd_4: organelle_lsd_4
+  mito_lsd_5: organelle_lsd_5
+  mito_lsd_6: organelle_lsd_6
+  mito_lsd_7: organelle_lsd_7
+  mito_lsd_8: organelle_lsd_8
+  mito_lsd_9: organelle_lsd_9
+  mito_binary: null
+  er_binary: er_binary

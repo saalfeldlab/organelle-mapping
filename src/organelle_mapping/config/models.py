@@ -1,11 +1,37 @@
 from abc import ABC, abstractmethod
 from typing import Annotated, Any, Literal, Sequence, Union
+import torch.nn
 
-from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
+from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator, BeforeValidator
+
+
+def validate_activation_string(value: str) -> str:
+    """Validator for torch.nn activation class names"""
+    try:
+        activation_class = getattr(torch.nn, value)
+    except AttributeError:
+        raise ValueError(f"torch.nn.{value} does not exist")
+
+    if not (isinstance(activation_class, type) and
+            issubclass(activation_class, torch.nn.Module)):
+        raise ValueError(f"torch.nn.{value} is not a PyTorch module class")
+
+    try:
+        activation_class()
+    except Exception as e:
+        raise ValueError(f"Cannot instantiate torch.nn.{value}(): {e}")
+
+    return value
+
+ActivationStr = Annotated[str, BeforeValidator(validate_activation_string)]
 
 
 class ArchitectureConfig(BaseModel, ABC):
     name: str
+    output_head_keys: Sequence[str] | None = Field(
+        default=None,
+        description="State dict keys for the output head layers (weight and bias). If None, assumes last two keys."
+    )
     input_shape: tuple[int, int, int]
     output_shape: tuple[int, int, int]
     in_channels: int
@@ -45,6 +71,7 @@ class SwinUNETRConfig(ArchitectureConfig):
     use_checkpoint: bool = True
     downsample: Literal["merging", "mergingv2"] = "merging"
     use_v2: bool = False
+    output_head_keys: Sequence[str] = ["base_model.out.conv.conv.weight", "base_model.out.conv.conv.bias"]
 
     @model_validator(mode="after")
     def validate_input_shape(self):
@@ -125,6 +152,7 @@ class StandardUnetConfig(ArchitectureConfig):
     kernel_size_down: Sequence[Sequence[tuple[int, int, int]]] = (((3, 3, 3), (3, 3, 3), (3, 3, 3)),) * 4
     kernel_size_up: Sequence[Sequence[tuple[int, int, int]]] = (((3, 3, 3), (3, 3, 3), (3, 3, 3)),) * 3
     padding: Literal["valid", "same"] = "valid"
+    output_head_keys: Sequence[str] = ["base_model.final_conv.weight", "base_model.final_conv.bias"]
 
     @model_validator(mode="after")
     def validate_kernel_sizes(self):
@@ -168,5 +196,94 @@ class StandardUnetConfig(ArchitectureConfig):
             padding=self.padding,
         )
 
+class TemsUnetConfig(ArchitectureConfig):
+    name: Literal["tems_unet"]
+    input_shape: tuple[int, int, int] = (178, 178, 178)
+    output_shape: tuple[int, int, int] = (56, 56, 56)
+    in_channels: int = Field(1, gt=0)
+    out_channels: int = Field(..., gt=0)
+    fmaps_down: Sequence[int] = (16, 16*6, 16*6**2, 16*6**3)
+    fmaps_up: Sequence[int] = (16, 16*6, 16*6**2)
+    downsample_factors: Sequence[tuple[int, int, int]] = (
+        (2, 2, 2),
+        (2, 2, 2),
+        (2, 2, 2),
+    )
+    kernel_size_down: Sequence[Sequence[tuple[int, int, int]]] = (((3, 3, 3), (3, 3, 3), (3, 3, 3)),) * 4
+    kernel_size_up: Sequence[Sequence[tuple[int, int, int]]] = (((3, 3, 3), (3, 3, 3), (3, 3, 3)),) * 3
+    padding: Literal["valid", "same"] = "valid"
+    residual: bool = True
+    upsample_mode: Literal["nearest", "trilinear"] = "trilinear"
+    activation: ActivationStr = "ReLU"
+    final_activation: ActivationStr = "Identity"
+    output_head_keys: Sequence[str] = ["base_model.final_conv.weight", "base_model.final_conv.bias"]
 
-Architecture = Union[StandardUnetConfig, SwinUNETRConfig]
+
+    @model_validator(mode="after")
+    def validate_kernel_sizes(self):
+
+        if len(self.kernel_size_down) != len(self.downsample_factors) + 1:
+            msg = (
+                f"kernel_size_down ({self.kernel_size_down}) must be one element longer "
+                f"than downsample_factors ({self.downsample_factors})."
+            )
+            raise ValueError(msg)
+
+        if len(self.kernel_size_up) != len(self.downsample_factors):
+            msg = (
+                f"kernel_size_up ({self.kernel_size_up}) must have the same length as "
+                f"downsample_factors ({self.downsample_factors})."
+            )
+            raise ValueError(msg)
+
+        for kernel_group in self.kernel_size_down + self.kernel_size_up:
+            for kernel in kernel_group:
+                if not all(k % 2 == 1 for k in kernel):
+                    msg = f"All integers in kernel ({kernel}) must be odd."
+                    raise ValueError(msg)
+                if not all(k > 0 for k in kernel):
+                    msg = f"Kernels ({kernel}) must be positive."
+                    raise ValueError(msg)
+
+        return self
+    
+    @model_validator(mode="after")
+    def validate_fmaps(self):
+        if len(self.fmaps_down) != len(self.downsample_factors) + 1:
+            msg = (
+                f"fmaps_down ({self.fmaps_down}) must be one element longer "
+                f"than downsample_factors ({self.downsample_factors})."
+            )
+            raise ValueError(msg)
+
+        if len(self.fmaps_up) != len(self.downsample_factors):
+            msg = (
+                f"kernel_size_up ({self.fmaps_up}) must have the same length as "
+                f"downsample_factors ({self.downsample_factors})."
+            )
+            raise ValueError(msg)
+
+        return self
+
+    def instantiate(self):
+        from organelle_mapping.model import TemsUnet
+
+        return TemsUnet(
+            in_channels=self.in_channels,
+            out_channels=self.out_channels,
+            fmaps_down=self.fmaps_down,
+            fmaps_up=self.fmaps_up,
+            downsample_factors=self.downsample_factors,
+            kernel_size_down=self.kernel_size_down,
+            kernel_size_up=self.kernel_size_up,
+            residual=self.residual,
+            upsample_mode=self.upsample_mode,
+            padding=self.padding,
+            activation=getattr(torch.nn, self.activation),
+            final_activation=getattr(torch.nn, self.final_activation)
+        )
+
+Architecture = Annotated[
+    Union[StandardUnetConfig, SwinUNETRConfig, TemsUnetConfig],
+    Field(discriminator="name"),
+]

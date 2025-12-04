@@ -46,7 +46,9 @@ dependencies = [
   "pydantic",
   "scikit-learn",
   "funlib.show.neuroglancer",
-  "tensorboard"
+  "tensorboard",
+  "tems>=1.0.4",
+  "torchinfo"
 ]
 
 [project.urls]

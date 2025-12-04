@@ -1,0 +1,99 @@
+name: tems_unet
+input_shape:
+  - 196
+  - 196
+  - 196
+output_shape:
+  - 56
+  - 56
+  - 56
+in_channels: 1
+out_channels: 9
+fmaps_down: 
+  - 16
+  - 96
+  - 576
+fmaps_up:
+  - 16
+  - 96
+  - 576
+downsample_factors:
+  - - 2
+    - 2
+    - 2
+  - - 2
+    - 2
+    - 2
+  - - 2
+    - 2
+    - 2
+kernel_size_down:
+  - - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+  - - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+  - - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+  - - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+kernel_size_up:
+  - - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+  - - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+  - - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+    - - 3
+      - 3
+      - 3
+padding: "valid"
+residual: true
+upsample_mode: "trilinear"
+activation: "ReLU"
+final_activation: "Identity"
