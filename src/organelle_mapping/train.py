@@ -67,6 +67,8 @@ def make_data_pipeline(
                 factor = factors[src.specs[raw].dtype]
                 src_pipe += gp.Normalize(raw, factor=1.0 / factor)
                 minc, maxc = ds_info.em.contrast
+                # Map [minc, maxc] to [0, 1] so that after augmentation (*2-1) it becomes [-1, 1]
+                src_pipe += gp.IntensityScaleShift(raw, scale=factor / (maxc - minc), shift=-minc / (maxc - minc))
                 src_pipe += corditea.Pad(raw, None, value=0)
                 src_pipe += gp.RandomLocation()
                 srcs.append(src_pipe)
