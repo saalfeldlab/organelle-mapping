@@ -22,7 +22,7 @@ classifiers = [
 dependencies = [
   "daisy",
   "funlib.persistence@git+https://git@github.com/funkelab/funlib.persistence.git@main",
-  "fibsem-tools>=6.0",
+  "fibsem-tools>=7.0.5",
   "matplotlib",
   "funlib.learn.torch@git+https://git@github.com/funkelab/funlib.learn.torch.git",
   "gunpowder",
@@ -30,6 +30,7 @@ dependencies = [
   "torch",
   "click",
   "xarray",
+  "xarray-datatree",
   "zarr",
   "scikit-image",
   "xarray-multiscale",
@@ -203,6 +204,7 @@ typecheck = "mypy --install-types --non-interactive src/organelle_mapping tests"
 
 [tool.pixi.dependencies]
 python = "3.11.*"
+xarray-datatree = "*"
 
 [tool.pixi.pypi-dependencies]
 organelle-mapping = { path = ".", editable = true }
