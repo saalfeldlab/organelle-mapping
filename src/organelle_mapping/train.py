@@ -9,7 +9,7 @@ import torch
 from organelle_mapping import utils
 from organelle_mapping.config import RunConfig
 from organelle_mapping.data import CellMapCropSource, ExtractMask, CollapseAny
-from organelle_mapping.model import MaskedMultiLabelBCEwithLogits
+from organelle_mapping.loss import CombinedLoss
 
 logger = logging.getLogger(__name__)
 
@@ -25,17 +25,28 @@ def make_data_pipeline(
 ):
     raw = gp.ArrayKey("RAW")
     label_keys = {}
-    for label in run.labels:
-        label_keys[label] = gp.ArrayKey(label.upper())
+    # Collect all unique source labels from all targets
+    all_sources = set()
+    for target in run.targets:
+        for transform in target.transforms:
+            all_sources.add(transform.source)
+    for source in all_sources:
+        label_keys[source] = gp.ArrayKey(source.upper())
     srcs = []
     probs = []
     factors = {np.dtype("uint8"): 255, np.dtype("uint16"): 2**16 - 1}
     max_out_extent = output_size
+
+    # Account for transform context
+    for target in run.targets:
+        for transform in target.transforms:
+            max_out_extent = transform.adjust_max_extent(max_out_extent)
+
     # Account for augmentations (in reverse pipeline order)
     for aug in reversed(run.augmentations.augmentations):
         max_out_extent = aug.adjust_max_extent(max_out_extent)
 
-    logger.info(f"Maximum output extent after accounting for augmentations: {max_out_extent}")
+    logger.info(f"Maximum output extent after accounting for transforms and augmentations: {max_out_extent}")
 
     for ds_name, ds_info in run.data.datasets.items():
         for crops in ds_info.labels.crops:
@@ -69,8 +80,35 @@ def make_data_pipeline(
     for aug in run.augmentations.augmentations:
         pipeline += aug.instantiate()
     pipeline += gp.Unsqueeze(list(label_keys.values()))
-    pipeline += corditea.Concatenate(list(label_keys.values()), gp.ArrayKey("LABELS"))
-    pipeline += ExtractMask(gp.ArrayKey("LABELS"), gp.ArrayKey("MASK"))
+
+    # Create individual masks for each source label
+    label_mask_keys = {}
+    for source, label_key in label_keys.items():
+        mask_key = gp.ArrayKey(f"{source.upper()}_MASK")
+        label_mask_keys[source] = mask_key
+        pipeline += ExtractMask(label_key, mask_key)
+    # Apply transforms
+    for target in run.targets:
+        for transform in target.transforms:
+            source_key = label_keys[transform.source]
+            source_mask_key = label_mask_keys[transform.source]
+
+            transform_nodes = transform.instantiate(source_key, source_mask_key)
+            if transform_nodes is not None:
+                for tn in transform_nodes:
+                    pipeline += tn
+
+    # Ensure consistent dtypes before concatenation
+    all_output_keys = sum((target.output_keys for target in run.targets), ())
+    for key in all_output_keys:
+        pipeline += gp.AsType(key, "float32")
+    pipeline += corditea.Concatenate(all_output_keys, gp.ArrayKey("TARGETS"))
+
+    # Create combined MASK array from all target mask keys
+    all_mask_keys = sum((target.mask_keys for target in run.targets), ())
+    for key in all_mask_keys:
+        pipeline += gp.AsType(key, "float32")
+    pipeline += corditea.Concatenate(all_mask_keys, gp.ArrayKey("MASK"))
     if run.min_valid_fraction > 0:
         # Create collapsed mask for rejection (valid where ANY label is valid)
         pipeline += CollapseAny(gp.ArrayKey("MASK"), gp.ArrayKey("VALID"))
@@ -80,7 +118,7 @@ def make_data_pipeline(
         )
     pipeline += gp.Unsqueeze([raw])
     pipeline += gp.Stack(run.batch_size)
-    pipeline += gp.AsType(gp.ArrayKey("LABELS"), "float32")
+    pipeline += gp.AsType(gp.ArrayKey("TARGETS"), "float32")
 
     return pipeline
 
@@ -92,12 +130,12 @@ def make_train_pipeline(run, input_size, output_size):
         pipeline += gp.PreCache(run.precache_size, run.precache_workers)
     pipeline += gp.torch.Train(
         model=model,
-        loss=MaskedMultiLabelBCEwithLogits(run.label_weights),
+        loss=CombinedLoss(run.targets),
         optimizer=torch.optim.Adam(lr=run.lr, params=model.parameters()),
         inputs={0: gp.ArrayKey("RAW")},
         loss_inputs={
             "output": gp.ArrayKey("OUTPUT"),
-            "target": gp.ArrayKey("LABELS"),
+            "target": gp.ArrayKey("TARGETS"),
             "mask": gp.ArrayKey("MASK"),
         },
         outputs={0: gp.ArrayKey("OUTPUT")},
@@ -121,7 +159,7 @@ def make_train_pipeline(run, input_size, output_size):
     del snapshot_request[gp.ArrayKey("DUMMY")]
     pipeline += gp.Snapshot(
         {
-            gp.ArrayKey("LABELS"): "labels",
+            gp.ArrayKey("TARGETS"): "targets",
             gp.ArrayKey("RAW"): "raw",
             gp.ArrayKey("MASK"): "mask",
             gp.ArrayKey("OUTPUT"): "output",

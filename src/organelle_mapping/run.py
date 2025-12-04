@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import click
 import gunpowder as gp
@@ -25,7 +26,7 @@ def run(run: RunConfig):
             request = gp.BatchRequest()
             request.add(gp.ArrayKey("OUTPUT"), output_size, voxel_size=gp.Coordinate(voxel_size))
             request.add(gp.ArrayKey("RAW"), input_size, voxel_size=gp.Coordinate(voxel_size))
-            request.add(gp.ArrayKey("LABELS"), output_size, voxel_size=gp.Coordinate(voxel_size))
+            request.add(gp.ArrayKey("TARGETS"), output_size, voxel_size=gp.Coordinate(voxel_size))
             request.add(gp.ArrayKey("MASK"), output_size, voxel_size=gp.Coordinate(voxel_size))
             if run.min_valid_fraction > 0:
                 request.add(gp.ArrayKey("VALID"), output_size, voxel_size=gp.Coordinate(voxel_size))

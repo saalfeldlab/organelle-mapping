@@ -2,11 +2,12 @@ from pathlib import Path
 from typing import Sequence
 
 import yaml
-from pydantic import BaseModel, Field, TypeAdapter, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, TypeAdapter, ValidationInfo, field_validator, model_validator
 
 from organelle_mapping.config.augmentations import AugmentationPipeline
 from organelle_mapping.config.data import DataConfig
 from organelle_mapping.config.models import Architecture
+from organelle_mapping.config.target import Target
 
 
 def load_subconfig(value, target_cls):
@@ -19,8 +20,7 @@ def load_subconfig(value, target_cls):
 
 class RunConfig(BaseModel):
     iterations: int
-    labels: Sequence[str] = Field(min_items=1)
-    label_weights: Sequence[float] = Field(default=())
+    targets: Sequence[Target] = Field(min_items=1, description="Target outputs with loss functions")
     sampling: dict[str, int] = Field(
         default_factory=lambda: {"x": 8, "y": 8, "z": 8},
         description="Sampling rates for x, y, and z dimensions",
@@ -56,16 +56,22 @@ class RunConfig(BaseModel):
     def load_model_config(cls, value) -> Architecture:
         return load_subconfig(value, Architecture)
 
-    @field_validator("label_weights", mode="after")
-    @classmethod
-    def normalize_weights(cls, value: Sequence[float], info: ValidationInfo) -> Sequence[float]:
-        if len(value) == 0:
-            value = [1.0] * len(info.data["labels"])
-        if len(value) != len(info.data["labels"]):
-            msg = (
-                f"Length of label_weights ({len(value)}) does not match the number of labels "
-                f"({len(info.data['labels'])})."
-            )
+    @property
+    def total_channels(self) -> int:
+        """Calculate total output channels across all targets."""
+        return sum(
+            sum(target_transform.num_channels for target_transform in target.transforms)
+            for target in self.targets
+        )
+
+    @model_validator(mode="after")
+    def validate_architecture_channels(self):
+        """Validate that architecture output channels match total transform channels."""
+        if self.architecture.out_channels != self.total_channels:
+            msg = f"Architecture output channels ({self.architecture.out_channels}) must match total transform channels ({self.total_channels})"
             raise ValueError(msg)
-        normalizer = sum(value)
-        return [lw / normalizer for lw in value]
+        return self
+
+    # TODO: Add weight normalization validator
+    # Step 1: Normalize within each target (sum to 1.0)
+    # Step 2: Scale across targets (total sum to 1.0) for learning rate consistency

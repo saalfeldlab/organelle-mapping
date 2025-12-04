@@ -20,17 +20,6 @@ def load_eval_model(architecture_config, checkpoint_path):
     return model
 
 
-class MaskedMultiLabelBCEwithLogits(torch.nn.BCEWithLogitsLoss):
-    def __init__(self, pos_weight, spatial_dims=3):
-        pos_weight = torch.Tensor(pos_weight)[(...,) + (None,) * spatial_dims]
-        self.loss_fn = super().__init__(reduction="none", pos_weight=pos_weight)
-        self.spatial_dims = spatial_dims
-
-    def forward(self, output, target, mask):
-        bce = torch.sum(super().forward(output, target) * mask)
-        bce /= torch.sum(mask)
-        return bce
-
 
 class StandardUnet(torch.nn.Module):
     def __init__(
