@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal, Union
 
 import corditea
 import gunpowder as gp
+import numpy as np
 from pydantic import BaseModel, Field
 from pydantic_core import core_schema
 
@@ -15,6 +16,17 @@ class AugmentationConfig(BaseModel, ABC):
     @abstractmethod
     def instantiate(self):
         pass
+
+    def adjust_max_extent(self, max_extent: gp.Coordinate) -> gp.Coordinate:
+        """Adjust maximum extent to account for augmentation's context requirements.
+
+        Args:
+            max_extent: Current maximum extent
+
+        Returns:
+            Adjusted maximum extent
+        """
+        return max_extent
 
 
 class ArrayKeyField:
@@ -128,6 +140,25 @@ class ElasticAugmentConfig(AugmentationConfig):
             augmentation_probability=self.augmentation_probability,
             uniform_3d_rotation=self.uniform_3d_rotation,
         )
+
+    def adjust_max_extent(self, max_extent: gp.Coordinate) -> gp.Coordinate:
+        """Adjust for elastic deformation and rotation.
+
+        Displacement context is added first (sigma * 6 for both sides),
+        then rotation is applied to the full extent.
+        """
+        # Add displacement context (3-sigma on each side = 6*sigma total)
+        if any(cpds > 0 for cpds in self.control_point_displacement_sigma):
+            max_extent = max_extent + self.control_point_displacement_sigma * 6
+
+        # Apply rotation to full extent
+        if self.rotation_interval[1] > 0:
+            # Diagonal extent for worst-case rotation
+            max_extent = gp.Coordinate(
+                (np.ceil(np.sqrt(sum(max_extent**2))),) * len(max_extent)
+            )
+
+        return max_extent
 
 
 class IntensityScaleShiftConfig(AugmentationConfig):

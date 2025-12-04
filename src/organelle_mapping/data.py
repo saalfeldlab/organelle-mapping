@@ -19,12 +19,12 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
         raw_arraykey: gp.ArrayKey,
         sampling: dict[str, int],
         base_padding: gp.Coordinate,
-        max_request: gp.Coordinate,
+        max_extent: gp.Coordinate,
     ):
         super().__init__()
         self.stores = {}
         self.specs = {}
-        self.max_request = max_request
+        self.max_extent = max_extent
         raw_grp = fst.read(raw_store)
         raw_axes_names = utils.get_axes_names(raw_grp)
         self.axes_order = raw_axes_names
@@ -119,7 +119,7 @@ class CellMapCropSource(gp.batch_provider.BatchProvider):
 
             self.raw_arraykey = raw_arraykey
 
-        self.padding += gp.Coordinate(max(0, p) for p in self.max_request - (cropsize + self.padding * 2)) / 2.0
+        self.padding += gp.Coordinate(max(0, p) for p in self.max_extent - (cropsize + self.padding * 2)) / 2.0
         self.specs[raw_arraykey] = raw_spec
         self.sampling = sampling
 

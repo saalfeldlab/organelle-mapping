@@ -30,18 +30,14 @@ def make_data_pipeline(
     srcs = []
     probs = []
     factors = {np.dtype("uint8"): 255, np.dtype("uint16"): 2**16 - 1}
-    max_out_request = output_size
-    for aug in run.augmentations.augmentations:
-        if aug.name == "corditea_elastic_augment":
-            if aug.rotation_interval[1] > 0:
-                logger.info("Adapting maximum output request to account for rotation.")
-                max_out_request = gp.Coordinate((np.ceil(np.sqrt(sum(output_size**2))),) * len(output_size))
-            if any(cpds > 0 for cpds in aug.control_point_displacement_sigma):
-                logger.info("Adapting maximum output request to account for control point displacement.")
-                max_out_request += aug.control_point_displacement_sigma * 6
-            break
+    max_out_extent = output_size
+    # Account for augmentations (in reverse pipeline order)
+    for aug in reversed(run.augmentations.augmentations):
+        max_out_extent = aug.adjust_max_extent(max_out_extent)
 
-    for _, ds_info in run.data.datasets.items():
+    logger.info(f"Maximum output extent after accounting for augmentations: {max_out_extent}")
+
+    for ds_name, ds_info in run.data.datasets.items():
         for crops in ds_info.labels.crops:
             for crop in crops.split(","):
                 src = CellMapCropSource(
@@ -51,7 +47,7 @@ def make_data_pipeline(
                     raw,
                     run.sampling,
                     base_padding=output_size / 2.0,
-                    max_request=max_out_request,
+                    max_extent=max_out_extent,
                 )
                 src_pipe = src
                 if src.needs_downsampling:
