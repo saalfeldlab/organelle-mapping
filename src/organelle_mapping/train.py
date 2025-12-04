@@ -153,6 +153,18 @@ def make_train_pipeline(run, input_size, output_size):
         gp.ArrayKey("OUTPUT"),
         channel_activations
     )
+
+    # Remove batch dimension for snapshots (extract first sample: BCDHW -> CDHW)
+    pipeline += corditea.Unstack(
+        arrays=[
+            gp.ArrayKey("TARGETS"),
+            gp.ArrayKey("RAW"),
+            gp.ArrayKey("MASK"),
+            gp.ArrayKey("OUTPUT"),
+        ],
+        index=0,
+    )
+
     pipeline += gp.Snapshot(
         {
             gp.ArrayKey("TARGETS"): "targets",
