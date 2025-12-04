@@ -10,12 +10,9 @@ from organelle_mapping import utils
 from organelle_mapping.config import RunConfig
 from organelle_mapping.data import CellMapCropSource, ExtractMask, CollapseAny
 from organelle_mapping.loss import CombinedLoss
+from organelle_mapping.model import create_sac_model
 
 logger = logging.getLogger(__name__)
-
-
-def sigmoidify(arr):
-    return torch.nn.functional.sigmoid(torch.tensor(arr)).numpy()
 
 
 def make_data_pipeline(
@@ -125,7 +122,7 @@ def make_data_pipeline(
 
 def make_train_pipeline(run, input_size, output_size):
     pipeline = make_data_pipeline(run, input_size, output_size)
-    model = run.architecture.instantiate()
+    model = create_sac_model(run.architecture, run.targets)
     if run.precache_size > 0:
         pipeline += gp.PreCache(run.precache_size, run.precache_workers)
     pipeline += gp.torch.Train(
@@ -144,29 +141,26 @@ def make_train_pipeline(run, input_size, output_size):
         log_dir="logs",
         save_every=run.checkpoint_frequency,
     )
-    pipeline += corditea.LambdaFilter(sigmoidify, gp.ArrayKey("OUTPUT"), gp.ArrayKey("NORM_OUTPUT"))
-    snapshot_request = gp.BatchRequest()
-    snapshot_request.add(
-        gp.ArrayKey("DUMMY"),
-        input_size,
-        voxel_size=gp.Coordinate(list(run.sampling.values())),
+    # Build channel activations for normalization
+    channel_activations = []
+    for target in run.targets:
+        for transform in target.transforms:
+            activation = transform.inference_activation if transform.activation == "Identity" else None
+            channel_activations.extend([activation] * transform.num_channels)
+
+    # Normalize output in-place for visualization
+    pipeline += corditea.NormalizeOutput(
+        gp.ArrayKey("OUTPUT"),
+        channel_activations
     )
-    snapshot_request.add(
-        gp.ArrayKey("NORM_OUTPUT"),
-        output_size,
-        voxel_size=gp.Coordinate(list(run.sampling.values())),
-    )
-    del snapshot_request[gp.ArrayKey("DUMMY")]
     pipeline += gp.Snapshot(
         {
             gp.ArrayKey("TARGETS"): "targets",
             gp.ArrayKey("RAW"): "raw",
             gp.ArrayKey("MASK"): "mask",
             gp.ArrayKey("OUTPUT"): "output",
-            gp.ArrayKey("NORM_OUTPUT"): "norm_output",
         },
         output_filename="{iteration:08d}.zarr",
         every=500,
-        additional_request=snapshot_request,
     )
     return pipeline
