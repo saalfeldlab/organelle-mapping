@@ -5,7 +5,7 @@ augmentations:
     scale_max: 1.5
     shift_min: -0.15
     shift_max: 0.15
-    z_section_wise: False
+    z_section_wise: None
     clip: True
     p: 1.0
   - name: gamma_augment

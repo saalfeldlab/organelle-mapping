@@ -59,13 +59,16 @@ class IntensityAugmentConfig(AugmentationConfig):
     scale_max: float = Field(1.5, description="Maximum scale for intensity augmentation.")
     shift_min: float = Field(-0.15, description="Minimum shift for intensity augmentation.")
     shift_max: float = Field(0.15, description="Maximum shift for intensity augmentation.")
-    z_section_wise: bool = Field(False, description="Perform augmentation z-section-wise.")
     clip: bool = True
     p: float = Field(
         1.0,
         ge=0.0,
         le=1.0,
         description="Probability of applying intensity augmentation.",
+    )
+    slab: tuple[int, ...] | None = Field(
+        None,
+        description="Shape specification to perform intensity augment in slabs. Use -1 for actual size.",
     )
 
     def instantiate(self):
@@ -75,9 +78,10 @@ class IntensityAugmentConfig(AugmentationConfig):
             self.scale_max,
             self.shift_min,
             self.shift_max,
-            z_section_wise=self.z_section_wise,
+            z_section_wise=None,  # Explicitly None to avoid gunpowder bug with default False
             clip=self.clip,
             p=self.p,
+            slab=self.slab,
         )
 
 
