@@ -61,15 +61,13 @@ def make_data_pipeline(
                 if src.needs_downsampling:
                     src_pipe += corditea.AverageDownSample(raw, utils.ax_dict_to_list(run.sampling, src.axes_order))
                 probs.append(src.get_size() / len(crops.split(",")))
-                logging.debug(f"Padding {crop} with {src.padding}")
                 for label_key in label_keys.values():
-                    src_pipe += gp.Pad(label_key, src.padding, value=255)
+                    src_pipe += corditea.Pad(label_key, src.padding, value=255)
                     src_pipe += gp.AsType(label_key, "float32")
                 factor = factors[src.specs[raw].dtype]
                 src_pipe += gp.Normalize(raw, factor=1.0 / factor)
                 minc, maxc = ds_info.em.contrast
-                src_pipe += gp.IntensityScaleShift(raw, scale=(maxc - minc) / factor, shift=minc / factor)
-                src_pipe += gp.Pad(raw, None, value=0)
+                src_pipe += corditea.Pad(raw, None, value=0)
                 src_pipe += gp.RandomLocation()
                 srcs.append(src_pipe)
 
