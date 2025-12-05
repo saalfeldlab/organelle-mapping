@@ -190,7 +190,7 @@ tests = ["tests", "*/organelle-mapping/tests"]
 [tool.coverage.report]
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
-[tool.pixi.project]
+[tool.pixi.workspace]
 channels = ["nvidia", "pytorch", "conda-forge"]
 platforms = ["linux-64"]
 
