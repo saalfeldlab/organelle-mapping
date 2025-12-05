@@ -47,7 +47,8 @@ dependencies = [
   "funlib.show.neuroglancer",
   "tensorboard",
   "tems>=1.0.4",
-  "torchinfo"
+  "torchinfo",
+  "corditea@git+https://github.com/saalfeldlab/corditea.git"
 ]
 
 [project.urls]
@@ -209,11 +210,8 @@ xarray-datatree = "*"
 [tool.pixi.pypi-dependencies]
 organelle-mapping = { path = ".", editable = true }
 
-[tool.pixi.feature.git-deps.pypi-dependencies]
-corditea = { git = "https://github.com/saalfeldlab/corditea.git" }
-
-[tool.pixi.feature.local-deps.pypi-dependencies]
-corditea = { path = "../corditea", editable = true }
+[tool.pixi.feature.local-deps.pypi-options]
+dependency-overrides = { corditea = { path = "../corditea", editable = true } }
 
 [tool.pixi.feature.dev.dependencies]
 pytest = ">=7.3"
@@ -229,5 +227,5 @@ jupyterlab = ">=4.0"
 ipykernel = ">=6.23"
 
 [tool.pixi.environments]
-default = { features = ["git-deps"], solve-group = "default" }
+default = { solve-group = "default" }
 dev = { features = ["dev", "notebooks", "local-deps"], solve-group = "dev" }
