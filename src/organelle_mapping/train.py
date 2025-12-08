@@ -9,13 +9,10 @@ import torch
 from organelle_mapping import utils
 from organelle_mapping.config import RunConfig
 from organelle_mapping.data import CellMapCropSource, ExtractMask, CollapseAny
-from organelle_mapping.model import MaskedMultiLabelBCEwithLogits
+from organelle_mapping.loss import CombinedLoss
+from organelle_mapping.model import create_sac_model
 
 logger = logging.getLogger(__name__)
-
-
-def sigmoidify(arr):
-    return torch.nn.functional.sigmoid(torch.tensor(arr)).numpy()
 
 
 def make_data_pipeline(
@@ -25,23 +22,30 @@ def make_data_pipeline(
 ):
     raw = gp.ArrayKey("RAW")
     label_keys = {}
-    for label in run.labels:
-        label_keys[label] = gp.ArrayKey(label.upper())
+    # Collect all unique source labels from all targets
+    all_sources = set()
+    for target in run.targets:
+        for transform in target.transforms:
+            all_sources.add(transform.source)
+    for source in all_sources:
+        label_keys[source] = gp.ArrayKey(source.upper())
     srcs = []
     probs = []
     factors = {np.dtype("uint8"): 255, np.dtype("uint16"): 2**16 - 1}
-    max_out_request = output_size
-    for aug in run.augmentations.augmentations:
-        if aug.name == "corditea_elastic_augment":
-            if aug.rotation_interval[1] > 0:
-                logger.info("Adapting maximum output request to account for rotation.")
-                max_out_request = gp.Coordinate((np.ceil(np.sqrt(sum(output_size**2))),) * len(output_size))
-            if any(cpds > 0 for cpds in aug.control_point_displacement_sigma):
-                logger.info("Adapting maximum output request to account for control point displacement.")
-                max_out_request += aug.control_point_displacement_sigma * 6
-            break
+    max_out_extent = output_size
 
-    for _, ds_info in run.data.datasets.items():
+    # Account for transform context
+    for target in run.targets:
+        for transform in target.transforms:
+            max_out_extent = transform.adjust_max_extent(max_out_extent)
+
+    # Account for augmentations (in reverse pipeline order)
+    for aug in reversed(run.augmentations.augmentations):
+        max_out_extent = aug.adjust_max_extent(max_out_extent)
+
+    logger.info(f"Maximum output extent after accounting for transforms and augmentations: {max_out_extent}")
+
+    for ds_name, ds_info in run.data.datasets.items():
         for crops in ds_info.labels.crops:
             for crop in crops.split(","):
                 src = CellMapCropSource(
@@ -51,21 +55,21 @@ def make_data_pipeline(
                     raw,
                     run.sampling,
                     base_padding=output_size / 2.0,
-                    max_request=max_out_request,
+                    max_extent=max_out_extent,
                 )
                 src_pipe = src
                 if src.needs_downsampling:
                     src_pipe += corditea.AverageDownSample(raw, utils.ax_dict_to_list(run.sampling, src.axes_order))
                 probs.append(src.get_size() / len(crops.split(",")))
-                logging.debug(f"Padding {crop} with {src.padding}")
                 for label_key in label_keys.values():
-                    src_pipe += gp.Pad(label_key, src.padding, value=255)
+                    src_pipe += corditea.Pad(label_key, src.padding, value=255)
                     src_pipe += gp.AsType(label_key, "float32")
                 factor = factors[src.specs[raw].dtype]
                 src_pipe += gp.Normalize(raw, factor=1.0 / factor)
                 minc, maxc = ds_info.em.contrast
-                src_pipe += gp.IntensityScaleShift(raw, scale=(maxc - minc) / factor, shift=minc / factor)
-                src_pipe += gp.Pad(raw, None, value=0)
+                # Map [minc, maxc] to [0, 1] so that after augmentation (*2-1) it becomes [-1, 1]
+                src_pipe += gp.IntensityScaleShift(raw, scale=factor / (maxc - minc), shift=-minc / (maxc - minc))
+                src_pipe += corditea.Pad(raw, None, value=0)
                 src_pipe += gp.RandomLocation()
                 srcs.append(src_pipe)
 
@@ -73,8 +77,35 @@ def make_data_pipeline(
     for aug in run.augmentations.augmentations:
         pipeline += aug.instantiate()
     pipeline += gp.Unsqueeze(list(label_keys.values()))
-    pipeline += corditea.Concatenate(list(label_keys.values()), gp.ArrayKey("LABELS"))
-    pipeline += ExtractMask(gp.ArrayKey("LABELS"), gp.ArrayKey("MASK"))
+
+    # Create individual masks for each source label
+    label_mask_keys = {}
+    for source, label_key in label_keys.items():
+        mask_key = gp.ArrayKey(f"{source.upper()}_MASK")
+        label_mask_keys[source] = mask_key
+        pipeline += ExtractMask(label_key, mask_key)
+    # Apply transforms
+    for target in run.targets:
+        for transform in target.transforms:
+            source_key = label_keys[transform.source]
+            source_mask_key = label_mask_keys[transform.source]
+
+            transform_nodes = transform.instantiate(source_key, source_mask_key)
+            if transform_nodes is not None:
+                for tn in transform_nodes:
+                    pipeline += tn
+
+    # Ensure consistent dtypes before concatenation
+    all_output_keys = sum((target.output_keys for target in run.targets), ())
+    for key in all_output_keys:
+        pipeline += gp.AsType(key, "float32")
+    pipeline += corditea.Concatenate(all_output_keys, gp.ArrayKey("TARGETS"))
+
+    # Create combined MASK array from all target mask keys
+    all_mask_keys = sum((target.mask_keys for target in run.targets), ())
+    for key in all_mask_keys:
+        pipeline += gp.AsType(key, "float32")
+    pipeline += corditea.Concatenate(all_mask_keys, gp.ArrayKey("MASK"))
     if run.min_valid_fraction > 0:
         # Create collapsed mask for rejection (valid where ANY label is valid)
         pipeline += CollapseAny(gp.ArrayKey("MASK"), gp.ArrayKey("VALID"))
@@ -84,24 +115,24 @@ def make_data_pipeline(
         )
     pipeline += gp.Unsqueeze([raw])
     pipeline += gp.Stack(run.batch_size)
-    pipeline += gp.AsType(gp.ArrayKey("LABELS"), "float32")
+    pipeline += gp.AsType(gp.ArrayKey("TARGETS"), "float32")
 
     return pipeline
 
 
 def make_train_pipeline(run, input_size, output_size):
     pipeline = make_data_pipeline(run, input_size, output_size)
-    model = run.architecture.instantiate()
+    model = create_sac_model(run.architecture, run.targets)
     if run.precache_size > 0:
         pipeline += gp.PreCache(run.precache_size, run.precache_workers)
     pipeline += gp.torch.Train(
         model=model,
-        loss=MaskedMultiLabelBCEwithLogits(run.label_weights),
+        loss=CombinedLoss(run.targets),
         optimizer=torch.optim.Adam(lr=run.lr, params=model.parameters()),
         inputs={0: gp.ArrayKey("RAW")},
         loss_inputs={
             "output": gp.ArrayKey("OUTPUT"),
-            "target": gp.ArrayKey("LABELS"),
+            "target": gp.ArrayKey("TARGETS"),
             "mask": gp.ArrayKey("MASK"),
         },
         outputs={0: gp.ArrayKey("OUTPUT")},
@@ -110,29 +141,40 @@ def make_train_pipeline(run, input_size, output_size):
         log_dir="logs",
         save_every=run.checkpoint_frequency,
     )
-    pipeline += corditea.LambdaFilter(sigmoidify, gp.ArrayKey("OUTPUT"), gp.ArrayKey("NORM_OUTPUT"))
-    snapshot_request = gp.BatchRequest()
-    snapshot_request.add(
-        gp.ArrayKey("DUMMY"),
-        input_size,
-        voxel_size=gp.Coordinate(list(run.sampling.values())),
+    pipeline += corditea.LogBatch(mask_key=gp.ArrayKey("MASK"), log_every=run.log_frequency, logger=logger)
+
+    # Build channel activations for normalization
+    channel_activations = []
+    for target in run.targets:
+        for transform in target.transforms:
+            activation = transform.inference_activation if transform.activation == "Identity" else None
+            channel_activations.extend([activation] * transform.num_channels)
+
+    # Normalize output in-place for visualization
+    pipeline += corditea.NormalizeOutput(
+        gp.ArrayKey("OUTPUT"),
+        channel_activations
     )
-    snapshot_request.add(
-        gp.ArrayKey("NORM_OUTPUT"),
-        output_size,
-        voxel_size=gp.Coordinate(list(run.sampling.values())),
+
+    # Remove batch dimension for snapshots (extract first sample: BCDHW -> CDHW)
+    pipeline += corditea.Unstack(
+        arrays=[
+            gp.ArrayKey("TARGETS"),
+            gp.ArrayKey("RAW"),
+            gp.ArrayKey("MASK"),
+            gp.ArrayKey("OUTPUT"),
+        ],
+        index=0,
     )
-    del snapshot_request[gp.ArrayKey("DUMMY")]
+
     pipeline += gp.Snapshot(
         {
-            gp.ArrayKey("LABELS"): "labels",
+            gp.ArrayKey("TARGETS"): "targets",
             gp.ArrayKey("RAW"): "raw",
             gp.ArrayKey("MASK"): "mask",
             gp.ArrayKey("OUTPUT"): "output",
-            gp.ArrayKey("NORM_OUTPUT"): "norm_output",
         },
         output_filename="{iteration:08d}.zarr",
-        every=500,
-        additional_request=snapshot_request,
+        every=run.snapshot_frequency,
     )
     return pipeline

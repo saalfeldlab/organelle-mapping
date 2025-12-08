@@ -2,4 +2,4 @@
 #
 # SPDX-License-Identifier: MIT
 from organelle_mapping.data import CellMapCropSource, ExtractMask
-from organelle_mapping.model import MaskedMultiLabelBCEwithLogits
+from organelle_mapping.loss import MaskedMultiLabelBCEwithLogits

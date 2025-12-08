@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import click
 import gunpowder as gp
@@ -6,12 +7,24 @@ import yaml
 from pydantic import TypeAdapter
 
 from organelle_mapping.config import RunConfig
+from organelle_mapping.checkpoint_edit import create_transfer_checkpoint
 from organelle_mapping.train import make_train_pipeline
+from organelle_mapping.utils import setup_package_logger
 
 logger = logging.getLogger(__name__)
 
 
 def run(run: RunConfig):
+
+    # Handle finetuning checkpoint preparation if configured
+    if run.finetuning is not None:
+        checkpoint_path = Path(run.finetuning.source_checkpoint.name)
+        # Only prepare if checkpoint doesn't exist (for resumability)
+        if not checkpoint_path.exists():
+            logger.info(f"Preparing finetuning checkpoint from {run.finetuning.source_experiment}")
+            create_transfer_checkpoint(run.finetuning)
+        else:
+            logger.info(f"Checkpoint {checkpoint_path} already exists, skipping preparation")
 
     voxel_size = list(run.sampling.values())
     input_size = gp.Coordinate(run.architecture.input_shape) * gp.Coordinate(voxel_size)
@@ -24,7 +37,7 @@ def run(run: RunConfig):
             request = gp.BatchRequest()
             request.add(gp.ArrayKey("OUTPUT"), output_size, voxel_size=gp.Coordinate(voxel_size))
             request.add(gp.ArrayKey("RAW"), input_size, voxel_size=gp.Coordinate(voxel_size))
-            request.add(gp.ArrayKey("LABELS"), output_size, voxel_size=gp.Coordinate(voxel_size))
+            request.add(gp.ArrayKey("TARGETS"), output_size, voxel_size=gp.Coordinate(voxel_size))
             request.add(gp.ArrayKey("MASK"), output_size, voxel_size=gp.Coordinate(voxel_size))
             if run.min_valid_fraction > 0:
                 request.add(gp.ArrayKey("VALID"), output_size, voxel_size=gp.Coordinate(voxel_size))
@@ -40,7 +53,7 @@ def run(run: RunConfig):
     help="Set the logging level.",
 )
 def main(run_config, log_level="INFO"):
-    pkg_logger = logging.getLogger("organelle_mapping")
-    pkg_logger.setLevel(log_level.upper())
-    config = TypeAdapter(RunConfig).validate_python(yaml.safe_load(run_config))
+    setup_package_logger(log_level)
+
+    config = TypeAdapter(RunConfig).validate_python(yaml.safe_load(run_config), context={"base_dir": Path(run_config.name).parent})
     run(config)

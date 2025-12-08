@@ -26,6 +26,24 @@ from pydantic_ome_ngff.v04.transform import VectorScale, VectorTranslation
 logger = logging.getLogger(__name__)
 
 
+def setup_package_logger(log_level: str = "INFO") -> None:
+    """Set up the organelle_mapping package logger with consistent formatting.
+
+    Args:
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    """
+    pkg_logger = logging.getLogger("organelle_mapping")
+    pkg_logger.setLevel(log_level.upper())
+
+    # Add console handler if none exists
+    if not pkg_logger.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%m-%d %H:%M:%S')
+        handler.setFormatter(formatter)
+        pkg_logger.addHandler(handler)
+        pkg_logger.propagate = False  # Don't propagate to root logger
+
+
 def decimal_arr(arr, precision: int = 2) -> np.ndarray:
     """Convert array values to high-precision Decimal objects.
     

@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal, Union
 
 import corditea
 import gunpowder as gp
+import numpy as np
 from pydantic import BaseModel, Field
 from pydantic_core import core_schema
 
@@ -15,6 +16,17 @@ class AugmentationConfig(BaseModel, ABC):
     @abstractmethod
     def instantiate(self):
         pass
+
+    def adjust_max_extent(self, max_extent: gp.Coordinate) -> gp.Coordinate:
+        """Adjust maximum extent to account for augmentation's context requirements.
+
+        Args:
+            max_extent: Current maximum extent
+
+        Returns:
+            Adjusted maximum extent
+        """
+        return max_extent
 
 
 class ArrayKeyField:
@@ -47,13 +59,16 @@ class IntensityAugmentConfig(AugmentationConfig):
     scale_max: float = Field(1.5, description="Maximum scale for intensity augmentation.")
     shift_min: float = Field(-0.15, description="Minimum shift for intensity augmentation.")
     shift_max: float = Field(0.15, description="Maximum shift for intensity augmentation.")
-    z_section_wise: bool = Field(False, description="Perform augmentation z-section-wise.")
     clip: bool = True
     p: float = Field(
         1.0,
         ge=0.0,
         le=1.0,
         description="Probability of applying intensity augmentation.",
+    )
+    slab: tuple[int, ...] | None = Field(
+        None,
+        description="Shape specification to perform intensity augment in slabs. Use -1 for actual size.",
     )
 
     def instantiate(self):
@@ -63,9 +78,10 @@ class IntensityAugmentConfig(AugmentationConfig):
             self.scale_max,
             self.shift_min,
             self.shift_max,
-            z_section_wise=self.z_section_wise,
+            z_section_wise=None,  # Explicitly None to avoid gunpowder bug with default False
             clip=self.clip,
             p=self.p,
+            slab=self.slab,
         )
 
 
@@ -129,6 +145,25 @@ class ElasticAugmentConfig(AugmentationConfig):
             uniform_3d_rotation=self.uniform_3d_rotation,
         )
 
+    def adjust_max_extent(self, max_extent: gp.Coordinate) -> gp.Coordinate:
+        """Adjust for elastic deformation and rotation.
+
+        Displacement context is added first (sigma * 6 for both sides),
+        then rotation is applied to the full extent.
+        """
+        # Add displacement context (3-sigma on each side = 6*sigma total)
+        if any(cpds > 0 for cpds in self.control_point_displacement_sigma):
+            max_extent = max_extent + self.control_point_displacement_sigma * 6
+
+        # Apply rotation to full extent
+        if self.rotation_interval[1] > 0:
+            # Diagonal extent for worst-case rotation
+            max_extent = gp.Coordinate(
+                (np.ceil(np.sqrt(sum(max_extent**2))),) * len(max_extent)
+            )
+
+        return max_extent
+
 
 class IntensityScaleShiftConfig(AugmentationConfig):
     name: Literal["intensity_scale_shift"]
@@ -166,6 +201,16 @@ class GaussianNoiseAugmentConfig(AugmentationConfig):
         )
 
 
+class IntensityClipConfig(AugmentationConfig):
+    name: Literal["intensity_clip"]
+    array: ArrayKeyField
+    min_value: float = Field(description="Minimum value to clip to.")
+    max_value: float = Field(description="Maximum value to clip to.")
+
+    def instantiate(self):
+        return corditea.IntensityCrop(self.array, self.min_value, self.max_value)
+
+
 Augmentation = Annotated[
     Union[
         IntensityAugmentConfig,
@@ -174,6 +219,7 @@ Augmentation = Annotated[
         ElasticAugmentConfig,
         IntensityScaleShiftConfig,
         GaussianNoiseAugmentConfig,
+        IntensityClipConfig,
     ],
     Field(discriminator="name"),
 ]

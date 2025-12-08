@@ -21,15 +21,15 @@ classifiers = [
 ]
 dependencies = [
   "daisy",
-  "funlib.persistence@git+https://git@github.com/funkelab/funlib.persistence.git",
-  "fibsem-tools>=6.0",
+  "funlib.persistence@git+https://git@github.com/funkelab/funlib.persistence.git@main",
+  "fibsem-tools>=7.0.5",
   "matplotlib",
   "funlib.learn.torch@git+https://git@github.com/funkelab/funlib.learn.torch.git",
   "gunpowder",
-  "corditea@git+https://git@github.com/saalfeldlab/corditea.git",
   "torch",
   "click",
   "xarray",
+  "xarray-datatree",
   "zarr",
   "scikit-image",
   "xarray-multiscale",
@@ -44,9 +44,11 @@ dependencies = [
   "einops",
   "pydantic",
   "scikit-learn",
-  "cellmap-flow@git+https://git@github.com/neptunes5thmoon/cellmap-flow.git@fix/include_model_file",
   "funlib.show.neuroglancer",
-  "tensorboard"
+  "tensorboard",
+  "tems>=1.0.4",
+  "torchinfo",
+  "corditea@git+https://github.com/saalfeldlab/corditea.git"
 ]
 
 [project.urls]
@@ -190,7 +192,7 @@ tests = ["tests", "*/organelle-mapping/tests"]
 [tool.coverage.report]
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
-[tool.pixi.project]
+[tool.pixi.workspace]
 channels = ["nvidia", "pytorch", "conda-forge"]
 platforms = ["linux-64"]
 
@@ -204,12 +206,10 @@ typecheck = "mypy --install-types --non-interactive src/organelle_mapping tests"
 
 [tool.pixi.dependencies]
 python = "3.11.*"
+xarray-datatree = "*"
 
-
-[tool.pixi.feature.dev.pypi-dependencies]
-organelle-mapping = { path = ".", editable = true }
-
-
+[tool.pixi.feature.local-deps.pypi-options]
+dependency-overrides = { corditea = { path = "../corditea", editable = true } }
 
 [tool.pixi.feature.dev.dependencies]
 pytest = ">=7.3"
@@ -222,6 +222,11 @@ jupyter = ">=1.0"
 jupyterlab = ">=4.0"
 ipykernel = ">=6.23"
 
+[tool.pixi.feature.notebooks.dependencies]
+jupyter = ">=1.0"
+jupyterlab = ">=4.0"
+ipykernel = ">=6.23"
+
 [tool.pixi.environments]
 default = { solve-group = "default" }
-dev = { features = ["dev"], solve-group = "default" }
+dev = { features = ["dev", "notebooks", "local-deps"], solve-group = "dev" }

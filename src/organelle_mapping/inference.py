@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
     default="INFO",
 )
 def cli(log_level):
-    logging.basicConfig(level=getattr(logging, log_level.upper()))
+    setup_package_logger(log_level)
 
 
 def spawn_worker(
