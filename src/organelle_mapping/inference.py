@@ -435,7 +435,7 @@ def start_worker(
 
     client = daisy.Client()
 
-    model = load_eval_model(inference_config.architecture, checkpoint)
+    model = load_eval_model(inference_config.architecture, inference_config.targets, checkpoint)
     device = next(model.parameters()).device
 
     # Open raw dataset (OME-Zarr if scale specified, otherwise regular zarr)
