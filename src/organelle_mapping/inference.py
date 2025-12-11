@@ -7,7 +7,9 @@ import daisy
 import numpy as np
 import torch
 import yaml
-from funlib.persistence import Array, open_ds, prepare_ds
+import zarr
+from funlib.persistence import Array, open_ds
+from funlib.persistence import open_ome_ds as funlib_open_ome_ds
 from pathlib import Path
 from skimage.transform import rescale
 
@@ -16,6 +18,154 @@ from organelle_mapping.config.inference import InferenceConfig
 from organelle_mapping.utils import setup_package_logger
 
 logger = logging.getLogger(__name__)
+
+
+def prepare_ome_ds(
+    store: Path,
+    name: str,
+    shape: tuple,
+    offset: tuple | None = None,
+    voxel_size: tuple | None = None,
+    axis_names: list[str] | None = None,
+    units: list[str] | None = None,
+    chunk_shape: tuple | None = None,
+    dtype=np.float32,
+) -> Array:
+    """Prepare an OME-Zarr dataset by directly creating zarr with OME metadata.
+
+    This bypasses funlib.persistence and iohub bugs by creating the zarr
+    structure directly with proper OME-NGFF 0.4 metadata.
+    """
+    # Default values
+    if offset is None:
+        offset = (0,) * len(shape)
+    if voxel_size is None:
+        voxel_size = (1,) * min(3, len(shape))
+    if axis_names is None:
+        axis_names = ["z", "y", "x"][-len(shape):]
+    if units is None:
+        units = ["nanometer"] * min(3, len(shape))
+    if chunk_shape is None:
+        chunk_shape = shape
+
+    # Ensure parent zarr groups exist (needed for neuroglancer compatibility)
+    # Create .zgroup files at each level of the hierarchy
+    ds_path = store / name
+    for parent in list(ds_path.parents)[:-1]:  # All parents except filesystem root
+        if parent.suffix == ".zarr" or any(p.suffix == ".zarr" for p in parent.parents):
+            # This is inside a zarr store, ensure it's a valid group
+            zgroup_file = parent / ".zgroup"
+            if not zgroup_file.exists():
+                parent.mkdir(parents=True, exist_ok=True)
+                zgroup_file.write_text('{"zarr_format":2}')
+
+    # Create the zarr group at store/name
+    root = zarr.open_group(ds_path, mode="w")
+
+    # Create the data array at "0" (first scale level)
+    root.zeros(
+        "0",
+        shape=shape,
+        chunks=chunk_shape,
+        dtype=dtype,
+    )
+
+    # Build axes metadata (OME-NGFF 0.4 format) and types list for Array
+    axes = []
+    types = []
+    for ax_name in axis_names:
+        if ax_name.startswith("c"):
+            axes.append({"name": ax_name.rstrip("^"), "type": "channel"})
+            types.append("channel")
+        elif ax_name in ["t"]:
+            axes.append({"name": ax_name, "type": "time"})
+            types.append("time")
+        else:
+            # Get unit for this spatial axis
+            spatial_idx = len([a for a in axes if a.get("type") == "space"])
+            unit = units[spatial_idx] if spatial_idx < len(units) else "nanometer"
+            axes.append({"name": ax_name, "type": "space", "unit": unit})
+            types.append("space")
+
+    # Build coordinate transforms
+    # Scale: for non-spatial dims use 1, for spatial dims use voxel_size
+    scale = []
+    translation = []
+    spatial_idx = 0
+    for ax_name in axis_names:
+        if ax_name.startswith("c") or ax_name == "t":
+            scale.append(1)
+            translation.append(0)
+        else:
+            scale.append(voxel_size[spatial_idx] if spatial_idx < len(voxel_size) else 1)
+            translation.append(offset[spatial_idx] if spatial_idx < len(offset) else 0)
+            spatial_idx += 1
+
+    # Write OME-NGFF multiscales metadata
+    root.attrs["multiscales"] = [{
+        "version": "0.4",
+        "axes": axes,
+        "datasets": [{
+            "path": "0",
+            "coordinateTransformations": [
+                {"type": "scale", "scale": scale},
+                {"type": "translation", "translation": translation},
+            ]
+        }],
+    }]
+
+    # Return as funlib Array for compatibility
+    return Array(
+        root["0"],
+        offset=offset,
+        voxel_size=voxel_size,
+        axis_names=axis_names,
+        types=types,
+    )
+
+
+def open_ome_ds(store: Path, name: str, mode: str = "r") -> Array:
+    """Open an OME-Zarr dataset created by prepare_ome_ds."""
+    root = zarr.open_group(store, mode=mode)
+
+    # Parse multiscales metadata
+    multiscales = root.attrs.get("multiscales", [{}])[0]
+    axes = multiscales.get("axes", [])
+    datasets = multiscales.get("datasets", [{}])
+
+    # Find the requested dataset
+    ds_meta = next((d for d in datasets if d.get("path") == name), datasets[0] if datasets else {})
+    transforms = ds_meta.get("coordinateTransformations", [])
+
+    # Extract scale and translation
+    scale = [1] * len(axes)
+    translation = [0] * len(axes)
+    for t in transforms:
+        if t.get("type") == "scale":
+            scale = t.get("scale", scale)
+        elif t.get("type") == "translation":
+            translation = t.get("translation", translation)
+
+    # Extract axis names and types from OME metadata
+    axis_names = [a.get("name", f"d{i}") for i, a in enumerate(axes)]
+    # Map OME-Zarr types to funlib types (channel vs space)
+    types = [a.get("type", "space") for a in axes]
+
+    # Extract spatial dimensions only for offset/voxel_size
+    spatial_scale = []
+    spatial_offset = []
+    for i, ax in enumerate(axes):
+        if ax.get("type") == "space":
+            spatial_scale.append(scale[i])
+            spatial_offset.append(translation[i])
+
+    return Array(
+        root[name],
+        offset=tuple(spatial_offset) if spatial_offset else (0, 0, 0),
+        voxel_size=tuple(spatial_scale) if spatial_scale else (1, 1, 1),
+        axis_names=axis_names,
+        types=types,
+    )
 
 
 @click.group()
@@ -132,15 +282,19 @@ def predict(
     # Get input/output details
     in_container = inference_config.input_data.container
     in_dataset = inference_config.input_data.dataset
+    in_scale = inference_config.input_data.scale
     voxel_size = inference_config.input_data.voxel_size
     min_raw = inference_config.input_data.min_raw
     max_raw = inference_config.input_data.max_raw
-    
+
     out_container = inference_config.output_data.container
     out_dataset = inference_config.output_data.dataset
-    
-    # Open raw dataset
-    raw = open_ds(os.path.join(in_container, in_dataset), voxel_size=voxel_size)
+
+    # Open raw dataset (OME-Zarr if scale specified, otherwise regular zarr)
+    if in_scale is not None:
+        raw = funlib_open_ome_ds(Path(in_container) / in_dataset, in_scale)
+    else:
+        raw = open_ds(f"{in_container}/{in_dataset}", voxel_size=voxel_size)
     
     # Handle ROI
     if inference_config.output_data.roi is not None:
@@ -175,16 +329,16 @@ def predict(
                 shape = (num_channels,) + tuple((total_write_roi / output_voxel_size).shape)
                 chunk_shape = (num_channels,) + tuple((write_roi / output_voxel_size).shape)
                 axes = ["c^"] + ["z", "y", "x"]
-            prepare_ds(
-                f"{out_container}/{out_dataset}/{channel}",
+            prepare_ome_ds(
+                Path(out_container),
+                f"{out_dataset}/{channel}",
                 shape=shape,
-                # offset = total_write_roi.get_offset(),
+                offset=total_write_roi.get_offset(),
                 voxel_size=output_voxel_size,
                 axis_names=axes,
-                units=["nm", "nm", "nm"],
+                units=["nanometer", "nanometer", "nanometer"],
                 chunk_shape=chunk_shape,
                 dtype=np.uint8,
-                mode="w",
             )
     else:
         raise NotImplementedError("Instance prediction not implemented yet")
@@ -192,13 +346,14 @@ def predict(
         assert len(parsed_channels) == 1
         indexes, channel = parsed_channels[0]
         for i in range(0, num_channels, 3):
-            prepare_ds(
-                f"{out_container}/{out_dataset}/{channel}__{i}",
+            prepare_ome_ds(
+                Path(out_container),
+                f"{out_dataset}/{channel}__{i}",
                 shape=(num_channels, *(total_write_roi / output_voxel_size).shape),
                 offset=total_write_roi.get_offset(),
                 voxel_size=output_voxel_size,
                 axis_names=["c^", "z", "y", "x"],
-                units=["nm", "nm", "nm"],
+                units=["nanometer", "nanometer", "nanometer"],
                 chunk_shape=(num_channels, *write_roi.shape),
                 dtype=np.float32,
             )
@@ -263,32 +418,38 @@ def start_worker(
     num_outputs = inference_config.architecture.out_channels
     in_container = inference_config.input_data.container
     in_dataset = inference_config.input_data.dataset
+    in_scale = inference_config.input_data.scale
     voxel_size = inference_config.input_data.voxel_size
     min_raw = inference_config.input_data.min_raw
     max_raw = inference_config.input_data.max_raw
     out_container = inference_config.output_data.container
     out_dataset = inference_config.output_data.dataset
-    
+
     shift = min_raw
-    scale = max_raw - min_raw
+    normalization_scale = max_raw - min_raw
     parsed_channels = [[out.channels, out.name] for out in inference_config.output_data.outputs]
 
     client = daisy.Client()
 
     model = load_eval_model(inference_config.architecture, checkpoint)
     device = next(model.parameters()).device
-    raw_dataset = open_ds(os.path.join(in_container, in_dataset), voxel_size=voxel_size)
-    mask_datasets = [open_ds(mc, md, voxel_size=voxel_size) for mc, md in zip(mask_container, mask_dataset)]
+
+    # Open raw dataset (OME-Zarr if scale specified, otherwise regular zarr)
+    if in_scale is not None:
+        raw_dataset = funlib_open_ome_ds(Path(in_container) / in_dataset, in_scale)
+    else:
+        raw_dataset = open_ds(f"{in_container}/{in_dataset}", voxel_size=voxel_size)
+    mask_datasets = [open_ds(f"{mc}/{md}", voxel_size=voxel_size) for mc, md in zip(mask_container, mask_dataset)]
 
     # voxel_size = raw_dataset.voxel_size
     output_voxel_size = daisy.Coordinate(voxel_size)
     num_channels = num_outputs
     if not instance:
         out_datasets = [
-            open_ds(
-                f"{out_container}/{out_dataset}/{channel}",
+            open_ome_ds(
+                Path(out_container) / out_dataset / channel,
+                "0",
                 mode="r+",
-                voxel_size=output_voxel_size,
             )
             for _, channel in parsed_channels
         ]
@@ -297,7 +458,7 @@ def start_worker(
         assert len(parsed_channels) == 1
         indexes, channel = parsed_channels[0]
         out_datasets = [
-            open_ds(out_container, f"{out_dataset}/{channel}__{i}", mode="r+") for i in range(0, num_channels, 3)
+            open_ome_ds(Path(out_container) / out_dataset / f"{channel}__{i}", "0", mode="r+") for i in range(0, num_channels, 3)
         ]
 
     while True:
@@ -325,14 +486,14 @@ def start_worker(
             if not instance:
                 raw_input = (
                     2.0
-                    * (raw_dataset.to_ndarray(roi=block.read_roi, fill_value=shift + scale).astype(np.float32) - shift)
-                    / scale
+                    * (raw_dataset.to_ndarray(roi=block.read_roi, fill_value=shift + normalization_scale).astype(np.float32) - shift)
+                    / normalization_scale
                 ) - 1.0
             else:
                 raise NotImplementedError("Instance prediction not implemented yet")
                 raw_input = (
-                    raw_dataset.to_ndarray(roi=block.read_roi, fill_value=shift + scale).astype(np.float32) - shift
-                ) / scale
+                    raw_dataset.to_ndarray(roi=block.read_roi, fill_value=shift + normalization_scale).astype(np.float32) - shift
+                ) / normalization_scale
             raw_input = np.expand_dims(raw_input, (0, 1))
             write_roi = block.write_roi.intersect(out_datasets[0].roi)
 
@@ -346,6 +507,7 @@ def start_worker(
                     block.write_roi.offset,
                     output_voxel_size,
                     axis_names=["c^", "z", "y", "x"],
+                    types=["channel", "space", "space", "space"],
                 )
 
                 write_data = predictions.to_ndarray(write_roi).clip(0, 1)
