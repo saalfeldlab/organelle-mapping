@@ -116,8 +116,15 @@ def load_eval_model(architecture, targets, checkpoint_path: str):
 
     checkpoint = torch.load(checkpoint_path, weights_only=True)
 
-    # Load state dict into the base model (not the wrapper)
-    model.base_model.load_state_dict(checkpoint["model_state_dict"])
+    # Load state dict - check if saved with SACModel wrapper (base_model. prefix) or not
+    state_dict = checkpoint["model_state_dict"]
+    first_key = next(iter(state_dict.keys()))
+    if first_key.startswith("base_model."):
+        # Checkpoint was saved with SACModel wrapper, load into full model
+        model.load_state_dict(state_dict)
+    else:
+        # Checkpoint was saved without wrapper, load into base_model
+        model.base_model.load_state_dict(state_dict)
 
     model.to(device)
     model.eval()
