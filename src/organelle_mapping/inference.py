@@ -186,6 +186,7 @@ def spawn_worker(
     mask_datasets=list(),
     instance: bool = False,
     time_limit: int = 2000,
+    queue: str = "gpu_rtx8000",
 ):
     def run_worker():
         mask_args = []
@@ -211,7 +212,7 @@ def spawn_worker(
                     "-J",
                     "pred",
                     "-q",
-                    "gpu_rtx8000",
+                    queue,
                     "-n",
                     "2",
                     "-gpu",
@@ -250,6 +251,7 @@ def spawn_worker(
 )  # ignore
 @click.option("--instance", type=bool, default=False, help="For affinity predictions")
 @click.option("-tw", "--per-block-time-estimate", type=float, default=30, help="Time estimate per block in seconds")
+@click.option("-q", "--queue", type=str, default="gpu_rtx8000", help="GPU queue for cluster runs (e.g., gpu_rtx8000, gpu_a100)")
 def predict(
     config,
     workers,
@@ -259,6 +261,7 @@ def predict(
     mask_dataset,
     instance,
     per_block_time_estimate,
+    queue,
 ):
     if not local:
         assert billing is not None
@@ -371,6 +374,7 @@ def predict(
             mask_dataset,
             instance,
             time_limit,
+            queue,
         ),
         check_function=None,
         read_write_conflict=False,
