@@ -328,7 +328,9 @@ def predict(
                 chunk_shape = tuple((write_roi / output_voxel_size).shape)
                 axes = ["z", "y", "x"]
             else:
-                num_channels = len(range(int(indexes.split("-")[0]), int(indexes.split("-")[1])))
+                # Parse range like "0-9" -> 10 channels (inclusive end)
+                start, end = int(indexes.split("-")[0]), int(indexes.split("-")[1])
+                num_channels = end - start + 1
                 shape = (num_channels,) + tuple((total_write_roi / output_voxel_size).shape)
                 chunk_shape = (num_channels,) + tuple((write_roi / output_voxel_size).shape)
                 axes = ["c^"] + ["z", "y", "x"]
@@ -518,9 +520,10 @@ def start_worker(
                 if not instance:
                     write_data = (write_data) * 255.0  # / 2.0
                     for (i, _), out_dataset in zip(parsed_channels, out_datasets):
-                        indexes = []
                         if "-" in i:
-                            indexes = [int(j) for j in i.split("-")]
+                            # Parse range like "0-9" -> [0, 1, 2, ..., 9]
+                            start, end = [int(j) for j in i.split("-")]
+                            indexes = list(range(start, end + 1))
                         else:
                             indexes = [int(i)]
                         if len(indexes) > 1:
