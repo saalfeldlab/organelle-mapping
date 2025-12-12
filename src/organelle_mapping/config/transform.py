@@ -129,7 +129,7 @@ class LSDConfig(TransformConfig):
     """Configuration for Local Shape Descriptor (LSD) output transform."""
 
     type: Literal["lsd"] = "lsd"
-    activation: ActivationStr = "Tanh"
+    activation: ActivationStr = "Sigmoid"
     sigma: float = Field(default=5.0, description="Context size for computing descriptors")
     downsample: Optional[int] = 1
     background_mode: Literal["exclude", "zero", "label"] = Field(
