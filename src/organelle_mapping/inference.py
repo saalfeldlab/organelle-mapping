@@ -508,8 +508,9 @@ def start_worker(
                 continue
 
             with torch.no_grad():
+                pred_data = model.forward(torch.from_numpy(raw_input).float().to(device)).detach().cpu().numpy()[0]
                 predictions = Array(
-                    model.forward(torch.from_numpy(raw_input).float().to(device)).detach().cpu().numpy()[0],
+                    pred_data,
                     block.write_roi.offset,
                     output_voxel_size,
                     axis_names=["c^", "z", "y", "x"],
