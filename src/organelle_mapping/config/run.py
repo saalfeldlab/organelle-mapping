@@ -1,8 +1,6 @@
-from pathlib import Path
 from typing import Optional, Sequence
 
-import yaml
-from pydantic import BaseModel, Field, TypeAdapter, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from organelle_mapping.config.augmentations import AugmentationPipeline
 from organelle_mapping.config.data import DataConfig
@@ -10,23 +8,6 @@ from organelle_mapping.config.models import Architecture
 from organelle_mapping.config.utils import load_subconfig
 from organelle_mapping.config.target import Target
 from organelle_mapping.config.checkpoint_edit import CheckpointEditConfig
-
-
-def load_subconfig(value, target_cls, info: ValidationInfo):
-    if isinstance(value, str):
-        config_path = Path(value)
-
-        # Try to get base_dir from validation context
-        base_dir = info.context.get('base_dir') if info.context else "."
-
-        # Resolve path relative to base_dir if provided
-        if not config_path.is_absolute():
-            config_path = Path(base_dir) / config_path
-
-        with open(config_path) as config:
-            return TypeAdapter(target_cls).validate_python(yaml.safe_load(config), context=info.context)
-
-    return value
 
 
 class RunConfig(BaseModel):
