@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+from pathlib import Path
 
 import click
 import daisy
@@ -10,11 +11,9 @@ import yaml
 import zarr
 from funlib.persistence import Array, open_ds
 from funlib.persistence import open_ome_ds as funlib_open_ome_ds
-from pathlib import Path
-from skimage.transform import rescale
 
-from organelle_mapping.model import load_eval_model
 from organelle_mapping.config.inference import InferenceConfig
+from organelle_mapping.model import load_eval_model
 from organelle_mapping.utils import setup_package_logger
 
 logger = logging.getLogger(__name__)
@@ -42,7 +41,7 @@ def prepare_ome_ds(
     if voxel_size is None:
         voxel_size = (1,) * min(3, len(shape))
     if axis_names is None:
-        axis_names = ["z", "y", "x"][-len(shape):]
+        axis_names = ["z", "y", "x"][-len(shape) :]
     if units is None:
         units = ["nanometer"] * min(3, len(shape))
     if chunk_shape is None:
@@ -102,17 +101,21 @@ def prepare_ome_ds(
             spatial_idx += 1
 
     # Write OME-NGFF multiscales metadata
-    root.attrs["multiscales"] = [{
-        "version": "0.4",
-        "axes": axes,
-        "datasets": [{
-            "path": "0",
-            "coordinateTransformations": [
-                {"type": "scale", "scale": scale},
-                {"type": "translation", "translation": translation},
-            ]
-        }],
-    }]
+    root.attrs["multiscales"] = [
+        {
+            "version": "0.4",
+            "axes": axes,
+            "datasets": [
+                {
+                    "path": "0",
+                    "coordinateTransformations": [
+                        {"type": "scale", "scale": scale},
+                        {"type": "translation", "translation": translation},
+                    ],
+                }
+            ],
+        }
+    ]
 
     # Return as funlib Array for compatibility
     return Array(
@@ -181,13 +184,18 @@ def cli(log_level):
 def spawn_worker(
     config,
     billing,
-    local=True,
-    mask_containers=list(),
-    mask_datasets=list(),
+    *,
+    local: bool = True,
+    mask_containers=None,
+    mask_datasets=None,
     instance: bool = False,
     time_limit: int = 2000,
     queue: str = "gpu_rtx8000",
 ):
+    if mask_datasets is None:
+        mask_datasets = []
+    if mask_containers is None:
+        mask_containers = []
     def run_worker():
         mask_args = []
         for mask_container, mask_dataset in zip(mask_containers, mask_datasets):
@@ -202,7 +210,7 @@ def spawn_worker(
             *mask_args,
         ]
         if local:
-            subprocess.run(process_cmd)
+            subprocess.run(process_cmd, check=False)
         else:
             subprocess.run(
                 [
@@ -224,7 +232,7 @@ def spawn_worker(
                     "-W",
                     f"{time_limit}",
                     *process_cmd,
-                ]
+                ], check=False
             )
 
     return run_worker
@@ -240,18 +248,20 @@ def spawn_worker(
     "--mask-container",
     type=click.Path(file_okay=False),
     multiple=True,
-    default=list(),
+    default=None,
 )  # ignore
 @click.option(
     "-md",
     "--mask-dataset",
     type=click.Path(file_okay=False),
     multiple=True,
-    default=list(),
+    default=None,
 )  # ignore
 @click.option("--instance", type=bool, default=False, help="For affinity predictions")
 @click.option("-tw", "--per-block-time-estimate", type=float, default=30, help="Time estimate per block in seconds")
-@click.option("-q", "--queue", type=str, default="gpu_rtx8000", help="GPU queue for cluster runs (e.g., gpu_rtx8000, gpu_a100)")
+@click.option(
+    "-q", "--queue", type=str, default="gpu_rtx8000", help="GPU queue for cluster runs (e.g., gpu_rtx8000, gpu_a100)"
+)
 def predict(
     config,
     workers,
@@ -263,32 +273,37 @@ def predict(
     per_block_time_estimate,
     queue,
 ):
-    if not local:
-        assert billing is not None
-    
+    if not local and billing is None:
+        msg = "billing account is required for cluster runs"
+        raise ValueError(msg)
+    if mask_container is None:
+        mask_container = []
+    if mask_dataset is None:
+        mask_dataset = []
     # Load config
-    inference_config = InferenceConfig.model_validate(yaml.safe_load(open(config)), context={"base_dir": Path(config).parent})
-    
+    inference_config = InferenceConfig.model_validate(
+        yaml.safe_load(open(config)), context={"base_dir": Path(config).parent}
+    )
+
     # Extract values from config
     checkpoint = inference_config.checkpoint
-    assert os.path.exists(checkpoint)
-    
+    if not os.path.exists(checkpoint):
+        msg = f"checkpoint does not exist: {checkpoint}"
+        raise FileNotFoundError(msg)
+
     # Parse channels from output config
-    channels_str = ",".join([f"{out.channels}:{out.name}" for out in inference_config.output_data.outputs])
+    ",".join([f"{out.channels}:{out.name}" for out in inference_config.output_data.outputs])
     parsed_channels = [[out.channels, out.name] for out in inference_config.output_data.outputs]
-    
+
     # Get architecture details
     input_shape = inference_config.architecture.input_shape
     output_shape = inference_config.architecture.output_shape
-    num_outputs = inference_config.architecture.out_channels
-    
+
     # Get input/output details
     in_container = inference_config.input_data.container
     in_dataset = inference_config.input_data.dataset
     in_scale = inference_config.input_data.scale
     voxel_size = inference_config.input_data.voxel_size
-    min_raw = inference_config.input_data.min_raw
-    max_raw = inference_config.input_data.max_raw
 
     out_container = inference_config.output_data.container
     out_dataset = inference_config.output_data.dataset
@@ -298,12 +313,12 @@ def predict(
         raw = funlib_open_ome_ds(Path(in_container) / in_dataset, in_scale)
     else:
         raw = open_ds(f"{in_container}/{in_dataset}", voxel_size=voxel_size)
-    
+
     # Handle ROI
     if inference_config.output_data.roi is not None:
         parsed_roi = daisy.Roi(
-            daisy.Coordinate(inference_config.output_data.roi.start), 
-            daisy.Coordinate(inference_config.output_data.roi.end)
+            daisy.Coordinate(inference_config.output_data.roi.start),
+            daisy.Coordinate(inference_config.output_data.roi.end),
         )
     else:
         parsed_roi = raw.roi
@@ -331,9 +346,9 @@ def predict(
                 # Parse range like "0-9" -> 10 channels (inclusive end)
                 start, end = int(indexes.split("-")[0]), int(indexes.split("-")[1])
                 num_channels = end - start + 1
-                shape = (num_channels,) + tuple((total_write_roi / output_voxel_size).shape)
-                chunk_shape = (num_channels,) + tuple((write_roi / output_voxel_size).shape)
-                axes = ["c^"] + ["z", "y", "x"]
+                shape = (num_channels, *tuple((total_write_roi / output_voxel_size).shape))
+                chunk_shape = (num_channels, *tuple((write_roi / output_voxel_size).shape))
+                axes = ["c^", "z", "y", "x"]
             prepare_ome_ds(
                 Path(out_container),
                 f"{out_dataset}/{channel}",
@@ -346,22 +361,8 @@ def predict(
                 dtype=np.uint8,
             )
     else:
-        raise NotImplementedError("Instance prediction not implemented yet")
-        num_channels = num_outputs
-        assert len(parsed_channels) == 1
-        indexes, channel = parsed_channels[0]
-        for i in range(0, num_channels, 3):
-            prepare_ome_ds(
-                Path(out_container),
-                f"{out_dataset}/{channel}__{i}",
-                shape=(num_channels, *(total_write_roi / output_voxel_size).shape),
-                offset=total_write_roi.get_offset(),
-                voxel_size=output_voxel_size,
-                axis_names=["c^", "z", "y", "x"],
-                units=["nanometer", "nanometer", "nanometer"],
-                chunk_shape=(num_channels, *write_roi.shape),
-                dtype=np.float32,
-            )
+        msg = "Instance prediction not implemented yet"
+        raise NotImplementedError(msg)
 
     task = daisy.Task(
         "test_server_task",
@@ -371,12 +372,12 @@ def predict(
         process_function=spawn_worker(
             config,
             billing,
-            local,
-            mask_container,
-            mask_dataset,
-            instance,
-            time_limit,
-            queue,
+            local=local,
+            mask_containers=mask_container,
+            mask_datasets=mask_dataset,
+            instance=instance,
+            time_limit=time_limit,
+            queue=queue,
         ),
         check_function=None,
         read_write_conflict=False,
@@ -396,14 +397,14 @@ def predict(
     "--mask-container",
     type=click.Path(file_okay=False),
     multiple=True,
-    default=list(),
+    default=None,
 )
 @click.option(
     "-md",
     "--mask-dataset",
     type=click.Path(file_okay=False),
     multiple=True,
-    default=list(),
+    default=None,
 )
 @click.option(
     "--instance",
@@ -417,11 +418,16 @@ def start_worker(
     instance,
 ):
     # Load config
-    inference_config = InferenceConfig.model_validate(yaml.safe_load(open(config)), context={"base_dir": Path(config).parent})
-    
+    inference_config = InferenceConfig.model_validate(
+        yaml.safe_load(open(config)), context={"base_dir": Path(config).parent}
+    )
+    if mask_container is None:
+        mask_container = []
+    if mask_dataset is None:
+        mask_dataset = []
+
     # Extract values from config
     checkpoint = inference_config.checkpoint
-    num_outputs = inference_config.architecture.out_channels
     in_container = inference_config.input_data.container
     in_dataset = inference_config.input_data.dataset
     in_scale = inference_config.input_data.scale
@@ -449,7 +455,6 @@ def start_worker(
 
     # voxel_size = raw_dataset.voxel_size
     output_voxel_size = daisy.Coordinate(voxel_size)
-    num_channels = num_outputs
     if not instance:
         out_datasets = [
             open_ome_ds(
@@ -460,12 +465,8 @@ def start_worker(
             for _, channel in parsed_channels
         ]
     else:
-        raise NotImplementedError("Instance prediction not implemented yet")
-        assert len(parsed_channels) == 1
-        indexes, channel = parsed_channels[0]
-        out_datasets = [
-            open_ome_ds(Path(out_container) / out_dataset / f"{channel}__{i}", "0", mode="r+") for i in range(0, num_channels, 3)
-        ]
+        msg = "Instance prediction not implemented yet"
+        raise NotImplementedError(msg)
 
     while True:
         with client.acquire_block() as block:
@@ -473,15 +474,13 @@ def start_worker(
                 break
             if len(mask_datasets) > 0:
                 mask_data = any(
-                    [
-                        np.any(
+                    np.any(
                             mask_dataset.to_ndarray(
                                 roi=block.read_roi.snap_to_grid(mask_dataset.voxel_size),
                                 fill_value=0,
                             )
                         )
                         for mask_dataset in mask_datasets
-                    ]
                 )
             else:
                 mask_data = 1
@@ -489,17 +488,17 @@ def start_worker(
                 # avoid predicting if mask is empty
                 continue
 
-            if not instance:
-                raw_input = (
-                    2.0
-                    * (raw_dataset.to_ndarray(roi=block.read_roi, fill_value=shift + normalization_scale).astype(np.float32) - shift)
-                    / normalization_scale
-                ) - 1.0
-            else:
-                raise NotImplementedError("Instance prediction not implemented yet")
-                raw_input = (
-                    raw_dataset.to_ndarray(roi=block.read_roi, fill_value=shift + normalization_scale).astype(np.float32) - shift
-                ) / normalization_scale
+            # Instance case already raised NotImplementedError earlier
+            raw_input = (
+                2.0
+                * (
+                    raw_dataset.to_ndarray(roi=block.read_roi, fill_value=shift + normalization_scale).astype(
+                        np.float32
+                    )
+                    - shift
+                )
+                / normalization_scale
+            ) - 1.0
             raw_input = np.expand_dims(raw_input, (0, 1))
             write_roi = block.write_roi.intersect(out_datasets[0].roi)
 
@@ -518,21 +517,20 @@ def start_worker(
                 )
 
                 write_data = predictions.to_ndarray(write_roi).clip(0, 1)
-                if not instance:
-                    write_data = (write_data) * 255.0  # / 2.0
-                    for (i, _), out_dataset in zip(parsed_channels, out_datasets):
-                        if "-" in i:
-                            # Parse range like "0-9" -> [0, 1, 2, ..., 9]
-                            start, end = [int(j) for j in i.split("-")]
-                            indexes = list(range(start, end + 1))
-                        else:
-                            indexes = [int(i)]
-                        if len(indexes) > 1:
-                            out_dataset[write_roi] = np.stack([write_data[j] for j in indexes], axis=0).astype(np.uint8)
-                        else:
-                            out_dataset[write_roi] = write_data[indexes[0]].astype(np.uint8)
-                else:
-                    for i, out_dataset in zip(range(0, num_channels, 3), out_datasets):
-                        out_dataset[write_roi] = write_data[i : i + 3].astype(np.float32)
+                # Instance case already raised NotImplementedError earlier
+                write_data = (write_data) * 255.0  # / 2.0
+                for (i, _), out_dataset in zip(parsed_channels, out_datasets):
+                    if "-" in i:
+                        # Parse range like "0-9" -> [0, 1, 2, ..., 9]
+                        start, end = [int(j) for j in i.split("-")]
+                        indexes = list(range(start, end + 1))
+                    else:
+                        indexes = [int(i)]
+                    if len(indexes) > 1:
+                        out_dataset[write_roi] = np.stack([write_data[j] for j in indexes], axis=0).astype(np.uint8)
+                    else:
+                        out_dataset[write_roi] = write_data[indexes[0]].astype(np.uint8)
 
             block.status = daisy.BlockStatus.SUCCESS
+
+
