@@ -14,6 +14,7 @@ from funlib.persistence import open_ome_ds as funlib_open_ome_ds
 
 from organelle_mapping.config.inference import InferenceConfig
 from organelle_mapping.model import load_eval_model
+from organelle_mapping.neuroglancer_state import state_from_inference_config
 from organelle_mapping.utils import setup_package_logger
 
 logger = logging.getLogger(__name__)
@@ -534,3 +535,55 @@ def start_worker(
             block.status = daisy.BlockStatus.SUCCESS
 
 
+@cli.command()
+@click.option("-c", "--config", type=click.Path(exists=True), help="Path to inference config YAML file")
+@click.option(
+    "--raw-url",
+    type=str,
+    default=None,
+    help="Fileglancer URL for raw data. The path after TOKEN is matched against the config's container path.",
+)
+@click.option(
+    "--pred-url",
+    type=str,
+    default=None,
+    help="Fileglancer URL for predictions. The path after TOKEN is matched against the config's container path.",
+)
+@click.option("-o", "--output", type=click.Path(), default=None, help="Output file for JSON state (default: stdout)")
+def neuroglancer_state(config, raw_url, pred_url, output):
+    """Generate a Neuroglancer JSON state for viewing predictions.
+
+    Reads the inference config to determine raw data location and prediction
+    outputs, then generates a JSON state that can be loaded into Neuroglancer.
+
+    The fileglancer URLs should point to any directory in the data path. The
+    path after the token (e.g., /fc/files/TOKEN/jrc_fly-mb-1a.zarr) is matched
+    against the config's container path to build the final URLs.
+
+    Examples:
+        # Generate state for local files
+        inference neuroglancer-state -c inference.yaml
+
+        # Generate state with fileglancer URLs (zarr container level)
+        inference neuroglancer-state -c inference.yaml \\
+            --raw-url https://fileglancer.../fc/files/TOKEN/jrc_fly-mb-1a.zarr \\
+            --pred-url https://fileglancer.../fc/files/TOKEN/jrc_fly-mb-1a.zarr
+
+        # Save to file
+        inference neuroglancer-state -c inference.yaml -o state.json
+    """
+    # Generate state
+    state = state_from_inference_config(
+        config,
+        raw_fileglancer_url=raw_url,
+        prediction_fileglancer_url=pred_url,
+    )
+
+    # Output
+    json_output = state.to_json(indent=2)
+    if output:
+        with open(output, "w") as f:
+            f.write(json_output)
+        logger.info(f"Wrote Neuroglancer state to {output}")
+    else:
+        click.echo(json_output)
