@@ -116,12 +116,13 @@ def build_source_url(
         fg_url = fileglancer_url.rstrip("/")
 
         # Extract the path portion after the token
-        # URL format: https://fileglancer.int.janelia.org/fc/files/TOKEN/path/to/dir
+        # URL format: https://fileglancer.int.janelia.org/files/TOKEN/path/to/dir
+        # (also handles legacy /fc/files/ format)
         # We want the "path/to/dir" part (after the token)
-        if "/fc/files/" in fg_url:
-            after_fc_files = fg_url.split("/fc/files/", 1)[1]
-            # Skip the token (first component after /fc/files/)
-            parts = after_fc_files.split("/", 1)
+        if "/files/" in fg_url:
+            after_files = fg_url.split("/files/", 1)[1]
+            # Skip the token (first component after /files/)
+            parts = after_files.split("/", 1)
             fg_path = parts[1] if len(parts) > 1 else ""
         else:
             # Fallback: use everything after the last slash
