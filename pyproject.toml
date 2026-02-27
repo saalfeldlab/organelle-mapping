@@ -61,6 +61,7 @@ data_prep = "organelle_mapping.data_preparation:cli"
 train = "organelle_mapping.run:main"
 inference = "organelle_mapping.inference:cli"
 evaluate = "organelle_mapping.evaluation:cli"
+postprocess = "organelle_mapping.postprocessing:cli"
 
 [tool.hatch.version]
 path = "src/organelle_mapping/__about__.py"
