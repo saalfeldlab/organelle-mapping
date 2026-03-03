@@ -67,7 +67,6 @@ class TestDataFlow:
             request[gp.ArrayKey("MASK")] = gp.Roi((0, 0, 0), output_size)
             request[gp.ArrayKey("RAW")] = gp.Roi((0, 0, 0), input_size)
             batch = pp.request_batch(request)
-        print(batch[gp.ArrayKey("RAW")].data.shape)
         plt.imsave("raw.png", batch[gp.ArrayKey("RAW")].data[0][0][89], vmin=0, vmax=1)
         plt.imsave("pm.png", batch[gp.ArrayKey("LABELS")].data[0][0])
         # plt.imsave("mito_")

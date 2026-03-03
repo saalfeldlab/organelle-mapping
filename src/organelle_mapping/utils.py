@@ -95,27 +95,15 @@ def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
     Returns:
         bool: True if corner offset is aligned to both raw and crop resolutions
 
-    Note:
-        Prints debug information if offset is not valid
     """
     corner_off_arr = corner_offset(decimal_arr(center_off_arr), decimal_arr(raw_res_arr), decimal_arr(crop_res_arr))
-    # for co, rr, cr in zip(corner_off_arr, raw_res_arr, crop_res_arr):
-    #     if not np.isclose(float(Decimal(str(co)) % Decimal(str(rr))),0):
-    #         print(co, rr, co % rr)
-    #         return False
-    #     if not np.isclose(float(Decimal(str(co)) % Decimal(str(cr))),0):
-    #         print(co, cr, co % cr)
-    #         return False
-    # return True
-    if not (np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(corner_off_arr % crop_res_arr == Decimal(0))):
-        print(
-            center_off_arr,
-            raw_res_arr,
-            crop_res_arr,
-            corner_off_arr % raw_res_arr,
-            corner_off_arr % crop_res_arr,
+    is_valid = np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(corner_off_arr % crop_res_arr == Decimal(0))
+    if not is_valid:
+        logger.debug(
+            f"Invalid corner offset: center={center_off_arr}, raw_res={raw_res_arr}, crop_res={crop_res_arr}, "
+            f"corner%%raw_res={corner_off_arr % raw_res_arr}, corner%%crop_res={corner_off_arr % crop_res_arr}"
         )
-    return np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(corner_off_arr % crop_res_arr == Decimal(0))
+    return is_valid
 
 
 def all_combinations(iterable):
@@ -505,6 +493,7 @@ def infer_nominal_transform(scale: dict[str, float], offset: dict[str, float]) -
     """
     if offset.keys() != scale.keys():
         msg = f"Keys of offset {offset.keys()} do not match keys of scale {scale.keys()}."
+        raise ValueError(msg)
     if len(set(scale.values())) == len(scale.values()):
         msg = "Scales along all axes are unique, cannot infer nominal transform."
         raise ValueError(msg)
@@ -515,11 +504,11 @@ def infer_nominal_transform(scale: dict[str, float], offset: dict[str, float]) -
         raise ValueError(msg)
     nominal_scale_val = int(nominal_scale_val)
     nominal_scale = dict.fromkeys(scale.keys(), nominal_scale_val)
-    nominal_offset = {}
+    nominal_offset: dict[str, int] = {}
     for ax, off in offset.items():
         pix_off = off / scale[ax]
         # assert np.isclose(int(pix_off * 2), pix_off * 2, 1e-4), f"{pix_off}"
-        nominal_offset[ax] = int(round(pix_off * nominal_scale_val))
+        nominal_offset[ax] = round(pix_off * nominal_scale_val)
     return nominal_scale, nominal_offset
 
 

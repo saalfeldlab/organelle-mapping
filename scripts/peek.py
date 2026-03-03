@@ -1,17 +1,20 @@
-import sys
+import logging
 
 import yaml
 from funlib.geometry.coordinate import Coordinate
 
 from organelle_mapping.model import load_eval_model
 
-print("Starting peek.py script...", file=sys.stderr)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+logger.info("Starting peek.py script...")
 
 network_config_path = "architecture.yaml"
 checkpoint_path = "model_checkpoint_470000"
 
-print(f"Looking for config at: {network_config_path}", file=sys.stderr)
-print(f"Looking for checkpoint at: {checkpoint_path}", file=sys.stderr)
+logger.info(f"Looking for config at: {network_config_path}")
+logger.info(f"Looking for checkpoint at: {checkpoint_path}")
 
 try:
     # Load and parse the architecture config
@@ -24,16 +27,16 @@ try:
 
     # Convert dict to proper Architecture config object
     network_config = TypeAdapter(Architecture).validate_python(config_dict)
-    print("Successfully loaded network config", file=sys.stderr)
+    logger.info("Successfully loaded network config")
 except Exception as e:
-    print(f"Error loading config: {e}", file=sys.stderr)
+    logger.error(f"Error loading config: {e}")
     raise
 
 try:
     model = load_eval_model(network_config, checkpoint_path)
-    print("Successfully loaded model", file=sys.stderr)
+    logger.info("Successfully loaded model")
 except Exception as e:
-    print(f"Error loading model: {e}", file=sys.stderr)
+    logger.error(f"Error loading model: {e}")
     raise
 
 # Define voxel sizes
@@ -48,10 +51,10 @@ write_shape = Coordinate(network_config.output_shape) * Coordinate(output_voxel_
 output_channels = network_config.out_channels
 block_shape = (*network_config.output_shape, output_channels)
 
-print("Setup complete:", file=sys.stderr)
-print(f"  Input voxel size: {input_voxel_size}", file=sys.stderr)
-print(f"  Output voxel size: {output_voxel_size}", file=sys.stderr)
-print(f"  Read shape: {read_shape}", file=sys.stderr)
-print(f"  Write shape: {write_shape}", file=sys.stderr)
-print(f"  Output channels: {output_channels}", file=sys.stderr)
-print(f"  Block shape: {block_shape}", file=sys.stderr)
+logger.info("Setup complete:")
+logger.info(f"  Input voxel size: {input_voxel_size}")
+logger.info(f"  Output voxel size: {output_voxel_size}")
+logger.info(f"  Read shape: {read_shape}")
+logger.info(f"  Write shape: {write_shape}")
+logger.info(f"  Output channels: {output_channels}")
+logger.info(f"  Block shape: {block_shape}")

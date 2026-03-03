@@ -184,9 +184,9 @@ def _find_duplicates(data_config):
     datas = yaml.safe_load(data_config)
     for key, ds_info in datas["datasets"].items():
         # crop_to_offset = dict()
-        scales = dict()
-        sizes = dict()
-        offset_to_crops = dict()
+        scales = {}
+        sizes = {}
+        offset_to_crops = {}
         for crop in ds_info["labels"]["crops"]:
             for c in crop.split(","):
                 crop_path = Path(ds_info["labels"]["data"]) / ds_info["labels"]["group"] / c
@@ -246,7 +246,7 @@ class Crop:
     def get_annotation_type(self, label: str, scale_level="s0") -> str:
         return self.crop_root[label][scale_level].attrs["cellmap"]["annotation"]["annotation_type"]["type"]
 
-    def get_attributes(self, label: Optional[str] = None, scale_level: Optional[str] = "s0") -> dict():
+    def get_attributes(self, label: Optional[str] = None, scale_level: Optional[str] = "s0") -> dict:
         attr_src = self.crop_root
         if label is not None:
             attr_src = attr_src[label]

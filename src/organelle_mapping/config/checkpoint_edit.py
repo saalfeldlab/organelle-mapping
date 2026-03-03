@@ -46,8 +46,10 @@ class CheckpointEditConfig(BaseModel):
 
         # Validate existence after resolution
         if not self.source_experiment.exists():
-            raise ValueError(f"Source experiment config does not exist: {self.source_experiment}")
+            msg = f"Source experiment config does not exist: {self.source_experiment}"
+            raise ValueError(msg)
         if not self.source_checkpoint.exists():
-            raise ValueError(f"Source checkpoint does not exist: {self.source_checkpoint}")
+            msg = f"Source checkpoint does not exist: {self.source_checkpoint}"
+            raise ValueError(msg)
 
         return self

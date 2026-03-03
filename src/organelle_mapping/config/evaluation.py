@@ -1,8 +1,6 @@
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional
 
-import yaml
-from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from organelle_mapping.config.data import DataConfig
 from organelle_mapping.config.models import Architecture
@@ -58,7 +56,8 @@ class EvaluationConfig(BaseModel):
         """Ensure all thresholds are between 0 and 1."""
         for thresh in v:
             if not 0.0 <= thresh <= 1.0:
-                raise ValueError(f"Threshold {thresh} must be between 0.0 and 1.0")
+                msg = f"Threshold {thresh} must be between 0.0 and 1.0"
+                raise ValueError(msg)
         return sorted(v)  # Sort for consistency
 
     @model_validator(mode="after")

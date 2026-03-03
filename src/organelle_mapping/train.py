@@ -45,7 +45,7 @@ def make_data_pipeline(
 
     logger.info(f"Maximum output extent after accounting for transforms and augmentations: {max_out_extent}")
 
-    for ds_name, ds_info in run.data.datasets.items():
+    for _ds_name, ds_info in run.data.datasets.items():
         for crops in ds_info.labels.crops:
             for crop in crops.split(","):
                 src = CellMapCropSource(

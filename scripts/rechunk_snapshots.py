@@ -46,7 +46,8 @@ def add_ome_metadata(
     if array_name in group.group_keys():
         subgroup = group[array_name]
         if "s0" not in subgroup.array_keys():
-            raise ValueError(f"Subgroup {array_name} exists but has no 's0' array")
+            msg = f"Subgroup {array_name} exists but has no 's0' array"
+            raise ValueError(msg)
         # Check if OME metadata already exists - if so, skip to avoid overwriting with defaults
         if "multiscales" in subgroup.attrs:
             logger.info(f"  {array_name} already has OME metadata, skipping")
@@ -58,7 +59,8 @@ def add_ome_metadata(
         logger.info(f"  Moving {array_name} to {array_name}/s0 structure")
 
         if array_name not in group.array_keys():
-            raise ValueError(f"Array {array_name} not found in group - it may have been moved already")
+            msg = f"Array {array_name} not found in group - it may have been moved already"
+            raise ValueError(msg)
 
         # Store reference to the array
         source_array_data = group[array_name]
@@ -214,10 +216,8 @@ def rechunk_array_inplace(
     ndim = len(source_array.shape)
     if ndim == 4:
         channel_dim = 0
-        spatial_start = 1
     elif ndim == 5:
         channel_dim = 1
-        spatial_start = 2
     else:
         logger.warning(f"  Unexpected number of dimensions: {ndim}, expected 4 or 5")
         # Still add metadata if requested
@@ -317,7 +317,8 @@ def main(snapshots_dir: Path, array: str, workers: int, no_metadata: bool, voxel
     if voxel_size is not None:
         voxel_size_tuple = tuple(float(x) for x in voxel_size.split(","))
         if len(voxel_size_tuple) != 3:
-            raise ValueError(f"voxel_size must have 3 values (z,y,x), got: {voxel_size}")
+            msg = f"voxel_size must have 3 values (z,y,x), got: {voxel_size}"
+            raise ValueError(msg)
         logger.info(f"Using provided voxel_size={voxel_size_tuple} nm")
     else:
         logger.info("Will try to read voxel_size from array attributes")

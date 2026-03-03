@@ -8,17 +8,13 @@ import torch
 import yaml
 import zarr
 from funlib.geometry.coordinate import Coordinate
-from funlib.geometry.roi import Roi
-from funlib.persistence import open_ds
 from pydantic import TypeAdapter
 from skimage.measure import block_reduce
 
-from organelle_mapping.config.data import DataConfig
 from organelle_mapping.config.evaluation import EvaluationConfig
-from organelle_mapping.config.run import RunConfig
 from organelle_mapping.metrics import dice_score, jaccard
 from organelle_mapping.model import load_eval_model
-from organelle_mapping.utils import find_target_scale, get_axes_names
+from organelle_mapping.utils import find_target_scale
 
 logger = logging.getLogger("organelle_mapping.evaluation")
 
@@ -76,9 +72,9 @@ def predict_crop(
     raw_end = Coordinate(raw_xarray[-1, -1, -1].coords[ax].item() for ax in raw_xarray.dims)
     raw_resolution = Coordinate(raw_xarray[1, 1, 1].coords[ax].item() for ax in raw_xarray.dims) - raw_begin
     shape = (end_coord - start_coord + raw_resolution) / voxel_size_coord
-    logging.info(f"Calculatd shape as {shape}")
+    logger.info(f"Calculated shape as {shape}")
     # Initialize prediction array matching GT size
-    predictions = np.zeros((len(label_list),) + tuple(shape), dtype=np.float32)
+    predictions = np.zeros((len(label_list), *tuple(shape)), dtype=np.float32)
 
     # Process in blocks
     for z_start in range(start_coord[0], end_coord[0], block_output_shape_world[0]):
@@ -86,7 +82,6 @@ def predict_crop(
             for x_start in range(start_coord[2], end_coord[2], block_output_shape_world[2]):
                 # Calculate world-space ROI for this block
                 block_begin_world = Coordinate((z_start, y_start, x_start))
-                block_end_world = block_begin_world + block_input_shape_world
                 # Calculate world-space input ROI for this block
                 input_begin_world = block_begin_world - context
                 input_end_world = input_begin_world + block_input_shape_world - raw_resolution
@@ -147,12 +142,12 @@ def evaluate_predictions(
     predictions: np.ndarray,
     ground_truth: np.ndarray,
     channel_names: Optional[Dict[int, str]] = None,
-    thresholds: list = None,
+    thresholds: Optional[list] = None,
 ) -> Dict[str, Dict[str, float]]:
     """Evaluate predictions against ground truth for all channels with threshold sweep."""
-    assert predictions.shape == ground_truth.shape, (
-        f"Shape mismatch: predictions {predictions.shape} vs ground_truth {ground_truth.shape}"
-    )
+    if predictions.shape != ground_truth.shape:
+        msg = f"Shape mismatch: predictions {predictions.shape} vs ground_truth {ground_truth.shape}"
+        raise ValueError(msg)
 
     n_channels = predictions.shape[0]
     results = {}
@@ -293,9 +288,10 @@ def run(
         available_labels = set(all_labels)
         if not requested_labels.issubset(available_labels):
             invalid_labels = requested_labels - available_labels
-            raise ValueError(f"Invalid labels: {invalid_labels}. Available: {all_labels}")
+            msg = f"Invalid labels: {invalid_labels}. Available: {all_labels}"
+            raise ValueError(msg)
         # Preserve order from run config
-        label_list = [l for l in all_labels if l in requested_labels]
+        label_list = [lbl for lbl in all_labels if lbl in requested_labels]
         logger.info(f"Evaluating specific labels: {label_list}")
     else:
         label_list = all_labels
@@ -306,7 +302,8 @@ def run(
         available_checkpoints = set(eval_cfg.checkpoints)
         if not requested_checkpoints.issubset(available_checkpoints):
             invalid_checkpoints = requested_checkpoints - available_checkpoints
-            raise ValueError(f"Invalid checkpoints: {invalid_checkpoints}. Available: {eval_cfg.checkpoints}")
+            msg = f"Invalid checkpoints: {invalid_checkpoints}. Available: {eval_cfg.checkpoints}"
+            raise ValueError(msg)
         # Preserve order from config
         checkpoints = [c for c in eval_cfg.checkpoints if c in requested_checkpoints]
         logger.info(f"Evaluating specific checkpoints: {checkpoints}")
@@ -319,7 +316,8 @@ def run(
         available_thresholds = set(eval_cfg.thresholds)
         if not requested_thresholds.issubset(available_thresholds):
             invalid_thresholds = requested_thresholds - available_thresholds
-            raise ValueError(f"Invalid thresholds: {invalid_thresholds}. Available: {eval_cfg.thresholds}")
+            msg = f"Invalid thresholds: {invalid_thresholds}. Available: {eval_cfg.thresholds}"
+            raise ValueError(msg)
         # Keep sorted order
         thresholds = sorted(requested_thresholds)
         logger.info(f"Evaluating specific thresholds: {thresholds}")
@@ -335,7 +333,8 @@ def run(
     # Determine which datasets and crops to evaluate
     if dataset:
         if dataset not in data_cfg.datasets:
-            raise ValueError(f"Dataset '{dataset}' not found in data config")
+            msg = f"Dataset '{dataset}' not found in data config"
+            raise ValueError(msg)
         datasets_to_eval = {dataset: data_cfg.datasets[dataset]}
     else:
         datasets_to_eval = data_cfg.datasets
@@ -353,7 +352,8 @@ def run(
         available_crops = set(all_crops)
         if not requested_crops.issubset(available_crops):
             invalid_crops = requested_crops - available_crops
-            raise ValueError(f"Invalid crops: {invalid_crops}. Available: {sorted(all_crops)}")
+            msg = f"Invalid crops: {invalid_crops}. Available: {sorted(all_crops)}"
+            raise ValueError(msg)
         crops_to_eval = list(crop)
         logger.info(f"Evaluating specific crops: {crops_to_eval}")
     else:
@@ -362,14 +362,14 @@ def run(
     checkpoint_results = {}
 
     # Evaluate each checkpoint
-    for checkpoint in checkpoints:
+    for ckpt in checkpoints:
         logger.info(f"\n{'=' * 70}")
-        logger.info(f"Evaluating checkpoint: {checkpoint}")
+        logger.info(f"Evaluating checkpoint: {ckpt}")
         logger.info(f"{'=' * 70}")
 
         # Load model
-        logger.info(f"Loading model from {checkpoint}")
-        model = load_eval_model(network_config, checkpoint)
+        logger.info(f"Loading model from {ckpt}")
+        model = load_eval_model(network_config, ckpt)
         device = next(model.parameters()).device
 
         # Store results for all evaluations for this checkpoint
@@ -426,56 +426,56 @@ def run(
                     continue
 
         # Store results for this checkpoint
-        checkpoint_results[checkpoint] = all_results
+        checkpoint_results[ckpt] = all_results
 
-        # Print summary for this checkpoint
-        print(f"\n{'=' * 60}")
-        print(f"CHECKPOINT {checkpoint} SUMMARY")
-        print(f"{'=' * 60}")
+        # Log summary for this checkpoint
+        logger.info(f"\n{'=' * 60}")
+        logger.info(f"CHECKPOINT {ckpt} SUMMARY")
+        logger.info(f"{'=' * 60}")
 
         if not all_results:
-            print("No crops were successfully evaluated.")
+            logger.info("No crops were successfully evaluated.")
             continue
 
         # Calculate overall statistics for this checkpoint
         all_dice_scores = []
         all_jaccard_scores = []
-        label_dice_scores = {label: [] for label in label_list}
-        label_jaccard_scores = {label: [] for label in label_list}
+        label_dice_scores = {lbl: [] for lbl in label_list}
+        label_jaccard_scores = {lbl: [] for lbl in label_list}
 
-        for crop_id, crop_results in all_results.items():
-            for label, metrics in crop_results.items():
+        for _crop_id, crop_results in all_results.items():
+            for lbl, metrics in crop_results.items():
                 all_dice_scores.append(metrics["dice"])
                 all_jaccard_scores.append(metrics["jaccard"])
-                label_dice_scores[label].append(metrics["dice"])
-                label_jaccard_scores[label].append(metrics["jaccard"])
+                label_dice_scores[lbl].append(metrics["dice"])
+                label_jaccard_scores[lbl].append(metrics["jaccard"])
 
-        # Print per-label averages
-        print("\nPer-label averages:")
-        for label in label_list:
-            if label_dice_scores[label]:
-                avg_dice = np.mean(label_dice_scores[label])
-                std_dice = np.std(label_dice_scores[label])
-                print(f"  {label}: Dice={avg_dice:.4f} ± {std_dice:.4f}")
+        # Log per-label averages
+        logger.info("Per-label averages:")
+        for lbl in label_list:
+            if label_dice_scores[lbl]:
+                avg_dice = np.mean(label_dice_scores[lbl])
+                std_dice = np.std(label_dice_scores[lbl])
+                logger.info(f"  {lbl}: Dice={avg_dice:.4f} ± {std_dice:.4f}")
 
-        # Print overall average
-        print(f"\nOverall mean Dice: {np.mean(all_dice_scores):.4f} ± {np.std(all_dice_scores):.4f}")
-        print(f"Total crops evaluated: {len(all_results)}")
+        # Log overall average
+        logger.info(f"Overall mean Dice: {np.mean(all_dice_scores):.4f} ± {np.std(all_dice_scores):.4f}")
+        logger.info(f"Total crops evaluated: {len(all_results)}")
 
-    # Print final summary across all checkpoints
-    print("\n" + "=" * 70)
-    print("FINAL SUMMARY - ALL CHECKPOINTS")
-    print("=" * 70)
+    # Log final summary across all checkpoints
+    logger.info(f"\n{'=' * 70}")
+    logger.info("FINAL SUMMARY - ALL CHECKPOINTS")
+    logger.info(f"{'=' * 70}")
 
-    for checkpoint, results in checkpoint_results.items():
+    for ckpt_name, results in checkpoint_results.items():
         if results:
             all_scores = []
             for crop_results in results.values():
                 for metrics in crop_results.values():
                     all_scores.append(metrics["dice"])
-            print(f"\n{checkpoint}:")
-            print(f"  Mean Dice: {np.mean(all_scores):.4f} ± {np.std(all_scores):.4f}")
-            print(f"  Crops evaluated: {len(results)}")
+            logger.info(f"\n{ckpt_name}:")
+            logger.info(f"  Mean Dice: {np.mean(all_scores):.4f} ± {np.std(all_scores):.4f}")
+            logger.info(f"  Crops evaluated: {len(results)}")
 
 
 def evaluate_single_crop(
@@ -507,7 +507,7 @@ def evaluate_single_crop(
     # Open ground truth datasets for each label
     gt_xarrays = {}
     gt_encodings = {}
-    for i, label in enumerate(label_list):
+    for label in label_list:
         gt_path = f"{dataset_info.labels.data}/{dataset_info.labels.group}/{crop_name}/{label}/{scale_level}"
         logger.info(f"Opening ground truth: {gt_path}")
         gt_xarray = fst.read_xarray(gt_path)
@@ -539,7 +539,7 @@ def evaluate_single_crop(
             logger.warning(f"Label {label} has different shape: {gt_xarray.shape} vs {first_gt_xarray.shape}")
 
     logger.info("Loading ground truth data...")
-    gt_data = np.zeros((len(label_list),) + tuple(first_gt_xarray.shape), dtype=np.uint8)
+    gt_data = np.zeros((len(label_list), *tuple(first_gt_xarray.shape)), dtype=np.uint8)
     for i, (label, gt_xarray) in enumerate(gt_xarrays.items()):
         # Read the entire GT array (it's already cropped to the annotation region)
         gt_array = gt_xarray.values
@@ -613,7 +613,7 @@ def evaluate_single_crop(
     # Evaluate
     logger.info("Evaluating predictions...")
     # Create channel name map from label names
-    channel_name_map = {i: label for i, label in enumerate(label_list)}
+    channel_name_map = dict(enumerate(label_list))
     results = evaluate_predictions(predictions, gt_data, channel_name_map, thresholds)
 
     return results

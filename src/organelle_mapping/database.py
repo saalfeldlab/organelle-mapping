@@ -47,7 +47,7 @@ def insert_result(
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT OR REPLACE INTO results 
+            INSERT OR REPLACE INTO results
             (run, checkpoint, crop, label, threshold, metric, score)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
@@ -60,4 +60,4 @@ if __name__ == "__main__":
     # Test database creation
     test_db = "/tmp/test_evaluation.db"
     init_database(test_db)
-    print(f"Test database created at {test_db}")
+    logger.debug(f"Test database created at {test_db}")

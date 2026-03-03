@@ -64,13 +64,15 @@ def transfer_checkpoint_weights(
             buffers[ohk] = []
             for buffer_name, buffer_value in optimizer_state["state"][ohk].items():
                 if not isinstance(buffer_value, torch.Tensor):
+                    msg = f"Expected optimizer state '{buffer_name}' to be a tensor, got {type(buffer_value)}"
                     raise TypeError(
-                        f"Expected optimizer state '{buffer_name}' to be a tensor, got {type(buffer_value)}"
+                        msg
                     )
                 if buffer_value.ndim == weights[hk].ndim:
                     if buffer_value.size() != weights[hk].size():
+                        msg = f"Assumptions about how model weights map to optimizer state do not hold for key {hk}. Can't transfer optimizer state."
                         raise ValueError(
-                            f"Assumptions about how model weights map to optimizer state do not hold for key {hk}. Can't transfer optimizer state."
+                            msg
                         )
                     else:
                         buffers[ohk].append(buffer_name)
@@ -264,8 +266,9 @@ def main(
         else:
             # Construct from CLI arguments
             if not source_checkpoint or not source_experiment:
+                msg = "--source-checkpoint and --source-experiment are required when not using --config"
                 raise click.ClickException(
-                    "--source-checkpoint and --source-experiment are required when not using --config"
+                    msg
                 )
 
             heads_keys_list = list(heads_keys) if heads_keys else None
@@ -288,10 +291,12 @@ def main(
 
     except ValidationError as e:
         logger.error(f"Configuration validation error: {e}")
-        raise click.ClickException(f"Invalid configuration: {e}")
+        msg = f"Invalid configuration: {e}"
+        raise click.ClickException(msg)
     except Exception as e:
         logger.error(f"Weight transfer failed: {e}")
-        raise click.ClickException(f"Weight transfer failed: {e}")
+        msg = f"Weight transfer failed: {e}"
+        raise click.ClickException(msg)
 
 
 if __name__ == "__main__":

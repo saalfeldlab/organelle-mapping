@@ -44,7 +44,7 @@ def main(data_config, dataset, output, sampling):
                 em_path = f"{ds_info.em.data}/{ds_info.em.group}"
                 em_grp = zarr.open(em_path, "r")
 
-                scale_name, em_offset_dict, em_resolution_dict, em_shape_dict = utils.find_target_scale(
+                scale_name, _em_offset_dict, em_resolution_dict, _em_shape_dict = utils.find_target_scale(
                     em_grp, target_resolution
                 )
                 em_data = em_grp[scale_name]
@@ -72,7 +72,7 @@ def main(data_config, dataset, output, sampling):
                         org_grp = crop_grp["organelle"]
 
                         # Find target scale for crop
-                        crop_scale_name, crop_offset_dict, crop_resolution_dict, crop_shape_dict = (
+                        _crop_scale_name, crop_offset_dict, crop_resolution_dict, crop_shape_dict = (
                             utils.find_target_scale(org_grp, target_resolution)
                         )
 
@@ -94,7 +94,7 @@ def main(data_config, dataset, output, sampling):
                         )
 
                         # Compute histogram
-                        hist, bin_edges = np.histogram(em_crop.flatten(), bins=256, range=(0, 256))
+                        hist, _bin_edges = np.histogram(em_crop.flatten(), bins=256, range=(0, 256))
 
                         # Write histogram to CSV
                         for intensity, count in enumerate(hist):

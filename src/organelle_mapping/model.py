@@ -163,7 +163,7 @@ class TemsUnet(torch.nn.Module):
                 kernel_size_level,
             ] * len(downsample_factors)
         if fmaps_down is None:
-            fmaps_down = list(16 * 6**lvl for lvl in range(len(downsample_factors) + 1))
+            fmaps_down = [16 * 6**lvl for lvl in range(len(downsample_factors) + 1)]
         if fmaps_up is None:
             fmaps_up = fmaps_down
         levels = []

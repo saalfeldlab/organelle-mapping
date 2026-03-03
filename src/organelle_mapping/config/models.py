@@ -10,15 +10,18 @@ def validate_activation_string(value: str) -> str:
     try:
         activation_class = getattr(torch.nn, value)
     except AttributeError:
-        raise ValueError(f"torch.nn.{value} does not exist")
+        msg = f"torch.nn.{value} does not exist"
+        raise ValueError(msg)
 
     if not (isinstance(activation_class, type) and issubclass(activation_class, torch.nn.Module)):
-        raise ValueError(f"torch.nn.{value} is not a PyTorch module class")
+        msg = f"torch.nn.{value} is not a PyTorch module class"
+        raise ValueError(msg)
 
     try:
         activation_class()
     except Exception as e:
-        raise ValueError(f"Cannot instantiate torch.nn.{value}(): {e}")
+        msg = f"Cannot instantiate torch.nn.{value}(): {e}"
+        raise ValueError(msg)
 
     return value
 

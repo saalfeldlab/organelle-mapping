@@ -287,15 +287,15 @@ def main(url: str, channels: int, arrays: str, bind_address: str, port: int):
     # Set up viewer
     viewer = setup_viewer(base_url, channels, array_list)
 
-    # Print viewer URL
-    print(f"\nNeuroglancer viewer URL: {viewer}")
-    print("\nKeyboard shortcuts:")
+    # Log viewer URL
+    logger.info(f"Neuroglancer viewer URL: {viewer}")
+    logger.info("Keyboard shortcuts:")
     num_groups = (channels + 2) // 3
     for i in range(min(num_groups, 9)):
         start = i * 3
         end = min(start + 3, channels) - 1
-        print(f"  {i + 1}: Channels {start}-{end}")
-    print("\nPress Ctrl+C to stop the server.\n")
+        logger.info(f"  {i + 1}: Channels {start}-{end}")
+    logger.info("Press Ctrl+C to stop the server.")
 
     # Keep the script running
     try:
@@ -304,7 +304,8 @@ def main(url: str, channels: int, arrays: str, bind_address: str, port: int):
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        logger.info("\nShutting down...")
+        return
 
 
 if __name__ == "__main__":
