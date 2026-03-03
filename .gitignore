@@ -173,3 +173,4 @@ snapshots/
 *.png
 
 CLAUDE.md
+.claude/
