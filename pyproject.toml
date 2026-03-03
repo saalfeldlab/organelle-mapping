@@ -21,7 +21,7 @@ classifiers = [
 ]
 dependencies = [
   "daisy",
-  "funlib.persistence@git+https://git@github.com/funkelab/funlib.persistence.git@main",
+  "funlib.persistence>=0.6,<0.7",
   "fibsem-tools>=7.0.5",
   "matplotlib",
   "funlib.learn.torch@git+https://git@github.com/funkelab/funlib.learn.torch.git",
@@ -78,6 +78,7 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py37"
 line-length = 120
+extend-exclude = ["*.ipynb"]
 
 [tool.ruff.lint]
 select = [
