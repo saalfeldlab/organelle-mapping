@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Optional, Sequence
+
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from organelle_mapping.config.utils import resolve_path
@@ -33,13 +34,13 @@ class CheckpointEditConfig(BaseModel):
         description="State dict keys containing output heads. If None, auto-detects 'final_conv' keys"
     )
 
-    @field_validator('source_experiment', mode='before')
+    @field_validator("source_experiment", mode="before")
     @classmethod
     def resolve_source_experiment(cls, value, info: ValidationInfo) -> Path:
         """Resolve source_experiment relative to the config's base_dir."""
         return Path(resolve_path(value, info))
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def resolve_checkpoint_and_validate(self) -> "CheckpointEditConfig":
         """Resolve source_checkpoint and validate paths exist."""
         # Resolve source_checkpoint relative to source_experiment's directory

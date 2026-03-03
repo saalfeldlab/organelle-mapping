@@ -12,14 +12,14 @@ Usage:
 """
 
 import logging
-from pathlib import Path
 import tempfile
 from multiprocessing import Pool, cpu_count
+from pathlib import Path
 
 import click
 import zarr
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -39,14 +39,14 @@ def add_ome_metadata(group: zarr.Group, array_name: str, voxel_size: tuple = (8.
     # Check if already in subgroup structure
     if array_name in group.group_keys():
         subgroup = group[array_name]
-        if 's0' not in subgroup.array_keys():
+        if "s0" not in subgroup.array_keys():
             raise ValueError(f"Subgroup {array_name} exists but has no 's0' array")
         # Check if OME metadata already exists - if so, skip to avoid overwriting with defaults
-        if 'multiscales' in subgroup.attrs:
+        if "multiscales" in subgroup.attrs:
             logger.info(f"  {array_name} already has OME metadata, skipping")
             return
         logger.info(f"  {array_name} already in subgroup structure, adding metadata")
-        array = subgroup['s0']
+        array = subgroup["s0"]
     else:
         # Move array to subgroup/s0 structure
         logger.info(f"  Moving {array_name} to {array_name}/s0 structure")
@@ -73,7 +73,7 @@ def add_ome_metadata(group: zarr.Group, array_name: str, voxel_size: tuple = (8.
 
         # Create the s0 array with the original properties
         array = subgroup.create_dataset(
-            's0',
+            "s0",
             shape=array_shape,
             chunks=array_chunks,
             dtype=array_dtype,
@@ -134,7 +134,7 @@ def add_ome_metadata(group: zarr.Group, array_name: str, voxel_size: tuple = (8.
     logger.info(f"  Added OME-NGFF metadata to {array_name}/s0: scale={voxel_size}, translation={offset}")
 
 
-def rechunk_array_inplace(zarr_path: Path, array_name: str = 'output', add_metadata: bool = True, voxel_size: tuple | None = None):
+def rechunk_array_inplace(zarr_path: Path, array_name: str = "output", add_metadata: bool = True, voxel_size: tuple | None = None):
     """Rechunk an array in a zarr file in-place and add OME-NGFF metadata.
 
     Args:
@@ -146,15 +146,15 @@ def rechunk_array_inplace(zarr_path: Path, array_name: str = 'output', add_metad
     logger.info(f"Rechunking {zarr_path}/{array_name}")
 
     # Open zarr group
-    group = zarr.open(str(zarr_path), mode='r+')
+    group = zarr.open(str(zarr_path), mode="r+")
 
     # Check if array exists (either as direct array or in subgroup)
     if array_name in group.array_keys():
         source_array = group[array_name]
     elif array_name in group.group_keys():
         subgroup = group[array_name]
-        if 's0' in subgroup.array_keys():
-            source_array = subgroup['s0']
+        if "s0" in subgroup.array_keys():
+            source_array = subgroup["s0"]
         else:
             logger.warning(f"Subgroup '{array_name}' exists but has no 's0' array in {zarr_path}, skipping")
             return None, None
@@ -166,18 +166,18 @@ def rechunk_array_inplace(zarr_path: Path, array_name: str = 'output', add_metad
 
     # Try to get voxel size from existing metadata if not provided
     if voxel_size is None:
-        if 'voxel_size' in source_array.attrs:
+        if "voxel_size" in source_array.attrs:
             # Read from voxel_size attribute (gunpowder convention)
-            vs = source_array.attrs['voxel_size']
+            vs = source_array.attrs["voxel_size"]
             if isinstance(vs, (list, tuple)) and len(vs) >= 3:
                 voxel_size = tuple(float(x) for x in vs[-3:])  # Take last 3 values (z, y, x)
                 logger.info(f"  Read voxel_size from array attributes: {voxel_size}")
             else:
                 logger.warning(f"  'voxel_size' attribute has unexpected format: {vs}, using default (8, 8, 8)")
                 voxel_size = (8.0, 8.0, 8.0)
-        elif 'resolution' in source_array.attrs:
+        elif "resolution" in source_array.attrs:
             # Read from resolution attribute (alternative naming)
-            resolution = source_array.attrs['resolution']
+            resolution = source_array.attrs["resolution"]
             if isinstance(resolution, (list, tuple)) and len(resolution) >= 3:
                 voxel_size = tuple(float(x) for x in resolution[-3:])  # Take last 3 values (z, y, x)
                 logger.info(f"  Read voxel_size from 'resolution' attribute: {voxel_size}")
@@ -185,13 +185,13 @@ def rechunk_array_inplace(zarr_path: Path, array_name: str = 'output', add_metad
                 logger.warning(f"  'resolution' attribute has unexpected format: {resolution}, using default (8, 8, 8)")
                 voxel_size = (8.0, 8.0, 8.0)
         else:
-            logger.info(f"  No 'voxel_size' or 'resolution' attribute found, using default: (8, 8, 8)")
+            logger.info("  No 'voxel_size' or 'resolution' attribute found, using default: (8, 8, 8)")
             voxel_size = (8.0, 8.0, 8.0)
 
     # Try to get offset from existing metadata
     offset = (0.0, 0.0, 0.0)
-    if 'offset' in source_array.attrs:
-        offset_attr = source_array.attrs['offset']
+    if "offset" in source_array.attrs:
+        offset_attr = source_array.attrs["offset"]
         if isinstance(offset_attr, (list, tuple)) and len(offset_attr) >= 3:
             offset = tuple(float(x) for x in offset_attr[-3:])  # Take last 3 values (z, y, x)
             logger.info(f"  Read offset from array attributes: {offset}")
@@ -215,7 +215,7 @@ def rechunk_array_inplace(zarr_path: Path, array_name: str = 'output', add_metad
 
     # Check if already has full channel chunks
     if source_array.chunks[channel_dim] == source_array.shape[channel_dim]:
-        logger.info(f"  Already has full channel chunks, skipping rechunk")
+        logger.info("  Already has full channel chunks, skipping rechunk")
         # Still add metadata if requested
         if add_metadata:
             add_ome_metadata(group, array_name, voxel_size=voxel_size, offset=offset)
@@ -229,7 +229,7 @@ def rechunk_array_inplace(zarr_path: Path, array_name: str = 'output', add_metad
     logger.info(f"  Target chunks: {new_chunks}")
 
     # Read all data
-    logger.info(f"  Reading data...")
+    logger.info("  Reading data...")
     data = source_array[:]
 
     # Store metadata
@@ -242,12 +242,12 @@ def rechunk_array_inplace(zarr_path: Path, array_name: str = 'output', add_metad
 
     # Create temporary array with new chunks
     with tempfile.TemporaryDirectory() as tmpdir:
-        temp_path = Path(tmpdir) / 'temp.zarr'
-        logger.info(f"  Writing to temporary location with new chunks...")
+        temp_path = Path(tmpdir) / "temp.zarr"
+        logger.info("  Writing to temporary location with new chunks...")
 
         temp_array = zarr.open(
             str(temp_path),
-            mode='w',
+            mode="w",
             shape=shape,
             chunks=new_chunks,
             dtype=dtype,
@@ -258,16 +258,16 @@ def rechunk_array_inplace(zarr_path: Path, array_name: str = 'output', add_metad
         temp_array[:] = data
 
         # Delete old array
-        logger.info(f"  Deleting old array...")
+        logger.info("  Deleting old array...")
         if in_subgroup:
-            del group[array_name]['s0']
+            del group[array_name]["s0"]
             # Copy temporary array back to subgroup
             logger.info(f"  Copying rechunked array back to {array_name}/s0...")
-            zarr.copy(temp_array, group[array_name], name='s0')
+            zarr.copy(temp_array, group[array_name], name="s0")
         else:
             del group[array_name]
             # Copy temporary array back with new chunks
-            logger.info(f"  Copying rechunked array back...")
+            logger.info("  Copying rechunked array back...")
             zarr.copy(temp_array, group, name=array_name)
 
     logger.info(f"  Rechunked successfully: {new_chunks}")
@@ -288,11 +288,11 @@ def rechunk_worker(args):
 
 
 @click.command()
-@click.argument('snapshots_dir', type=click.Path(exists=True, file_okay=False, path_type=Path))
-@click.option('--array', default=None, help='Name of specific array to rechunk (default: all arrays)')
-@click.option('--workers', '-w', default=None, type=int, help='Number of parallel workers (default: CPU count)')
-@click.option('--no-metadata', is_flag=True, help='Skip adding OME-NGFF metadata')
-@click.option('--voxel-size', default=None, help='Voxel size in nm (z,y,x). If not specified, reads from array "resolution" attribute.')
+@click.argument("snapshots_dir", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option("--array", default=None, help="Name of specific array to rechunk (default: all arrays)")
+@click.option("--workers", "-w", default=None, type=int, help="Number of parallel workers (default: CPU count)")
+@click.option("--no-metadata", is_flag=True, help="Skip adding OME-NGFF metadata")
+@click.option("--voxel-size", default=None, help='Voxel size in nm (z,y,x). If not specified, reads from array "resolution" attribute.')
 def main(snapshots_dir: Path, array: str, workers: int, no_metadata: bool, voxel_size: str | None):
     """Rechunk snapshot zarr files in SNAPSHOTS_DIR for neuroglancer visualization.
 
@@ -304,7 +304,7 @@ def main(snapshots_dir: Path, array: str, workers: int, no_metadata: bool, voxel
     add_metadata = not no_metadata
     voxel_size_tuple = None
     if voxel_size is not None:
-        voxel_size_tuple = tuple(float(x) for x in voxel_size.split(','))
+        voxel_size_tuple = tuple(float(x) for x in voxel_size.split(","))
         if len(voxel_size_tuple) != 3:
             raise ValueError(f"voxel_size must have 3 values (z,y,x), got: {voxel_size}")
         logger.info(f"Using provided voxel_size={voxel_size_tuple} nm")
@@ -315,7 +315,7 @@ def main(snapshots_dir: Path, array: str, workers: int, no_metadata: bool, voxel
         logger.info("Skipping OME-NGFF metadata (--no-metadata)")
 
     # Find all .zarr directories
-    zarr_paths = sorted(snapshots_dir.glob('*.zarr'))
+    zarr_paths = sorted(snapshots_dir.glob("*.zarr"))
 
     if not zarr_paths:
         logger.warning(f"No .zarr directories found in {snapshots_dir}")
@@ -330,11 +330,11 @@ def main(snapshots_dir: Path, array: str, workers: int, no_metadata: bool, voxel
     if array is None:
         # Process all arrays - first get list of arrays from first zarr
         # Check both direct arrays and subgroups (already processed arrays are in subgroups)
-        sample_group = zarr.open(str(zarr_paths[0]), mode='r')
+        sample_group = zarr.open(str(zarr_paths[0]), mode="r")
         array_names = list(sample_group.array_keys())
         # Also include subgroups that contain 's0' arrays (already processed)
         for group_name in sample_group.group_keys():
-            if 's0' in sample_group[group_name].array_keys():
+            if "s0" in sample_group[group_name].array_keys():
                 if group_name not in array_names:
                     array_names.append(group_name)
         logger.info(f"Will process all arrays: {array_names}")
@@ -358,5 +358,5 @@ def main(snapshots_dir: Path, array: str, workers: int, no_metadata: bool, voxel
             logger.error(f"  {path}/{array_name}: {error}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

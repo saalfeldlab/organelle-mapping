@@ -1,7 +1,9 @@
-import yaml
 import sys
-from organelle_mapping.model import load_eval_model
+
+import yaml
 from funlib.geometry.coordinate import Coordinate
+
+from organelle_mapping.model import load_eval_model
 
 print("Starting peek.py script...", file=sys.stderr)
 
@@ -14,11 +16,12 @@ print(f"Looking for checkpoint at: {checkpoint_path}", file=sys.stderr)
 try:
     # Load and parse the architecture config
     from pydantic import TypeAdapter
+
     from organelle_mapping.config import Architecture
-    
+
     with open(network_config_path) as network_config_file:
         config_dict = yaml.safe_load(network_config_file)
-    
+
     # Convert dict to proper Architecture config object
     network_config = TypeAdapter(Architecture).validate_python(config_dict)
     print("Successfully loaded network config", file=sys.stderr)
@@ -45,7 +48,7 @@ write_shape = Coordinate(network_config.output_shape) * Coordinate(output_voxel_
 output_channels = network_config.out_channels
 block_shape = (*network_config.output_shape, output_channels)
 
-print(f"Setup complete:", file=sys.stderr)
+print("Setup complete:", file=sys.stderr)
 print(f"  Input voxel size: {input_voxel_size}", file=sys.stderr)
 print(f"  Output voxel size: {output_voxel_size}", file=sys.stderr)
 print(f"  Read shape: {read_shape}", file=sys.stderr)

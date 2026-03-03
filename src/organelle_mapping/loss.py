@@ -1,4 +1,4 @@
-from typing import Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 import torch
 

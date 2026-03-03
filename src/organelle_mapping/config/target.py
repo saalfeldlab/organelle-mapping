@@ -3,12 +3,11 @@ from typing import TYPE_CHECKING, Literal, Optional, Sequence, Union
 
 import gunpowder as gp
 import torch
-from pydantic import BaseModel, Field, model_validator, ValidationError
-
-from organelle_mapping.loss import MaskedMultiLabelBCEwithLogits, MaskedMSELoss
-
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from organelle_mapping.config.transform import Transform
+from organelle_mapping.loss import MaskedMSELoss, MaskedMultiLabelBCEwithLogits
+
 
 class TargetConfig(BaseModel, ABC):
     """Base class for target output configurations."""
@@ -27,12 +26,12 @@ class TargetConfig(BaseModel, ABC):
     def num_channels(self) -> int:
         """Total number of output channels for this target."""
         return sum(tt.num_channels for tt in self.transforms)
-    
+
     @property
     def output_keys(self) -> tuple[gp.ArrayKey, ...]:
         """Get the output array key for this target."""
         return tuple(tt.output_key for tt in self.transforms)
-    
+
     @property
     def mask_keys(self) -> tuple[gp.ArrayKey, ...]:
         """Get the mask array key for this target."""

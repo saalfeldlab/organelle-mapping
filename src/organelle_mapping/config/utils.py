@@ -6,8 +6,8 @@ from pydantic import TypeAdapter, ValidationInfo
 
 def get_base_dir(info: ValidationInfo) -> Path:
     """Get base_dir from validation context, defaulting to cwd."""
-    if info.context and 'base_dir' in info.context:
-        return Path(info.context['base_dir'])
+    if info.context and "base_dir" in info.context:
+        return Path(info.context["base_dir"])
     return Path.cwd()
 
 
@@ -31,7 +31,7 @@ def load_subconfig(value, target_cls, info: ValidationInfo):
 
         with open(config_path) as config:
             # Update base_dir to the loaded config's directory for nested relative paths
-            new_context = {**(info.context or {}), 'base_dir': str(config_path.parent)}
+            new_context = {**(info.context or {}), "base_dir": str(config_path.parent)}
             return TypeAdapter(target_cls).validate_python(yaml.safe_load(config), context=new_context)
 
     return value

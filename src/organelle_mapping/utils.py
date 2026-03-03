@@ -38,7 +38,7 @@ def setup_package_logger(log_level: str = "INFO") -> None:
     # Add console handler if none exists
     if not pkg_logger.handlers:
         handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%m-%d %H:%M:%S')
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%m-%d %H:%M:%S")
         handler.setFormatter(formatter)
         pkg_logger.addHandler(handler)
         pkg_logger.propagate = False  # Don't propagate to root logger

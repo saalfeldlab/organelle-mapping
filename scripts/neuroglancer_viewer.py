@@ -37,7 +37,7 @@ import logging
 import click
 import neuroglancer
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # RGB colors for channel groups
@@ -158,10 +158,10 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
 
     # Track array visibility state (needs to be defined before switch_to_group)
     array_visibility = {
-        'raw': True,
-        'targets': True,
-        'output': True,
-        'mask': True
+        "raw": True,
+        "targets": True,
+        "output": True,
+        "mask": True
     }
 
     # Function to switch to a channel group
@@ -190,9 +190,9 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
 
     # Key bindings for each group
     key_bindings = [
-        'digit1', 'digit2', 'digit3', 'digit4', 'digit5',
-        'digit6', 'digit7', 'digit8', 'digit9', 'digit0',
-        'minus', 'equal', 'keyq'
+        "digit1", "digit2", "digit3", "digit4", "digit5",
+        "digit6", "digit7", "digit8", "digit9", "digit0",
+        "minus", "equal", "keyq"
     ]
 
     # Register actions for each channel group
@@ -201,7 +201,7 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
             break
 
         # Create action
-        action_name = f'channel-group-{i}'
+        action_name = f"channel-group-{i}"
         # Use default argument to capture current value of i
         viewer.actions.add(action_name, lambda s, idx=i: switch_to_group(idx))
 
@@ -219,9 +219,9 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
         visible = array_visibility[array_name]
 
         with viewer.txn() as s:
-            if array_name == 'raw':
+            if array_name == "raw":
                 # Raw is a single layer
-                s.layers['raw'].visible = visible
+                s.layers["raw"].visible = visible
             else:
                 # Multi-channel arrays: toggle visibility of non-archived layers
                 for channel in range(num_channels):
@@ -236,38 +236,38 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
 
     # Array toggle key bindings
     array_keys = {
-        'keyg': 'raw',
-        'keyt': 'targets',
-        'keyo': 'output',
-        'keym': 'mask'
+        "keyg": "raw",
+        "keyt": "targets",
+        "keyo": "output",
+        "keym": "mask"
     }
 
     for key, array_name in array_keys.items():
-        action_name = f'toggle-{array_name}'
+        action_name = f"toggle-{array_name}"
         viewer.actions.add(action_name, lambda s, arr=array_name: toggle_array(arr))
         with viewer.config_state.txn() as s:
             s.input_event_bindings.viewer[key] = action_name
 
     # Add status message with instructions
     with viewer.config_state.txn() as s:
-        s.status_messages['instructions'] = (
-            'Channel: 1-3 LSD, 4-9,0,-,=,BS grayscale | Array: g/t/o/m toggle'
+        s.status_messages["instructions"] = (
+            "Channel: 1-3 LSD, 4-9,0,-,=,BS grayscale | Array: g/t/o/m toggle"
         )
 
     return viewer
 
 
 @click.command()
-@click.option('--url', required=True,
-              help='Base zarr URL (e.g., https://fileglancer.int.janelia.org/fc/files/ABC123/00000011.zarr)')
-@click.option('--channels', '-c', default=19, type=int,
-              help='Number of channels in the data (default: 19)')
-@click.option('--arrays', '-a', default='raw,targets,output,mask',
-              help='Comma-separated list of array names (default: raw,targets,output,mask)')
-@click.option('--bind-address', default='127.0.0.1',
-              help='Address to bind the server to (default: 127.0.0.1)')
-@click.option('--port', default=0, type=int,
-              help='Port to bind to (default: 0 for auto-select)')
+@click.option("--url", required=True,
+              help="Base zarr URL (e.g., https://fileglancer.int.janelia.org/fc/files/ABC123/00000011.zarr)")
+@click.option("--channels", "-c", default=19, type=int,
+              help="Number of channels in the data (default: 19)")
+@click.option("--arrays", "-a", default="raw,targets,output,mask",
+              help="Comma-separated list of array names (default: raw,targets,output,mask)")
+@click.option("--bind-address", default="127.0.0.1",
+              help="Address to bind the server to (default: 127.0.0.1)")
+@click.option("--port", default=0, type=int,
+              help="Port to bind to (default: 0 for auto-select)")
 def main(url: str, channels: int, arrays: str, bind_address: str, port: int):
     """Start an interactive Neuroglancer viewer with channel group keybindings.
 
@@ -285,10 +285,10 @@ def main(url: str, channels: int, arrays: str, bind_address: str, port: int):
         python neuroglancer_viewer.py --url <url> --arrays targets,output
     """
     # Parse arrays
-    array_list = [a.strip() for a in arrays.split(',')]
+    array_list = [a.strip() for a in arrays.split(",")]
 
     # Strip trailing slash from base URL
-    base_url = url.rstrip('/')
+    base_url = url.rstrip("/")
 
     # Configure neuroglancer server
     neuroglancer.set_server_bind_address(bind_address, port)
@@ -302,13 +302,13 @@ def main(url: str, channels: int, arrays: str, bind_address: str, port: int):
 
     # Print viewer URL
     print(f"\nNeuroglancer viewer URL: {viewer}")
-    print(f"\nKeyboard shortcuts:")
+    print("\nKeyboard shortcuts:")
     num_groups = (channels + 2) // 3
     for i in range(min(num_groups, 9)):
         start = i * 3
         end = min(start + 3, channels) - 1
         print(f"  {i + 1}: Channels {start}-{end}")
-    print(f"\nPress Ctrl+C to stop the server.\n")
+    print("\nPress Ctrl+C to stop the server.\n")
 
     # Keep the script running
     try:
@@ -319,5 +319,5 @@ def main(url: str, channels: int, arrays: str, bind_address: str, port: int):
         print("\nShutting down...")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

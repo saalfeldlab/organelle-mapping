@@ -8,7 +8,7 @@ import torch
 
 from organelle_mapping import utils
 from organelle_mapping.config import RunConfig
-from organelle_mapping.data import CellMapCropSource, ExtractMask, CollapseAny
+from organelle_mapping.data import CellMapCropSource, CollapseAny, ExtractMask
 from organelle_mapping.loss import CombinedLoss
 from organelle_mapping.model import create_sac_model
 

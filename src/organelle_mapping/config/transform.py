@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Literal, Optional, Annotated, Union
+from typing import Annotated, Literal, Optional, Union
 
-import torch
-import gunpowder as gp
 import corditea
-from pydantic import BaseModel, Field, BeforeValidator, model_validator
+import gunpowder as gp
+import torch
+from pydantic import BaseModel, BeforeValidator, Field, model_validator
 
 
 def validate_activation_string(value: str) -> str:
@@ -64,7 +64,7 @@ class TransformConfig(BaseModel, ABC):
     def output_key(self) -> gp.ArrayKey:
         """Array Key for output"""
         ...
-        
+
     @abstractmethod
     def instantiate(self, source_key: gp.ArrayKey, source_mask_key: gp.ArrayKey) -> None | tuple[gp.BatchFilter]:
         """Get the pipeline nodes needed for this transform.
@@ -115,11 +115,11 @@ class BinaryConfig(TransformConfig):
     def instantiate(self, source_key: gp.ArrayKey, source_mask_key: gp.ArrayKey) -> None | tuple[gp.BatchFilter]:
         """Binary transform: just copy the source array."""
         return None
-    
+
     @property
     def output_key(self) -> gp.ArrayKey:
         return gp.ArrayKey(self.source.upper())
-    
+
     @property
     def mask_key(self) -> gp.ArrayKey:
         return gp.ArrayKey(f"{self.source.upper()}_MASK")
@@ -172,7 +172,7 @@ class LSDConfig(TransformConfig):
             downsample=self.downsample
         )
         return (threshold_to_binary, binary_to_instances, lsd)
-    
+
     @property
     def output_key(self) -> gp.ArrayKey:
         return gp.ArrayKey(f"{self.source.upper()}_LSD")

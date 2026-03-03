@@ -6,8 +6,8 @@ import gunpowder as gp
 import yaml
 from pydantic import TypeAdapter
 
-from organelle_mapping.config import RunConfig
 from organelle_mapping.checkpoint_edit import create_transfer_checkpoint
+from organelle_mapping.config import RunConfig
 from organelle_mapping.train import make_train_pipeline
 from organelle_mapping.utils import setup_package_logger
 

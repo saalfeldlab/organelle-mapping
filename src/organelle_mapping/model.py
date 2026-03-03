@@ -1,8 +1,8 @@
 import logging
 
 import funlib.learn.torch
-import torch
 import tems
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +43,11 @@ class SACModel(torch.nn.Module):
                 inference_activation = inference_activation_class()
 
                 self.transform_specs.append({
-                    'start': start_ch,
-                    'end': end_ch,
-                    'train_activation': train_activation,
-                    'inference_activation': inference_activation,
-                    'name': f"{target.name or target.type}_{transform.source}_{transform.type}"
+                    "start": start_ch,
+                    "end": end_ch,
+                    "train_activation": train_activation,
+                    "inference_activation": inference_activation,
+                    "name": f"{target.name or target.type}_{transform.source}_{transform.type}"
                 })
 
                 current_channel = end_ch
@@ -68,10 +68,10 @@ class SACModel(torch.nn.Module):
         # Apply activations to each channel range
         activated_chunks = []
         for spec in self.transform_specs:
-            chunk = output[:, spec['start']:spec['end']]
+            chunk = output[:, spec["start"]:spec["end"]]
 
             # Select activation based on training mode
-            activation = spec['train_activation'] if self.training else spec['inference_activation']
+            activation = spec["train_activation"] if self.training else spec["inference_activation"]
             activated_chunk = activation(chunk)
             activated_chunks.append(activated_chunk)
 
@@ -176,20 +176,20 @@ class TemsUnet(torch.nn.Module):
 
             levels.append((
                 tems.ConvPass(
-                    dims=3, 
-                    in_channels=in_ch, 
+                    dims=3,
+                    in_channels=in_ch,
                     out_channels=fmaps_down[lvl],
                     kernel_sizes = kernel_size_down[lvl],
                     residual=residual,
                     activation=activation,
                 ),
                 tems.Downsample(
-                    dims=3, 
+                    dims=3,
                     downsample_factor=downsample_factors[lvl]
                     ),
                 tems.Upsample(
-                    dims=3, 
-                    scale_factor=downsample_factors[lvl], 
+                    dims=3,
+                    scale_factor=downsample_factors[lvl],
                     mode=upsample_mode
                     ),
                 tems.ConvPass(
@@ -208,7 +208,7 @@ class TemsUnet(torch.nn.Module):
             kernel_sizes=kernel_size_down[lvl],
             activation=activation
         )
-        
+
         self.unet_backbone = tems.UNet(dims=3,
                                        bottleneck=bottleneck,
                                        levels=levels)

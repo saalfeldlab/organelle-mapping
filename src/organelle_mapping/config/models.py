@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Annotated, Any, Literal, Sequence, Union
-import torch.nn
 
-from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator, BeforeValidator
+import torch.nn
+from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter, field_validator, model_validator
 
 
 def validate_activation_string(value: str) -> str:
@@ -246,7 +246,7 @@ class TemsUnetConfig(ArchitectureConfig):
                     raise ValueError(msg)
 
         return self
-    
+
     @model_validator(mode="after")
     def validate_fmaps(self):
         if len(self.fmaps_down) != len(self.downsample_factors) + 1:

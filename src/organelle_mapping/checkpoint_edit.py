@@ -1,14 +1,15 @@
 import copy
 import logging
+from functools import partial
 from pathlib import Path
 from typing import Optional, Sequence
-from functools import partial
 
 import click
 import torch
 import yaml
 from pydantic import TypeAdapter, ValidationError
-from organelle_mapping.config import RunConfig, CheckpointEditConfig
+
+from organelle_mapping.config import CheckpointEditConfig, RunConfig
 from organelle_mapping.utils import setup_package_logger
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ def transfer_checkpoint_weights(
             if weights[key].ndim == 1:  # Bias
                 init_fn = partial(torch.nn.init.constant_, val=0.01)
             else:  # Conv weights
-                init_fn = partial(torch.nn.init.kaiming_normal_, mode='fan_out', nonlinearity='relu')
+                init_fn = partial(torch.nn.init.kaiming_normal_, mode="fan_out", nonlinearity="relu")
 
             weights_new[key] = match_head_weights(
                 weights[key],
@@ -148,7 +149,7 @@ def match_head_weights(
             target_weights[target_idx] = target_weights[target_idx].squeeze(0)
 
             # Get init function name for better logging
-            init_name = getattr(init_fn, '__name__', getattr(init_fn, 'func', init_fn).__name__ if hasattr(init_fn, 'func') else str(init_fn))
+            init_name = getattr(init_fn, "__name__", getattr(init_fn, "func", init_fn).__name__ if hasattr(init_fn, "func") else str(init_fn))
             logger.warning(f"Target channel '{target_desc}' not mapped to source, initializing with {init_name}")
 
     return target_weights
@@ -185,7 +186,7 @@ def create_transfer_checkpoint(
     with open(finetuning_config.source_experiment) as f:
         source_run_config = TypeAdapter(RunConfig).validate_python(
             yaml.safe_load(f),
-            context={'base_dir': finetuning_config.source_experiment.parent}
+            context={"base_dir": finetuning_config.source_experiment.parent}
         )
     source_descriptors = source_run_config.channel_descriptors
 
@@ -269,7 +270,7 @@ def main(
             with open(config) as f:
                 finetuning_config = TypeAdapter(CheckpointEditConfig).validate_python(
                     yaml.safe_load(f),
-                    context={'base_dir': config.parent}
+                    context={"base_dir": config.parent}
                 )
         else:
             # Construct from CLI arguments

@@ -187,7 +187,7 @@ def _find_duplicates(data_config):
         offset_to_crops = dict()
         for crop in ds_info["labels"]["crops"]:
             for c in crop.split(","):
-                crop_path = Path(ds_info['labels']['data']) / ds_info['labels']['group'] / c
+                crop_path = Path(ds_info["labels"]["data"]) / ds_info["labels"]["group"] / c
                 crop_root = fst.read(crop_path)
                 example_class = crop_root.attrs["cellmap"]["annotation"]["class_names"][0]
                 crop_datasets = crop_root[example_class].attrs["multiscales"][0]["datasets"]
@@ -295,7 +295,7 @@ class Crop:
                         [self.get_array(c) == self.get_encoding(c)["absent"] for c in missing.union(combo)]
                     )
                 ] = encoding["absent"]
-        
+
         # Check parent combinations for intersection logic
         if parent_labels and len(parent_labels) > 1:
             for parent_combo in utils.all_combinations(parent_labels):
@@ -306,12 +306,12 @@ class Crop:
                 if atoms == parent_intersection:
                     # All parents in combo must be present
                     parent_present_masks = [
-                        self.get_array(p) == self.get_encoding(p)["present"] 
+                        self.get_array(p) == self.get_encoding(p)["present"]
                         for p in parent_combo
                     ]
                     all_parents_present = np.logical_and.reduce(parent_present_masks)
                     n_arr[all_parents_present] = encoding["present"]
-        
+
         return n_arr.astype(np.uint8), encoding
 
     def save_class(
@@ -445,7 +445,7 @@ class Crop:
                     src = self.get_array(label, l1)
                     down = skimage.transform.downscale_local_mean(src, 2).astype("float32")
                     # Only crop if source dimension was odd (which causes an extra voxel)
-                    downslice = tuple(slice(down.shape[i] - 1 if src.shape[i] % 2 == 1 else down.shape[i]) 
+                    downslice = tuple(slice(down.shape[i] - 1 if src.shape[i] % 2 == 1 else down.shape[i])
                                       for i in range(len(down.shape)))
                     down = down[downslice]
                     down[down > max(encoding["present"], encoding["absent"])] = encoding["unknown"]
@@ -551,7 +551,7 @@ def _add_missing_classes_func(label_config: BinaryIO, data_config: BinaryIO):
     classes = utils.read_label_yaml(label_config)
     datas = yaml.safe_load(data_config)
     all_defined_classes = set(classes.keys())
-    
+
     # Process each dataset and crop
     for key, ds_info in datas["datasets"].items():
         logger.info(f"Processing dataset: {key}")
@@ -559,11 +559,11 @@ def _add_missing_classes_func(label_config: BinaryIO, data_config: BinaryIO):
             for cropname in crop.split(","):
                 crop_path = Path(ds_info["labels"]["data"]) / ds_info["labels"]["group"] / cropname
                 c = Crop(classes, crop_path)
-                
+
                 # Find missing classes
                 existing_classes = c.get_annotated_classes()
                 missing_classes = all_defined_classes - existing_classes
-                
+
                 if missing_classes:
                     logger.info(f"  Processing {cropname}: adding {len(missing_classes)} missing classes")
                     for class_name in sorted(missing_classes):
@@ -666,7 +666,7 @@ def fix_offset(data_config: BinaryIO, *, dry_run: bool = False):
         root_raw = fst.read(Path(ds_info["em"]["data"]) / ds_info["em"]["group"])
         try:
             datasets = root_raw.attrs["multiscales"][0]["datasets"]
-        except KeyError as e:
+        except KeyError:
             logger.info("May have different metadata format. Proceeding with next dataset")
             continue
         for ds in datasets:
@@ -676,7 +676,7 @@ def fix_offset(data_config: BinaryIO, *, dry_run: bool = False):
         for crop in ds_info["labels"]["crops"]:
             for cropname in crop.split(","):
                 logger.info(f"Processing {ds_info['labels']['data']}/{ds_info['labels']['group']}/{cropname}")
-                crop_path = Path(ds_info['labels']['data']) / ds_info['labels']['group'] / cropname
+                crop_path = Path(ds_info["labels"]["data"]) / ds_info["labels"]["group"] / cropname
                 crop_root = fst.read(crop_path)
                 lbl = next(iter(crop_root.keys()))
                 crop_datasets = crop_root[lbl].attrs["multiscales"][0]["datasets"]

@@ -1,9 +1,8 @@
-from sklearn.metrics import accuracy_score, jaccard_score
-from scipy.spatial.distance import dice
-from skimage.measure import label
 import numpy as np
 from scipy.optimize import linear_sum_assignment
-
+from scipy.spatial.distance import dice
+from skimage.measure import label
+from sklearn.metrics import accuracy_score, jaccard_score
 
 # def prepare_instance(y):
 #     y = prepare_semantic(y)
