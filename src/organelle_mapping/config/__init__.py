@@ -6,4 +6,3 @@ from organelle_mapping.config.models import Architecture
 from organelle_mapping.config.run import RunConfig
 from organelle_mapping.config.target import MSETarget, MultiLabelBCETarget, Target, TargetConfig
 from organelle_mapping.config.transform import BinaryConfig, LSDConfig, Transform, TransformConfig
-

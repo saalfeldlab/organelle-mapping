@@ -22,6 +22,7 @@ class TargetConfig(BaseModel, ABC):
     def create_loss_function(self) -> torch.nn.Module:
         """Create the appropriate loss function for this target."""
         ...
+
     @property
     def num_channels(self) -> int:
         """Total number of output channels for this target."""
@@ -55,6 +56,7 @@ class MultiLabelBCETarget(TargetConfig):
     def create_loss_function(self) -> torch.nn.Module:
         """Create MaskedMultiLabelBCE loss with pos_weights."""
         return MaskedMultiLabelBCEwithLogits(pos_weight=self.pos_weights)
+
 
 class MSETarget(TargetConfig):
     """Target using mean squared error loss."""

@@ -23,9 +23,7 @@ def test_database_creation():
         # Check schema
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            tables = cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            tables = cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
             assert ("results",) in tables
 
             # Check columns

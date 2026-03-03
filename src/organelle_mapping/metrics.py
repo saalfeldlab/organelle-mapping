@@ -22,8 +22,9 @@ def dice_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
         return 1.0
     return score
 
+
 def jaccard(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    return jaccard_score(y_true.flatten(), y_pred.flatten(), zero_division=1.)
+    return jaccard_score(y_true.flatten(), y_pred.flatten(), zero_division=1.0)
 
 
 # def match_instance(y_pred, y_true):

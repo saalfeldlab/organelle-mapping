@@ -71,11 +71,11 @@ def predict_crop(
     block_input_shape_world = block_input_shape * voxel_size_coord
     block_output_shape_world = block_output_shape * voxel_size_coord
 
-    context = (block_input_shape_world - block_output_shape_world) / 2.
-    raw_begin = Coordinate(raw_xarray[0,0,0].coords[ax].item() for ax in raw_xarray.dims)
-    raw_end = Coordinate(raw_xarray[-1,-1,-1].coords[ax].item() for ax in raw_xarray.dims)
-    raw_resolution = Coordinate(raw_xarray[1,1,1].coords[ax].item() for ax in raw_xarray.dims) - raw_begin
-    shape = ((end_coord - start_coord + raw_resolution) / voxel_size_coord)
+    context = (block_input_shape_world - block_output_shape_world) / 2.0
+    raw_begin = Coordinate(raw_xarray[0, 0, 0].coords[ax].item() for ax in raw_xarray.dims)
+    raw_end = Coordinate(raw_xarray[-1, -1, -1].coords[ax].item() for ax in raw_xarray.dims)
+    raw_resolution = Coordinate(raw_xarray[1, 1, 1].coords[ax].item() for ax in raw_xarray.dims) - raw_begin
+    shape = (end_coord - start_coord + raw_resolution) / voxel_size_coord
     logging.info(f"Calculatd shape as {shape}")
     # Initialize prediction array matching GT size
     predictions = np.zeros((len(label_list),) + tuple(shape), dtype=np.float32)
@@ -84,15 +84,14 @@ def predict_crop(
     for z_start in range(start_coord[0], end_coord[0], block_output_shape_world[0]):
         for y_start in range(start_coord[1], end_coord[1], block_output_shape_world[1]):
             for x_start in range(start_coord[2], end_coord[2], block_output_shape_world[2]):
-
                 # Calculate world-space ROI for this block
                 block_begin_world = Coordinate((z_start, y_start, x_start))
                 block_end_world = block_begin_world + block_input_shape_world
                 # Calculate world-space input ROI for this block
                 input_begin_world = block_begin_world - context
                 input_end_world = input_begin_world + block_input_shape_world - raw_resolution
-                begin_oob = [s - r for s,r in zip(input_begin_world, raw_begin)]
-                end_oob = [r - s for s,r in zip(input_end_world, raw_end)]
+                begin_oob = [s - r for s, r in zip(input_begin_world, raw_begin)]
+                end_oob = [r - s for s, r in zip(input_end_world, raw_end)]
 
                 # Create slices for xarray
                 slices = tuple(slice(s, e) for s, e in zip(input_begin_world, input_end_world))
@@ -101,7 +100,7 @@ def predict_crop(
                 logger.debug(f"Read raw data of shape {block_raw.shape}")
                 if raw_resolution != voxel_size_coord:
                     downsample_factor = tuple(int(voxel_size_coord[i] / raw_resolution[i]) for i in range(3))
-                    block_raw = block_reduce(block_raw, downsample_factor,func=np.mean)
+                    block_raw = block_reduce(block_raw, downsample_factor, func=np.mean)
 
                 # Check if padding is needed due to boundary issues
                 if any(oob < 0 for oob in begin_oob) or any(oob < 0 for oob in end_oob):
@@ -130,16 +129,16 @@ def predict_crop(
                 block_predictions = predict_block(model, block_raw_norm, device)
 
                 # Place predictions in output array (crop if needed)
-                pred_start_vx = (block_begin_world - start_coord)/voxel_size_coord
+                pred_start_vx = (block_begin_world - start_coord) / voxel_size_coord
                 pred_end_vx = pred_start_vx + block_output_shape
                 pred_end_vx = [min(pred_end_vx[i], shape[i]) for i in range(3)]
                 source_end = [pred_end_vx[i] - pred_start_vx[i] for i in range(3)]
                 predictions[
                     :,
-                    pred_start_vx[0]:pred_end_vx[0],
-                    pred_start_vx[1]:pred_end_vx[1],
-                    pred_start_vx[2]:pred_end_vx[2]
-                ] = block_predictions[:, :source_end[0], :source_end[1], :source_end[2]]
+                    pred_start_vx[0] : pred_end_vx[0],
+                    pred_start_vx[1] : pred_end_vx[1],
+                    pred_start_vx[2] : pred_end_vx[2],
+                ] = block_predictions[:, : source_end[0], : source_end[1], : source_end[2]]
 
     return predictions
 
@@ -188,10 +187,12 @@ def evaluate_predictions(
         # Show key stats
         gt_positive_ratio = gt_binary.mean()
         pred_positive_ratio = (pred_channel > best_dice_threshold).mean()
-        logger.info(f"{channel_name}: pred_range=[{pred_channel.min():.3f}, {pred_channel.max():.3f}], "
-                   f"pred_mean={pred_channel.mean():.3f}, gt_pos={gt_positive_ratio:.3f}, "
-                   f"pred_pos={pred_positive_ratio:.3f}, "
-                   f"best_dice_thr={best_dice_threshold:.3f}, best_jacc_thr={best_jaccard_threshold:.3f}")
+        logger.info(
+            f"{channel_name}: pred_range=[{pred_channel.min():.3f}, {pred_channel.max():.3f}], "
+            f"pred_mean={pred_channel.mean():.3f}, gt_pos={gt_positive_ratio:.3f}, "
+            f"pred_pos={pred_positive_ratio:.3f}, "
+            f"best_dice_thr={best_dice_threshold:.3f}, best_jacc_thr={best_jaccard_threshold:.3f}"
+        )
 
         results[channel_name] = {
             "dice": best_dice,
@@ -325,8 +326,6 @@ def run(
     else:
         thresholds = eval_cfg.thresholds
 
-
-
     logger.info(f"Labels to evaluate: {label_list}")
     logger.info(f"Target sampling: {sampling}")
     logger.info(f"Architecture: {network_config.name} (padding={network_config.padding})")
@@ -364,9 +363,9 @@ def run(
 
     # Evaluate each checkpoint
     for checkpoint in checkpoints:
-        logger.info(f"\n{'='*70}")
+        logger.info(f"\n{'=' * 70}")
         logger.info(f"Evaluating checkpoint: {checkpoint}")
-        logger.info(f"{'='*70}")
+        logger.info(f"{'=' * 70}")
 
         # Load model
         logger.info(f"Loading model from {checkpoint}")
@@ -430,9 +429,9 @@ def run(
         checkpoint_results[checkpoint] = all_results
 
         # Print summary for this checkpoint
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"CHECKPOINT {checkpoint} SUMMARY")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         if not all_results:
             print("No crops were successfully evaluated.")
@@ -464,9 +463,9 @@ def run(
         print(f"Total crops evaluated: {len(all_results)}")
 
     # Print final summary across all checkpoints
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("FINAL SUMMARY - ALL CHECKPOINTS")
-    print("="*70)
+    print("=" * 70)
 
     for checkpoint, results in checkpoint_results.items():
         if results:
@@ -573,18 +572,17 @@ def evaluate_single_crop(
     logger.info(f"Opening raw dataset with fibsem_tools: {raw_scale_path}")
     raw_xarray = fst.read_xarray(raw_scale_path)
 
-
     logger.info(f"Checking if start_coord {start_coord} exists in raw coordinates...")
     logger.info(f"Raw coordinate ranges: {[(ax, raw_xarray.coords[ax].values[[0, -1]]) for ax in axes]}")
 
     while any(start_coord[dim] not in raw_xarray.coords[ax] for dim, ax in enumerate(axes)):
         logger.info("Coordinate mismatch detected, trying higher resolution...")
-        higher_resolution = {ax: raw_resolution[ax]/2. for ax in axes}
+        higher_resolution = {ax: raw_resolution[ax] / 2.0 for ax in axes}
         logger.info(f"Looking for resolution: {higher_resolution}")
         # Convert resolution dict to Coordinate for arithmetic
         raw_res_coord = Coordinate(raw_resolution[ax] for ax in axes)
-        start_coord = start_coord - raw_res_coord/4.
-        end_coord = end_coord + raw_res_coord/4.
+        start_coord = start_coord - raw_res_coord / 4.0
+        end_coord = end_coord + raw_res_coord / 4.0
         raw_scale_level, _, raw_resolution, _ = find_target_scale(z_raw, higher_resolution)
         raw_scale_path = f"{raw_path}/{raw_scale_level}"
         raw_xarray = fst.read_xarray(raw_scale_path)

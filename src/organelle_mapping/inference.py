@@ -197,6 +197,7 @@ def spawn_worker(
         mask_datasets = []
     if mask_containers is None:
         mask_containers = []
+
     def run_worker():
         mask_args = []
         for mask_container, mask_dataset in zip(mask_containers, mask_datasets):
@@ -233,7 +234,8 @@ def spawn_worker(
                     "-W",
                     f"{time_limit}",
                     *process_cmd,
-                ], check=False
+                ],
+                check=False,
             )
 
     return run_worker
@@ -476,12 +478,12 @@ def start_worker(
             if len(mask_datasets) > 0:
                 mask_data = any(
                     np.any(
-                            mask_dataset.to_ndarray(
-                                roi=block.read_roi.snap_to_grid(mask_dataset.voxel_size),
-                                fill_value=0,
-                            )
+                        mask_dataset.to_ndarray(
+                            roi=block.read_roi.snap_to_grid(mask_dataset.voxel_size),
+                            fill_value=0,
                         )
-                        for mask_dataset in mask_datasets
+                    )
+                    for mask_dataset in mask_datasets
                 )
             else:
                 mask_data = 1

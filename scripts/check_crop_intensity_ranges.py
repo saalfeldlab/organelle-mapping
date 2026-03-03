@@ -72,8 +72,8 @@ def main(data_config, dataset, output, sampling):
                         org_grp = crop_grp["organelle"]
 
                         # Find target scale for crop
-                        crop_scale_name, crop_offset_dict, crop_resolution_dict, crop_shape_dict = utils.find_target_scale(
-                            org_grp, target_resolution
+                        crop_scale_name, crop_offset_dict, crop_resolution_dict, crop_shape_dict = (
+                            utils.find_target_scale(org_grp, target_resolution)
                         )
 
                         crop_offset = utils.ax_dict_to_list(crop_offset_dict, ["z", "y", "x"])
@@ -85,11 +85,13 @@ def main(data_config, dataset, output, sampling):
                         em_shape = [int(cs * cr / er) for cs, cr, er in zip(crop_shape, crop_resolution, em_resolution)]
 
                         # Extract EM region for this crop
-                        em_crop = np.array(em_data[
-                            em_offset[0]:em_offset[0]+em_shape[0],
-                            em_offset[1]:em_offset[1]+em_shape[1],
-                            em_offset[2]:em_offset[2]+em_shape[2]
-                        ])
+                        em_crop = np.array(
+                            em_data[
+                                em_offset[0] : em_offset[0] + em_shape[0],
+                                em_offset[1] : em_offset[1] + em_shape[1],
+                                em_offset[2] : em_offset[2] + em_shape[2],
+                            ]
+                        )
 
                         # Compute histogram
                         hist, bin_edges = np.histogram(em_crop.flatten(), bins=256, range=(0, 256))

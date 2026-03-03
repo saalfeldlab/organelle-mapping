@@ -83,6 +83,7 @@ void main() {
 @dataclass
 class LayerConfig:
     """Configuration for a Neuroglancer layer."""
+
     name: str
     source: str | dict[str, Any]
     shader: str
@@ -140,7 +141,7 @@ def build_source_url(
             idx = full_local.rfind(fg_path)
             if idx != -1:
                 # Everything after the match
-                after_match = full_local[idx + len(fg_path):]
+                after_match = full_local[idx + len(fg_path) :]
                 remaining_path = after_match.strip("/")
 
         # Build final URL: fileglancer URL + remaining path
@@ -188,7 +189,7 @@ def build_multichannel_source(
                 "y": [voxel_size[1], "nm"],
                 "x": [voxel_size[2], "nm"],
             }
-        }
+        },
     }
 
 

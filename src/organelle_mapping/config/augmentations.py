@@ -158,9 +158,7 @@ class ElasticAugmentConfig(AugmentationConfig):
         # Apply rotation to full extent
         if self.rotation_interval[1] > 0:
             # Diagonal extent for worst-case rotation
-            max_extent = gp.Coordinate(
-                (np.ceil(np.sqrt(sum(max_extent**2))),) * len(max_extent)
-            )
+            max_extent = gp.Coordinate((np.ceil(np.sqrt(sum(max_extent**2))),) * len(max_extent))
 
         return max_extent
 

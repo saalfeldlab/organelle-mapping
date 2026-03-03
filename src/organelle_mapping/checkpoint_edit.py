@@ -64,10 +64,14 @@ def transfer_checkpoint_weights(
             buffers[ohk] = []
             for buffer_name, buffer_value in optimizer_state["state"][ohk].items():
                 if not isinstance(buffer_value, torch.Tensor):
-                    raise TypeError(f"Expected optimizer state '{buffer_name}' to be a tensor, got {type(buffer_value)}")
+                    raise TypeError(
+                        f"Expected optimizer state '{buffer_name}' to be a tensor, got {type(buffer_value)}"
+                    )
                 if buffer_value.ndim == weights[hk].ndim:
                     if buffer_value.size() != weights[hk].size():
-                        raise ValueError(f"Assumptions about how model weights map to optimizer state do not hold for key {hk}. Can't transfer optimizer state.")
+                        raise ValueError(
+                            f"Assumptions about how model weights map to optimizer state do not hold for key {hk}. Can't transfer optimizer state."
+                        )
                     else:
                         buffers[ohk].append(buffer_name)
     else:
@@ -84,11 +88,7 @@ def transfer_checkpoint_weights(
                 init_fn = partial(torch.nn.init.kaiming_normal_, mode="fan_out", nonlinearity="relu")
 
             weights_new[key] = match_head_weights(
-                weights[key],
-                source_descriptors,
-                target_descriptors,
-                channel_mapping,
-                init_fn=init_fn
+                weights[key], source_descriptors, target_descriptors, channel_mapping, init_fn=init_fn
             )
             if optimizer_key is not None:
                 for buffer_name in buffers[optimizer_key]:
@@ -98,7 +98,7 @@ def transfer_checkpoint_weights(
                         source_descriptors,
                         target_descriptors,
                         channel_mapping,
-                        init_fn=partial(torch.nn.init.constant_, val=0.0)
+                        init_fn=partial(torch.nn.init.constant_, val=0.0),
                     )
 
     checkpoint_new = copy.deepcopy(checkpoint)
@@ -149,15 +149,18 @@ def match_head_weights(
             target_weights[target_idx] = target_weights[target_idx].squeeze(0)
 
             # Get init function name for better logging
-            init_name = getattr(init_fn, "__name__", getattr(init_fn, "func", init_fn).__name__ if hasattr(init_fn, "func") else str(init_fn))
+            init_name = getattr(
+                init_fn,
+                "__name__",
+                getattr(init_fn, "func", init_fn).__name__ if hasattr(init_fn, "func") else str(init_fn),
+            )
             logger.warning(f"Target channel '{target_desc}' not mapped to source, initializing with {init_name}")
 
     return target_weights
 
 
 def create_transfer_checkpoint(
-    finetuning_config: CheckpointEditConfig,
-    output_checkpoint: Optional[Path] = None
+    finetuning_config: CheckpointEditConfig, output_checkpoint: Optional[Path] = None
 ) -> str:
     """Create a new checkpoint with transferred weights.
 
@@ -185,8 +188,7 @@ def create_transfer_checkpoint(
     # Load source config to get descriptors
     with open(finetuning_config.source_experiment) as f:
         source_run_config = TypeAdapter(RunConfig).validate_python(
-            yaml.safe_load(f),
-            context={"base_dir": finetuning_config.source_experiment.parent}
+            yaml.safe_load(f), context={"base_dir": finetuning_config.source_experiment.parent}
         )
     source_descriptors = source_run_config.channel_descriptors
 
@@ -204,7 +206,7 @@ def create_transfer_checkpoint(
         source_descriptors,
         target_descriptors,
         channel_mapping=finetuning_config.channel_mapping,
-        heads_keys=heads_keys
+        heads_keys=heads_keys,
     )
     # Save transferred checkpoint
     torch.save(checkpoint_new, output_checkpoint)
@@ -213,45 +215,33 @@ def create_transfer_checkpoint(
     return str(output_checkpoint)
 
 
-
 @click.command()
 @click.option(
     "--config",
     type=click.Path(exists=True, path_type=Path),
-    help="Path to finetuning.yaml config file. If provided, other options are ignored."
+    help="Path to finetuning.yaml config file. If provided, other options are ignored.",
 )
 @click.option(
-    "--source-checkpoint",
-    type=click.Path(exists=True, path_type=Path),
-    help="Path to source checkpoint file"
+    "--source-checkpoint", type=click.Path(exists=True, path_type=Path), help="Path to source checkpoint file"
 )
 @click.option(
     "--source-experiment",
     type=click.Path(exists=True, path_type=Path),
-    help="Path to source experiment run.yaml config file"
+    help="Path to source experiment run.yaml config file",
 )
 @click.option(
     "--target-descriptors",
     multiple=True,
     help="Target channel descriptors for the output model (e.g., 'mito_binary', 'er_lsd_0'). "
-         "Can be specified multiple times. If not provided, creates symlink (assumes identical channels)."
+    "Can be specified multiple times. If not provided, creates symlink (assumes identical channels).",
 )
-@click.option(
-    "--heads-keys",
-    multiple=True,
-    help="State dict keys for output heads. Can be specified multiple times."
-)
-@click.option(
-    "--output",
-    required=True,
-    type=click.Path(path_type=Path),
-    help="Output checkpoint path."
-)
+@click.option("--heads-keys", multiple=True, help="State dict keys for output heads. Can be specified multiple times.")
+@click.option("--output", required=True, type=click.Path(path_type=Path), help="Output checkpoint path.")
 @click.option(
     "--log-level",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
     default="INFO",
-    help="Set the logging level."
+    help="Set the logging level.",
 )
 def main(
     config: Optional[Path],
@@ -260,7 +250,7 @@ def main(
     target_descriptors: tuple[str, ...],
     heads_keys: tuple[str, ...],
     output: Path,
-    log_level: str
+    log_level: str,
 ):
     """Transfer weights between model checkpoints with different label configurations."""
     setup_package_logger(log_level)
@@ -269,13 +259,14 @@ def main(
         if config:
             with open(config) as f:
                 finetuning_config = TypeAdapter(CheckpointEditConfig).validate_python(
-                    yaml.safe_load(f),
-                    context={"base_dir": config.parent}
+                    yaml.safe_load(f), context={"base_dir": config.parent}
                 )
         else:
             # Construct from CLI arguments
             if not source_checkpoint or not source_experiment:
-                raise click.ClickException("--source-checkpoint and --source-experiment are required when not using --config")
+                raise click.ClickException(
+                    "--source-checkpoint and --source-experiment are required when not using --config"
+                )
 
             heads_keys_list = list(heads_keys) if heads_keys else None
 
@@ -288,7 +279,7 @@ def main(
                 source_checkpoint=source_checkpoint,
                 source_experiment=source_experiment,
                 channel_mapping=channel_mapping,
-                heads_keys=heads_keys_list
+                heads_keys=heads_keys_list,
             )
 
         # Call the function with explicit output path

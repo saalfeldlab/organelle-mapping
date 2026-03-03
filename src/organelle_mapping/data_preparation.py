@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 
 
 @click.group()
-@click.option("--log-level", type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False), default="INFO")
+@click.option(
+    "--log-level", type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False), default="INFO"
+)
 def cli(log_level: str):
     """Data preparation utilities for organelle mapping."""
     setup_package_logger(log_level)
@@ -305,10 +307,7 @@ class Crop:
                 parent_intersection = set.intersection(*[self.classes[p] for p in parent_combo])
                 if atoms == parent_intersection:
                     # All parents in combo must be present
-                    parent_present_masks = [
-                        self.get_array(p) == self.get_encoding(p)["present"]
-                        for p in parent_combo
-                    ]
+                    parent_present_masks = [self.get_array(p) == self.get_encoding(p)["present"] for p in parent_combo]
                     all_parents_present = np.logical_and.reduce(parent_present_masks)
                     n_arr[all_parents_present] = encoding["present"]
 
@@ -445,8 +444,10 @@ class Crop:
                     src = self.get_array(label, l1)
                     down = skimage.transform.downscale_local_mean(src, 2).astype("float32")
                     # Only crop if source dimension was odd (which causes an extra voxel)
-                    downslice = tuple(slice(down.shape[i] - 1 if src.shape[i] % 2 == 1 else down.shape[i])
-                                      for i in range(len(down.shape)))
+                    downslice = tuple(
+                        slice(down.shape[i] - 1 if src.shape[i] % 2 == 1 else down.shape[i])
+                        for i in range(len(down.shape))
+                    )
                     down = down[downslice]
                     down[down > max(encoding["present"], encoding["absent"])] = encoding["unknown"]
                     histo = {}

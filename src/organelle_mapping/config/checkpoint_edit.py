@@ -20,18 +20,15 @@ class CheckpointEditConfig(BaseModel):
     source_checkpoint: Path = Field(
         description="Path to source checkpoint file (relative to source_experiment directory)"
     )
-    source_experiment: Path = Field(
-        description="Path to source experiment run.yaml config file"
-    )
+    source_experiment: Path = Field(description="Path to source experiment run.yaml config file")
     channel_mapping: Optional[dict[str, Optional[str]]] = Field(
         default=None,
         description="""Mapping from target channel descriptors to source channel descriptors.
         Keys are target descriptors, values are source descriptors (or None to initialize fresh).
-        If not provided, auto-matches by descriptor name."""
+        If not provided, auto-matches by descriptor name.""",
     )
     heads_keys: Optional[Sequence[str]] = Field(
-        default=None,
-        description="State dict keys containing output heads. If None, auto-detects 'final_conv' keys"
+        default=None, description="State dict keys containing output heads. If None, auto-detects 'final_conv' keys"
     )
 
     @field_validator("source_experiment", mode="before")

@@ -15,8 +15,7 @@ def validate_activation_string(value: str) -> str:
         msg = f"torch.nn.{value} does not exist"
         raise ValueError(msg)
 
-    if not (isinstance(activation_class, type) and
-            issubclass(activation_class, torch.nn.Module)):
+    if not (isinstance(activation_class, type) and issubclass(activation_class, torch.nn.Module)):
         msg = f"torch.nn.{value} is not a PyTorch module class"
         raise ValueError(msg)
 
@@ -28,7 +27,9 @@ def validate_activation_string(value: str) -> str:
 
     return value
 
+
 ActivationStr = Annotated[str, BeforeValidator(validate_activation_string)]
+
 
 class TransformConfig(BaseModel, ABC):
     """Base class for all output transform configurations."""
@@ -37,8 +38,7 @@ class TransformConfig(BaseModel, ABC):
     source: str = Field(description="Source label name (e.g., 'mito', 'er')")
     activation: ActivationStr = Field(description="Activation function to use during training")
     inference_activation: Optional[ActivationStr] = Field(
-        default=None,
-        description="Activation function to use during inference. If not specified, uses 'activation'"
+        default=None, description="Activation function to use during inference. If not specified, uses 'activation'"
     )
     model_config = {"discriminator": "type"}
 
@@ -54,11 +54,13 @@ class TransformConfig(BaseModel, ABC):
     def num_channels(self) -> int:
         """Number of output channels this transform produces."""
         ...
+
     @property
     @abstractmethod
     def mask_key(self) -> gp.ArrayKey:
         """Array Key for output mask"""
         ...
+
     @property
     @abstractmethod
     def output_key(self) -> gp.ArrayKey:
@@ -137,7 +139,7 @@ class LSDConfig(TransformConfig):
         description="""How to handle background pixels in LSD computation:
         - 'exclude': Background pixels are masked out and don't contribute to loss (sparse training signal)
         - 'zero': Background pixels get 0 LSD values but contribute to loss (dense training, explicit 'no shape' signal)
-        - 'label': Background is treated as its own shape and gets computed LSDs"""
+        - 'label': Background is treated as its own shape and gets computed LSDs""",
     )
     binary_threshold: float = 0.5
 
@@ -151,25 +153,22 @@ class LSDConfig(TransformConfig):
         binary_key = gp.ArrayKey(f"{self.source.upper()}_BINARY")
         instances_key = gp.ArrayKey(f"{self.source.upper()}_INSTANCES")
         threshold_to_binary = corditea.Threshold(
-            source = source_key,
-            target = binary_key,
+            source=source_key,
+            target=binary_key,
             threshold=self.binary_threshold,
             background_values=255,
         )
 
-        binary_to_instances = corditea.BinaryToInstances(
-            binary_key,
-            instances_key
-        )
+        binary_to_instances = corditea.BinaryToInstances(binary_key, instances_key)
         lsd = corditea.AddLSD(
             segmentation=instances_key,
             descriptor=self.output_key,
             lsds_mask=self.mask_key,
             labels_mask=source_mask_key,  # Use source mask for invalid regions
             background_mode=self.background_mode,
-            background_value=(0,255),
+            background_value=(0, 255),
             sigma=self.sigma,
-            downsample=self.downsample
+            downsample=self.downsample,
         )
         return (threshold_to_binary, binary_to_instances, lsd)
 
@@ -185,5 +184,6 @@ class LSDConfig(TransformConfig):
         """Add LSD context (sigma * 6) to maximum extent."""
         context = self.sigma * 6
         return max_extent + gp.Coordinate((context,) * len(max_extent))
+
 
 Transform = Union[BinaryConfig, LSDConfig]

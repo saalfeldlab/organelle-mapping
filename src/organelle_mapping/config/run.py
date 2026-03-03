@@ -34,10 +34,8 @@ class RunConfig(BaseModel):
     )
     snapshot_frequency: int = 2000
     finetuning: Optional[CheckpointEditConfig] = Field(
-        default=None,
-        description="Optional finetuning configuration for transfer learning"
+        default=None, description="Optional finetuning configuration for transfer learning"
     )
-
 
     @field_validator("augmentations", mode="before")
     @classmethod
@@ -65,8 +63,7 @@ class RunConfig(BaseModel):
     def total_channels(self) -> int:
         """Calculate total output channels across all targets."""
         return sum(
-            sum(target_transform.num_channels for target_transform in target.transforms)
-            for target in self.targets
+            sum(target_transform.num_channels for target_transform in target.transforms) for target in self.targets
         )
 
     @property
@@ -110,4 +107,3 @@ class RunConfig(BaseModel):
     # TODO: Add weight normalization validator
     # Step 1: Normalize within each target (sum to 1.0)
     # Step 2: Scale across targets (total sum to 1.0) for learning rate consistency
-

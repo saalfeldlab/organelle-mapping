@@ -42,13 +42,15 @@ class SACModel(torch.nn.Module):
                 inference_activation_class = getattr(torch.nn, transform.inference_activation)
                 inference_activation = inference_activation_class()
 
-                self.transform_specs.append({
-                    "start": start_ch,
-                    "end": end_ch,
-                    "train_activation": train_activation,
-                    "inference_activation": inference_activation,
-                    "name": f"{target.name or target.type}_{transform.source}_{transform.type}"
-                })
+                self.transform_specs.append(
+                    {
+                        "start": start_ch,
+                        "end": end_ch,
+                        "train_activation": train_activation,
+                        "inference_activation": inference_activation,
+                        "name": f"{target.name or target.type}_{transform.source}_{transform.type}",
+                    }
+                )
 
                 current_channel = end_ch
 
@@ -68,7 +70,7 @@ class SACModel(torch.nn.Module):
         # Apply activations to each channel range
         activated_chunks = []
         for spec in self.transform_specs:
-            chunk = output[:, spec["start"]:spec["end"]]
+            chunk = output[:, spec["start"] : spec["end"]]
 
             # Select activation based on training mode
             activation = spec["train_activation"] if self.training else spec["inference_activation"]
@@ -131,7 +133,6 @@ def load_eval_model(architecture, targets, checkpoint_path: str):
     return model
 
 
-
 class TemsUnet(torch.nn.Module):
     def __init__(
         self,
@@ -150,17 +151,19 @@ class TemsUnet(torch.nn.Module):
     ):
         super().__init__()
         if downsample_factors is None:
-            downsample_factors = [(2,2,2), (2,2,2), (2,2,2)]
+            downsample_factors = [(2, 2, 2), (2, 2, 2), (2, 2, 2)]
         if kernel_size_down is None:
-            kernel_size_level = [(3,3,3), (3,3,3), (3,3,3)]
-            kernel_size_down = [kernel_size_level,] * (len(downsample_factors) + 1)
+            kernel_size_level = [(3, 3, 3), (3, 3, 3), (3, 3, 3)]
+            kernel_size_down = [
+                kernel_size_level,
+            ] * (len(downsample_factors) + 1)
         if kernel_size_up is None:
-            kernel_size_level = [(3,3,3), (3,3,3), (3,3,3)]
+            kernel_size_level = [(3, 3, 3), (3, 3, 3), (3, 3, 3)]
             kernel_size_up = [
                 kernel_size_level,
             ] * len(downsample_factors)
         if fmaps_down is None:
-            fmaps_down = list(16 * 6**lvl for lvl in range(len(downsample_factors)+1))
+            fmaps_down = list(16 * 6**lvl for lvl in range(len(downsample_factors) + 1))
         if fmaps_up is None:
             fmaps_up = fmaps_down
         levels = []
@@ -168,52 +171,46 @@ class TemsUnet(torch.nn.Module):
             if lvl == 0:
                 in_ch = in_channels
             else:
-                in_ch = fmaps_down[lvl-1]
+                in_ch = fmaps_down[lvl - 1]
             if lvl == len(downsample_factors) - 1:
-                fmaps_below = fmaps_down[lvl+1]
+                fmaps_below = fmaps_down[lvl + 1]
             else:
-                fmaps_below = fmaps_up[lvl+1]
+                fmaps_below = fmaps_up[lvl + 1]
 
-            levels.append((
-                tems.ConvPass(
-                    dims=3,
-                    in_channels=in_ch,
-                    out_channels=fmaps_down[lvl],
-                    kernel_sizes = kernel_size_down[lvl],
-                    residual=residual,
-                    activation=activation,
-                ),
-                tems.Downsample(
-                    dims=3,
-                    downsample_factor=downsample_factors[lvl]
+            levels.append(
+                (
+                    tems.ConvPass(
+                        dims=3,
+                        in_channels=in_ch,
+                        out_channels=fmaps_down[lvl],
+                        kernel_sizes=kernel_size_down[lvl],
+                        residual=residual,
+                        activation=activation,
                     ),
-                tems.Upsample(
-                    dims=3,
-                    scale_factor=downsample_factors[lvl],
-                    mode=upsample_mode
+                    tems.Downsample(dims=3, downsample_factor=downsample_factors[lvl]),
+                    tems.Upsample(dims=3, scale_factor=downsample_factors[lvl], mode=upsample_mode),
+                    tems.ConvPass(
+                        dims=3,
+                        in_channels=fmaps_down[lvl] + fmaps_below,
+                        out_channels=fmaps_up[lvl],
+                        kernel_sizes=kernel_size_up[lvl],
+                        activation=activation,
                     ),
-                tems.ConvPass(
-                    dims=3,
-                    in_channels=fmaps_down[lvl] + fmaps_below,
-                    out_channels=fmaps_up[lvl],
-                    kernel_sizes=kernel_size_up[lvl],
-                    activation=activation
                 )
-            ))
-        lvl= len(downsample_factors)
+            )
+        lvl = len(downsample_factors)
         bottleneck = tems.ConvPass(
             dims=3,
-            in_channels=fmaps_down[lvl-1],
+            in_channels=fmaps_down[lvl - 1],
             out_channels=fmaps_down[lvl],
             kernel_sizes=kernel_size_down[lvl],
-            activation=activation
+            activation=activation,
         )
 
-        self.unet_backbone = tems.UNet(dims=3,
-                                       bottleneck=bottleneck,
-                                       levels=levels)
-        self.final_conv = torch.nn.Conv3d(fmaps_up[0], out_channels, (1,1,1))
+        self.unet_backbone = tems.UNet(dims=3, bottleneck=bottleneck, levels=levels)
+        self.final_conv = torch.nn.Conv3d(fmaps_up[0], out_channels, (1, 1, 1))
         self.final_activation = final_activation()
+
     def forward(self, x):
         x = self.unet_backbone(x)
         x = self.final_conv(x)
@@ -230,7 +227,7 @@ class StandardUnet(torch.nn.Module):
         downsample_factors=None,
         kernel_size_down=None,
         kernel_size_up=None,
-        padding="valid"
+        padding="valid",
     ):
         super().__init__()
         if downsample_factors is None:
@@ -253,7 +250,7 @@ class StandardUnet(torch.nn.Module):
             downsample_factors=downsample_factors,
             kernel_size_down=kernel_size_down,
             constant_upsample=True,
-            padding=padding
+            padding=padding,
         )
 
         self.final_conv = torch.nn.Conv3d(num_fmaps, out_channels, (1, 1, 1), padding="valid")

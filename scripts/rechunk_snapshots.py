@@ -23,7 +23,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def add_ome_metadata(group: zarr.Group, array_name: str, voxel_size: tuple = (8.0, 8.0, 8.0), offset: tuple = (0.0, 0.0, 0.0), units: str = "nanometer"):
+def add_ome_metadata(
+    group: zarr.Group,
+    array_name: str,
+    voxel_size: tuple = (8.0, 8.0, 8.0),
+    offset: tuple = (0.0, 0.0, 0.0),
+    units: str = "nanometer",
+):
     """Add OME-NGFF 0.4 metadata to a zarr subgroup for a specific array.
 
     Creates a subgroup named after the array and moves the array to 's0' within it,
@@ -78,7 +84,7 @@ def add_ome_metadata(group: zarr.Group, array_name: str, voxel_size: tuple = (8.
             chunks=array_chunks,
             dtype=array_dtype,
             compressor=array_compressor,
-            fill_value=array_fill_value
+            fill_value=array_fill_value,
         )
 
         # Copy the data
@@ -118,23 +124,29 @@ def add_ome_metadata(group: zarr.Group, array_name: str, voxel_size: tuple = (8.
     translation = [0.0] * (ndim - 3) + list(offset)  # 0.0 for batch/channel, offset for spatial
 
     # Update subgroup metadata with OME-NGFF structure
-    subgroup.attrs["multiscales"] = [{
-        "version": "0.4",
-        "axes": axes,
-        "datasets": [{
-            "path": "s0",
-            "coordinateTransformations": [
-                {"type": "scale", "scale": scale},
-                {"type": "translation", "translation": translation}
-            ]
-        }],
-        "coordinateTransformations": [],  # No global transformations
-        "name": array_name,
-    }]
+    subgroup.attrs["multiscales"] = [
+        {
+            "version": "0.4",
+            "axes": axes,
+            "datasets": [
+                {
+                    "path": "s0",
+                    "coordinateTransformations": [
+                        {"type": "scale", "scale": scale},
+                        {"type": "translation", "translation": translation},
+                    ],
+                }
+            ],
+            "coordinateTransformations": [],  # No global transformations
+            "name": array_name,
+        }
+    ]
     logger.info(f"  Added OME-NGFF metadata to {array_name}/s0: scale={voxel_size}, translation={offset}")
 
 
-def rechunk_array_inplace(zarr_path: Path, array_name: str = "output", add_metadata: bool = True, voxel_size: tuple | None = None):
+def rechunk_array_inplace(
+    zarr_path: Path, array_name: str = "output", add_metadata: bool = True, voxel_size: tuple | None = None
+):
     """Rechunk an array in a zarr file in-place and add OME-NGFF metadata.
 
     Args:
@@ -246,12 +258,7 @@ def rechunk_array_inplace(zarr_path: Path, array_name: str = "output", add_metad
         logger.info("  Writing to temporary location with new chunks...")
 
         temp_array = zarr.open(
-            str(temp_path),
-            mode="w",
-            shape=shape,
-            chunks=new_chunks,
-            dtype=dtype,
-            compressor=compressor
+            str(temp_path), mode="w", shape=shape, chunks=new_chunks, dtype=dtype, compressor=compressor
         )
 
         # Write data
@@ -292,7 +299,11 @@ def rechunk_worker(args):
 @click.option("--array", default=None, help="Name of specific array to rechunk (default: all arrays)")
 @click.option("--workers", "-w", default=None, type=int, help="Number of parallel workers (default: CPU count)")
 @click.option("--no-metadata", is_flag=True, help="Skip adding OME-NGFF metadata")
-@click.option("--voxel-size", default=None, help='Voxel size in nm (z,y,x). If not specified, reads from array "resolution" attribute.')
+@click.option(
+    "--voxel-size",
+    default=None,
+    help='Voxel size in nm (z,y,x). If not specified, reads from array "resolution" attribute.',
+)
 def main(snapshots_dir: Path, array: str, workers: int, no_metadata: bool, voxel_size: str | None):
     """Rechunk snapshot zarr files in SNAPSHOTS_DIR for neuroglancer visualization.
 
@@ -338,7 +349,11 @@ def main(snapshots_dir: Path, array: str, workers: int, no_metadata: bool, voxel
                 if group_name not in array_names:
                     array_names.append(group_name)
         logger.info(f"Will process all arrays: {array_names}")
-        work_items = [(zarr_path, array_name, add_metadata, voxel_size_tuple) for zarr_path in zarr_paths for array_name in array_names]
+        work_items = [
+            (zarr_path, array_name, add_metadata, voxel_size_tuple)
+            for zarr_path in zarr_paths
+            for array_name in array_names
+        ]
     else:
         work_items = [(zarr_path, array, add_metadata, voxel_size_tuple) for zarr_path in zarr_paths]
 

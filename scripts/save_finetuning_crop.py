@@ -19,16 +19,7 @@ def main():
     mito = np.array(ds["2025_08_14"]["merged_labels"]["s0"]) == 3
     er = np.array(ds["2025_08_14"]["merged_labels"]["s0"]) == 12672397
 
-    proofread_ids = (
-        4756895987,
-        174082239,
-        92293002,
-        100669309,
-        4756896106,
-        251425816,
-        329506582,
-        4756895979
-    )
+    proofread_ids = (4756895987, 174082239, 92293002, 100669309, 4756896106, 251425816, 329506582, 4756895979)
     print(f"Setting proofread_ids: {proofread_ids}")
 
     # Get valid region
@@ -60,7 +51,7 @@ def main():
     x_min, x_max = coords[2].min(), coords[2].max() + 1
 
     print(f"Bounding box: Z[{z_min}:{z_max}], Y[{y_min}:{y_max}], X[{x_min}:{x_max}]")
-    print(f"Size: ({z_max-z_min}, {y_max-y_min}, {x_max-x_min})")
+    print(f"Size: ({z_max - z_min}, {y_max - y_min}, {x_max - x_min})")
 
     # Crop data to bounding box
     mito_cropped = mito[z_min:z_max, y_min:y_max, x_min:x_max]
@@ -80,25 +71,24 @@ def main():
 
     # Add metadata to the crop group
     print("Adding crop metadata...")
-    crop_grp.attrs.update({
-        "cellmap": {
-            "annotation": {
-                "class_names": [
-                    "mito",
-                    "er"
-                ],
-                "created_by": [],
-                "created_with": [],
-                "description": "Finetuning crop extracted from 2025_06_26 export",
-                "duration_days": None,
-                "end_date": None,
-                "name": "crop_2025_06_26",
-                "protocol_uri": None,
-                "start_date": None,
-                "version": "0.1.1"
+    crop_grp.attrs.update(
+        {
+            "cellmap": {
+                "annotation": {
+                    "class_names": ["mito", "er"],
+                    "created_by": [],
+                    "created_with": [],
+                    "description": "Finetuning crop extracted from 2025_06_26 export",
+                    "duration_days": None,
+                    "end_date": None,
+                    "name": "crop_2025_06_26",
+                    "protocol_uri": None,
+                    "start_date": None,
+                    "version": "0.1.1",
+                }
             }
         }
-    })
+    )
 
     # Resolution and offset (accounting for cropping)
     resolution = [8.0, 8.0, 8.0]  # nm
@@ -115,58 +105,58 @@ def main():
         data=mito_cropped,
         chunks=(128, 128, 128),
         compressor=zarr.Blosc(cname="zstd", clevel=3, shuffle=2),
-        overwrite=True
+        overwrite=True,
     )
 
     # Add metadata for mito group
-    mito_grp.attrs.update({
-        "cellmap": {
-            "annotation": {
-                "annotation_type": {
-                    "encoding": {
-                        "absent": 0,
-                        "present": 1,
-                        "unknown": 255
+    mito_grp.attrs.update(
+        {
+            "cellmap": {
+                "annotation": {
+                    "annotation_type": {
+                        "encoding": {"absent": 0, "present": 1, "unknown": 255},
+                        "type": "semantic_segmentation",
                     },
-                    "type": "semantic_segmentation"
-                },
-                "class_name": "mito"
-            }
-        },
-        "multiscales": [{
-            "axes": [
-                {"name": "z", "type": "space", "unit": "nanometer"},
-                {"name": "y", "type": "space", "unit": "nanometer"},
-                {"name": "x", "type": "space", "unit": "nanometer"}
+                    "class_name": "mito",
+                }
+            },
+            "multiscales": [
+                {
+                    "axes": [
+                        {"name": "z", "type": "space", "unit": "nanometer"},
+                        {"name": "y", "type": "space", "unit": "nanometer"},
+                        {"name": "x", "type": "space", "unit": "nanometer"},
+                    ],
+                    "datasets": [
+                        {
+                            "coordinateTransformations": [
+                                {"scale": resolution, "type": "scale"},
+                                {"translation": offset, "type": "translation"},
+                            ],
+                            "path": "s0",
+                        }
+                    ],
+                    "name": "nominal",
+                    "version": "0.4",
+                }
             ],
-            "datasets": [{
-                "coordinateTransformations": [
-                    {"scale": resolution, "type": "scale"},
-                    {"translation": offset, "type": "translation"}
-                ],
-                "path": "s0"
-            }],
-            "name": "nominal",
-            "version": "0.4"
-        }]
-    })
+        }
+    )
 
     # Add metadata for mito s0 dataset
-    mito_s0.attrs.update({
-        "cellmap": {
-            "annotation": {
-                "annotation_type": {
-                    "encoding": {
-                        "absent": 0,
-                        "present": 1,
-                        "unknown": 255
+    mito_s0.attrs.update(
+        {
+            "cellmap": {
+                "annotation": {
+                    "annotation_type": {
+                        "encoding": {"absent": 0, "present": 1, "unknown": 255},
+                        "type": "semantic_segmentation",
                     },
-                    "type": "semantic_segmentation"
-                },
-                "class_name": "mito"
+                    "class_name": "mito",
+                }
             }
         }
-    })
+    )
 
     # Create er group
     print("Saving ER data...")
@@ -178,58 +168,58 @@ def main():
         data=er_cropped,
         chunks=(128, 128, 128),
         compressor=zarr.Blosc(cname="zstd", clevel=3, shuffle=2),
-        overwrite=True
+        overwrite=True,
     )
 
     # Add metadata for er group
-    er_grp.attrs.update({
-        "cellmap": {
-            "annotation": {
-                "annotation_type": {
-                    "encoding": {
-                        "absent": 0,
-                        "present": 1,
-                        "unknown": 255
+    er_grp.attrs.update(
+        {
+            "cellmap": {
+                "annotation": {
+                    "annotation_type": {
+                        "encoding": {"absent": 0, "present": 1, "unknown": 255},
+                        "type": "semantic_segmentation",
                     },
-                    "type": "semantic_segmentation"
-                },
-                "class_name": "er"
-            }
-        },
-        "multiscales": [{
-            "axes": [
-                {"name": "z", "type": "space", "unit": "nanometer"},
-                {"name": "y", "type": "space", "unit": "nanometer"},
-                {"name": "x", "type": "space", "unit": "nanometer"}
+                    "class_name": "er",
+                }
+            },
+            "multiscales": [
+                {
+                    "axes": [
+                        {"name": "z", "type": "space", "unit": "nanometer"},
+                        {"name": "y", "type": "space", "unit": "nanometer"},
+                        {"name": "x", "type": "space", "unit": "nanometer"},
+                    ],
+                    "datasets": [
+                        {
+                            "coordinateTransformations": [
+                                {"scale": resolution, "type": "scale"},
+                                {"translation": offset, "type": "translation"},
+                            ],
+                            "path": "s0",
+                        }
+                    ],
+                    "name": "nominal",
+                    "version": "0.4",
+                }
             ],
-            "datasets": [{
-                "coordinateTransformations": [
-                    {"scale": resolution, "type": "scale"},
-                    {"translation": offset, "type": "translation"}
-                ],
-                "path": "s0"
-            }],
-            "name": "nominal",
-            "version": "0.4"
-        }]
-    })
+        }
+    )
 
     # Add metadata for er s0 dataset
-    er_s0.attrs.update({
-        "cellmap": {
-            "annotation": {
-                "annotation_type": {
-                    "encoding": {
-                        "absent": 0,
-                        "present": 1,
-                        "unknown": 255
+    er_s0.attrs.update(
+        {
+            "cellmap": {
+                "annotation": {
+                    "annotation_type": {
+                        "encoding": {"absent": 0, "present": 1, "unknown": 255},
+                        "type": "semantic_segmentation",
                     },
-                    "type": "semantic_segmentation"
-                },
-                "class_name": "er"
+                    "class_name": "er",
+                }
             }
         }
-    })
+    )
 
     # Verify the saved data
     print("\nVerification:")
@@ -239,8 +229,11 @@ def main():
     print(f"Mito unique values: {np.unique(mito_grp['s0'][:])}")
     print(f"ER unique values: {np.unique(er_grp['s0'][:])}")
     print(f"Adjusted offset: {offset}")
-    print("\nSaved to: /nrs/saalfeld/heinrichl/data/cellmap_labels/finetuning/jrc_fly-vnc-1/jrc_fly-vnc-1.zarr/recon-1/labels/groundtruth/crop_2025_08_14/")
+    print(
+        "\nSaved to: /nrs/saalfeld/heinrichl/data/cellmap_labels/finetuning/jrc_fly-vnc-1/jrc_fly-vnc-1.zarr/recon-1/labels/groundtruth/crop_2025_08_14/"
+    )
     print("Done!")
+
 
 if __name__ == "__main__":
     main()

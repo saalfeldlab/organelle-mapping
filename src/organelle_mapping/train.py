@@ -109,10 +109,7 @@ def make_data_pipeline(
     if run.min_valid_fraction > 0:
         # Create collapsed mask for rejection (valid where ANY label is valid)
         pipeline += CollapseAny(gp.ArrayKey("MASK"), gp.ArrayKey("VALID"))
-        pipeline += gp.Reject(
-            mask=gp.ArrayKey("VALID"),
-            min_masked=run.min_valid_fraction
-        )
+        pipeline += gp.Reject(mask=gp.ArrayKey("VALID"), min_masked=run.min_valid_fraction)
     pipeline += gp.Unsqueeze([raw])
     pipeline += gp.Stack(run.batch_size)
     pipeline += gp.AsType(gp.ArrayKey("TARGETS"), "float32")
@@ -151,10 +148,7 @@ def make_train_pipeline(run, input_size, output_size):
             channel_activations.extend([activation] * transform.num_channels)
 
     # Normalize output in-place for visualization
-    pipeline += corditea.NormalizeOutput(
-        gp.ArrayKey("OUTPUT"),
-        channel_activations
-    )
+    pipeline += corditea.NormalizeOutput(gp.ArrayKey("OUTPUT"), channel_activations)
 
     # Remove batch dimension for snapshots (extract first sample: BCDHW -> CDHW)
     pipeline += corditea.Unstack(

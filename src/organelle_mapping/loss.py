@@ -90,9 +90,7 @@ class CombinedLoss(torch.nn.Module):
         """
         total_loss = 0.0
 
-        for target_config, loss_fn, (start_ch, end_ch) in zip(
-            self.targets, self.loss_functions, self.channel_ranges
-        ):
+        for target_config, loss_fn, (start_ch, end_ch) in zip(self.targets, self.loss_functions, self.channel_ranges):
             # Extract channels for this target
             output_slice = output[:, start_ch:end_ch]
             target_slice = target[:, start_ch:end_ch]

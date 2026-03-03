@@ -62,22 +62,12 @@ def create_channel_layer(source_url: str, array_name: str, channel: int, color: 
     """Create a layer configuration for a single channel."""
     return neuroglancer.ImageLayer(
         source=f"zarr://{source_url}/{array_name}",
-        local_dimensions=neuroglancer.CoordinateSpace(
-            names=["c'"],
-            units=[""],
-            scales=[1]
-        ),
+        local_dimensions=neuroglancer.CoordinateSpace(names=["c'"], units=[""], scales=[1]),
         local_position=[channel],
         opacity=1,
         blend="additive",
         shader=CHANNEL_SHADER,
-        shader_controls={
-            "contrast": neuroglancer.InvlerpParameters(
-                range=[0, 1],
-                window=[0, 1]
-            ),
-            "color": color
-        },
+        shader_controls={"contrast": neuroglancer.InvlerpParameters(range=[0, 1], window=[0, 1]), "color": color},
     )
 
 
@@ -93,10 +83,7 @@ void main() {
 }
 """,
         shader_controls={
-            "contrast": neuroglancer.InvlerpParameters(
-                range=[-1, 1],
-                window=[-1, 1]
-            ),
+            "contrast": neuroglancer.InvlerpParameters(range=[-1, 1], window=[-1, 1]),
         },
     )
 
@@ -109,9 +96,7 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
     # Add all layers
     with viewer.txn() as s:
         s.dimensions = neuroglancer.CoordinateSpace(
-            names=["x", "y", "z"],
-            units=["m", "m", "m"],
-            scales=[8e-9, 8e-9, 8e-9]
+            names=["x", "y", "z"], units=["m", "m", "m"], scales=[8e-9, 8e-9, 8e-9]
         )
         s.position = [96, 96, 96]
         s.cross_section_scale = 0.3
@@ -141,28 +126,23 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
     # Define channel groups: first 3 are RGB triplets (LSD), rest are individual grayscale
     # Group format: (start_channel, end_channel, description)
     channel_groups = [
-        (0, 3, "LSD 0-2"),      # RGB
-        (3, 6, "LSD 3-5"),      # RGB
-        (6, 9, "LSD 6-8"),      # RGB
-        (9, 10, "ch 9"),        # grayscale
-        (10, 11, "ch 10"),      # grayscale
-        (11, 12, "ch 11"),      # grayscale
-        (12, 13, "ch 12"),      # grayscale
-        (13, 14, "ch 13"),      # grayscale
-        (14, 15, "ch 14"),      # grayscale
-        (15, 16, "ch 15"),      # grayscale
-        (16, 17, "ch 16"),      # grayscale
-        (17, 18, "ch 17"),      # grayscale
-        (18, 19, "ch 18"),      # grayscale
+        (0, 3, "LSD 0-2"),  # RGB
+        (3, 6, "LSD 3-5"),  # RGB
+        (6, 9, "LSD 6-8"),  # RGB
+        (9, 10, "ch 9"),  # grayscale
+        (10, 11, "ch 10"),  # grayscale
+        (11, 12, "ch 11"),  # grayscale
+        (12, 13, "ch 12"),  # grayscale
+        (13, 14, "ch 13"),  # grayscale
+        (14, 15, "ch 14"),  # grayscale
+        (15, 16, "ch 15"),  # grayscale
+        (16, 17, "ch 16"),  # grayscale
+        (17, 18, "ch 17"),  # grayscale
+        (18, 19, "ch 18"),  # grayscale
     ]
 
     # Track array visibility state (needs to be defined before switch_to_group)
-    array_visibility = {
-        "raw": True,
-        "targets": True,
-        "output": True,
-        "mask": True
-    }
+    array_visibility = {"raw": True, "targets": True, "output": True, "mask": True}
 
     # Function to switch to a channel group
     def switch_to_group(group_idx: int):
@@ -190,9 +170,19 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
 
     # Key bindings for each group
     key_bindings = [
-        "digit1", "digit2", "digit3", "digit4", "digit5",
-        "digit6", "digit7", "digit8", "digit9", "digit0",
-        "minus", "equal", "keyq"
+        "digit1",
+        "digit2",
+        "digit3",
+        "digit4",
+        "digit5",
+        "digit6",
+        "digit7",
+        "digit8",
+        "digit9",
+        "digit0",
+        "minus",
+        "equal",
+        "keyq",
     ]
 
     # Register actions for each channel group
@@ -235,12 +225,7 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
         logger.info(f"Toggled {array_name}: {status}")
 
     # Array toggle key bindings
-    array_keys = {
-        "keyg": "raw",
-        "keyt": "targets",
-        "keyo": "output",
-        "keym": "mask"
-    }
+    array_keys = {"keyg": "raw", "keyt": "targets", "keyo": "output", "keym": "mask"}
 
     for key, array_name in array_keys.items():
         action_name = f"toggle-{array_name}"
@@ -250,24 +235,26 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
 
     # Add status message with instructions
     with viewer.config_state.txn() as s:
-        s.status_messages["instructions"] = (
-            "Channel: 1-3 LSD, 4-9,0,-,=,BS grayscale | Array: g/t/o/m toggle"
-        )
+        s.status_messages["instructions"] = "Channel: 1-3 LSD, 4-9,0,-,=,BS grayscale | Array: g/t/o/m toggle"
 
     return viewer
 
 
 @click.command()
-@click.option("--url", required=True,
-              help="Base zarr URL (e.g., https://fileglancer.int.janelia.org/fc/files/ABC123/00000011.zarr)")
-@click.option("--channels", "-c", default=19, type=int,
-              help="Number of channels in the data (default: 19)")
-@click.option("--arrays", "-a", default="raw,targets,output,mask",
-              help="Comma-separated list of array names (default: raw,targets,output,mask)")
-@click.option("--bind-address", default="127.0.0.1",
-              help="Address to bind the server to (default: 127.0.0.1)")
-@click.option("--port", default=0, type=int,
-              help="Port to bind to (default: 0 for auto-select)")
+@click.option(
+    "--url",
+    required=True,
+    help="Base zarr URL (e.g., https://fileglancer.int.janelia.org/fc/files/ABC123/00000011.zarr)",
+)
+@click.option("--channels", "-c", default=19, type=int, help="Number of channels in the data (default: 19)")
+@click.option(
+    "--arrays",
+    "-a",
+    default="raw,targets,output,mask",
+    help="Comma-separated list of array names (default: raw,targets,output,mask)",
+)
+@click.option("--bind-address", default="127.0.0.1", help="Address to bind the server to (default: 127.0.0.1)")
+@click.option("--port", default=0, type=int, help="Port to bind to (default: 0 for auto-select)")
 def main(url: str, channels: int, arrays: str, bind_address: str, port: int):
     """Start an interactive Neuroglancer viewer with channel group keybindings.
 
@@ -313,6 +300,7 @@ def main(url: str, channels: int, arrays: str, bind_address: str, port: int):
     # Keep the script running
     try:
         import time
+
         while True:
             time.sleep(1)
     except KeyboardInterrupt:

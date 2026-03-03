@@ -17,29 +17,20 @@ class EvaluationConfig(BaseModel):
     experiment_run: RunConfig = Field(..., description="Training run configuration")
     # Architecture override
     eval_architecture: Optional[Architecture] = Field(
-        default=None,
-        description="Override architecture config (defaults to experiment_run.architecture)"
+        default=None, description="Override architecture config (defaults to experiment_run.architecture)"
     )
 
     # Model checkpoints
-    checkpoints: List[str] = Field(
-        ...,
-        min_items=1,
-        description="List of checkpoint names to evaluate"
-    )
+    checkpoints: List[str] = Field(..., min_items=1, description="List of checkpoint names to evaluate")
 
     # Data configuration
-    data: DataConfig = Field(
-        ...,
-        description="Data config of files to be evaluated"
-    )
+    data: DataConfig = Field(..., description="Data config of files to be evaluated")
 
     # Evaluation settings
     thresholds: List[float] = Field(
-        default_factory=lambda: [i/100.0 for i in range(1, 100)],
-        description="List of thresholds to evaluate (0.01 to 0.99)"
+        default_factory=lambda: [i / 100.0 for i in range(1, 100)],
+        description="List of thresholds to evaluate (0.01 to 0.99)",
     )
-
 
     @field_validator("experiment_run", mode="before")
     @classmethod

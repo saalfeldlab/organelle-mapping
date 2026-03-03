@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 def run(run: RunConfig):
-
     # Handle finetuning checkpoint preparation if configured
     if run.finetuning is not None:
         checkpoint_path = Path(run.finetuning.source_checkpoint.name)
@@ -55,5 +54,7 @@ def run(run: RunConfig):
 def main(run_config, log_level="INFO"):
     setup_package_logger(log_level)
 
-    config = TypeAdapter(RunConfig).validate_python(yaml.safe_load(run_config), context={"base_dir": Path(run_config.name).parent})
+    config = TypeAdapter(RunConfig).validate_python(
+        yaml.safe_load(run_config), context={"base_dir": Path(run_config.name).parent}
+    )
     run(config)

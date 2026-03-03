@@ -12,8 +12,7 @@ def validate_activation_string(value: str) -> str:
     except AttributeError:
         raise ValueError(f"torch.nn.{value} does not exist")
 
-    if not (isinstance(activation_class, type) and
-            issubclass(activation_class, torch.nn.Module)):
+    if not (isinstance(activation_class, type) and issubclass(activation_class, torch.nn.Module)):
         raise ValueError(f"torch.nn.{value} is not a PyTorch module class")
 
     try:
@@ -23,6 +22,7 @@ def validate_activation_string(value: str) -> str:
 
     return value
 
+
 ActivationStr = Annotated[str, BeforeValidator(validate_activation_string)]
 
 
@@ -30,7 +30,7 @@ class ArchitectureConfig(BaseModel, ABC):
     name: str
     output_head_keys: Sequence[str] | None = Field(
         default=None,
-        description="State dict keys for the output head layers (weight and bias). If None, assumes last two keys."
+        description="State dict keys for the output head layers (weight and bias). If None, assumes last two keys.",
     )
     input_shape: tuple[int, int, int]
     output_shape: tuple[int, int, int]
@@ -156,7 +156,6 @@ class StandardUnetConfig(ArchitectureConfig):
 
     @model_validator(mode="after")
     def validate_kernel_sizes(self):
-
         if len(self.kernel_size_down) != len(self.downsample_factors) + 1:
             msg = (
                 f"kernel_size_down ({self.kernel_size_down}) must be one element longer "
@@ -196,14 +195,15 @@ class StandardUnetConfig(ArchitectureConfig):
             padding=self.padding,
         )
 
+
 class TemsUnetConfig(ArchitectureConfig):
     name: Literal["tems_unet"]
     input_shape: tuple[int, int, int] = (178, 178, 178)
     output_shape: tuple[int, int, int] = (56, 56, 56)
     in_channels: int = Field(1, gt=0)
     out_channels: int = Field(..., gt=0)
-    fmaps_down: Sequence[int] = (16, 16*6, 16*6**2, 16*6**3)
-    fmaps_up: Sequence[int] = (16, 16*6, 16*6**2)
+    fmaps_down: Sequence[int] = (16, 16 * 6, 16 * 6**2, 16 * 6**3)
+    fmaps_up: Sequence[int] = (16, 16 * 6, 16 * 6**2)
     downsample_factors: Sequence[tuple[int, int, int]] = (
         (2, 2, 2),
         (2, 2, 2),
@@ -218,10 +218,8 @@ class TemsUnetConfig(ArchitectureConfig):
     final_activation: ActivationStr = "Identity"
     output_head_keys: Sequence[str] = ["base_model.final_conv.weight", "base_model.final_conv.bias"]
 
-
     @model_validator(mode="after")
     def validate_kernel_sizes(self):
-
         if len(self.kernel_size_down) != len(self.downsample_factors) + 1:
             msg = (
                 f"kernel_size_down ({self.kernel_size_down}) must be one element longer "
@@ -280,8 +278,9 @@ class TemsUnetConfig(ArchitectureConfig):
             upsample_mode=self.upsample_mode,
             padding=self.padding,
             activation=getattr(torch.nn, self.activation),
-            final_activation=getattr(torch.nn, self.final_activation)
+            final_activation=getattr(torch.nn, self.final_activation),
         )
+
 
 Architecture = Annotated[
     Union[StandardUnetConfig, SwinUNETRConfig, TemsUnetConfig],

@@ -40,23 +40,19 @@ def init_database(db_path: str) -> None:
 
 
 def insert_result(
-    db_path: str,
-    run: str,
-    checkpoint: str,
-    crop: str,
-    label: str,
-    threshold: float,
-    metric: str,
-    score: float
+    db_path: str, run: str, checkpoint: str, crop: str, label: str, threshold: float, metric: str, score: float
 ) -> None:
     """Insert or replace a single evaluation result."""
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT OR REPLACE INTO results 
             (run, checkpoint, crop, label, threshold, metric, score)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (run, checkpoint, crop, label, threshold, metric, score))
+        """,
+            (run, checkpoint, crop, label, threshold, metric, score),
+        )
         conn.commit()
 
 
