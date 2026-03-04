@@ -11,9 +11,9 @@ def validate_activation_string(value: str) -> str:
     """Validator for torch.nn activation class names"""
     try:
         activation_class = getattr(torch.nn, value)
-    except AttributeError:
+    except AttributeError as e:
         msg = f"torch.nn.{value} does not exist"
-        raise ValueError(msg)
+        raise ValueError(msg) from e
 
     if not (isinstance(activation_class, type) and issubclass(activation_class, torch.nn.Module)):
         msg = f"torch.nn.{value} is not a PyTorch module class"
@@ -23,7 +23,7 @@ def validate_activation_string(value: str) -> str:
         activation_class()
     except Exception as e:
         msg = f"Cannot instantiate torch.nn.{value}(): {e}"
-        raise ValueError(msg)
+        raise ValueError(msg) from e
 
     return value
 
@@ -114,7 +114,7 @@ class BinaryConfig(TransformConfig):
         """Binary transform always produces 1 channel."""
         return 1
 
-    def instantiate(self, source_key: gp.ArrayKey, source_mask_key: gp.ArrayKey) -> None | tuple[gp.BatchFilter]:
+    def instantiate(self, source_key: gp.ArrayKey, source_mask_key: gp.ArrayKey) -> None | tuple[gp.BatchFilter]:  # noqa: ARG002
         """Binary transform: just copy the source array."""
         return None
 

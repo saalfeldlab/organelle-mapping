@@ -83,7 +83,10 @@ class RunConfig(BaseModel):
     def validate_architecture_channels(self):
         """Validate that architecture output channels match total transform channels."""
         if self.architecture.out_channels != self.total_channels:
-            msg = f"Architecture output channels ({self.architecture.out_channels}) must match total transform channels ({self.total_channels})"
+            msg = (
+                f"Architecture output channels ({self.architecture.out_channels})"
+                f" must match total transform channels ({self.total_channels})"
+            )
             raise ValueError(msg)
         return self
 

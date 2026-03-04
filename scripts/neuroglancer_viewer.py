@@ -33,6 +33,7 @@ Keyboard shortcuts:
 """
 
 import logging
+import time
 
 import click
 import neuroglancer
@@ -42,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 # RGB colors for channel groups
 CHANNEL_COLORS = ["#ff0000", "#00ff00", "#0000ff"]
+NUM_LSD_CHANNELS = 9
 
 # Base shader for all channels
 CHANNEL_SHADER = """#uicontrol invlerp contrast
@@ -110,7 +112,7 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
         for array_name in multi_channel_arrays:
             for channel in range(num_channels):
                 # Determine color: RGB for LSD channels 0-8, white for binary channels 9+
-                if channel < 9:
+                if channel < NUM_LSD_CHANNELS:
                     color_idx = channel % 3
                     color = CHANNEL_COLORS[color_idx]
                 else:
@@ -193,7 +195,7 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
         # Create action
         action_name = f"channel-group-{i}"
         # Use default argument to capture current value of i
-        viewer.actions.add(action_name, lambda s, idx=i: switch_to_group(idx))
+        viewer.actions.add(action_name, lambda _s, idx=i: switch_to_group(idx))
 
         # Bind to key
         with viewer.config_state.txn() as s:
@@ -229,7 +231,7 @@ def setup_viewer(base_url: str, num_channels: int, arrays: list[str]) -> neurogl
 
     for key, array_name in array_keys.items():
         action_name = f"toggle-{array_name}"
-        viewer.actions.add(action_name, lambda s, arr=array_name: toggle_array(arr))
+        viewer.actions.add(action_name, lambda _s, arr=array_name: toggle_array(arr))
         with viewer.config_state.txn() as s:
             s.input_event_bindings.viewer[key] = action_name
 
@@ -299,8 +301,6 @@ def main(url: str, channels: int, arrays: str, bind_address: str, port: int):
 
     # Keep the script running
     try:
-        import time
-
         while True:
             time.sleep(1)
     except KeyboardInterrupt:

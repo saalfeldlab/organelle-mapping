@@ -2,7 +2,6 @@
 """Generate intensity histograms for EM crops in cellmap datasets."""
 
 import csv
-import sys
 
 import click
 import numpy as np
@@ -56,9 +55,7 @@ def main(data_config, dataset, output, sampling):
 
                 # Iterate over crops specified in config
                 for crops_str in ds_info.labels.crops:
-                    for crop_name in crops_str.split(","):
-                        crop_name = crop_name.strip()
-
+                    for crop_name in (c.strip() for c in crops_str.split(",")):
                         if crop_name not in labels_grp:
                             click.echo(f"WARNING: Crop {crop_name} not found in {dataset_name}", err=True)
                             continue

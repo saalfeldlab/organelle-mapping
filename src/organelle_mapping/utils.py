@@ -5,7 +5,6 @@ from decimal import Decimal
 from statistics import mode
 from typing import BinaryIO, Literal, Optional
 
-import gunpowder as gp
 import numpy as np
 import yaml
 import zarr
@@ -97,7 +96,9 @@ def valid_offset(center_off_arr, raw_res_arr, crop_res_arr):
 
     """
     corner_off_arr = corner_offset(decimal_arr(center_off_arr), decimal_arr(raw_res_arr), decimal_arr(crop_res_arr))
-    is_valid = np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(corner_off_arr % crop_res_arr == Decimal(0))
+    is_valid = np.all(corner_off_arr % raw_res_arr == Decimal(0)) and np.all(
+        corner_off_arr % crop_res_arr == Decimal(0)
+    )
     if not is_valid:
         logger.debug(
             f"Invalid corner offset: center={center_off_arr}, raw_res={raw_res_arr}, crop_res={crop_res_arr}, "
@@ -195,24 +196,32 @@ def get_scale_info(
     zarr_grp,
     multiscale: str | int = 0,
 ) -> tuple[dict[str, dict[str, float]], dict[str, dict[str, float]], dict[str, dict[str, int]]]:
-    """
-    Extracts scale information, including resolutions, offsets, and shapes from a Zarr group.
+    """Extracts scale information, including resolutions, offsets, and shapes from a Zarr group.
 
     Args:
-        zarr_grp: A Zarr group object containing multiscale datasets and associated metadata.
-        multiscale (str | int): The name or index of the multiscale to extract information from. Default is 0, which refers to the first multiscale specification in the attributes list.
+        zarr_grp: A Zarr group object containing multiscale datasets and
+            associated metadata.
+        multiscale (str | int): The name or index of the multiscale to extract
+            information from. Default is 0, which refers to the first
+            multiscale specification in the attributes list.
     Returns:
         tuple: A tuple containing the following:
-            - offsets (dict[str, dict[str, float]]): A dictionary mapping dataset paths to dictionaries of axis names and their corresponding offsets.
-            - resolutions (dict[str, dict[str, float]]): A dictionary mapping dataset paths to dictionaries of axis names and their corresponding resolutions.
-            - shapes (dict[str, dict[str, int]]): A dictionary mapping dataset paths to dictionaries of axis names and their corresponding shapes.
+            - offsets (dict[str, dict[str, float]]): A dictionary mapping
+              dataset paths to axis names and their corresponding offsets.
+            - resolutions (dict[str, dict[str, float]]): A dictionary mapping
+              dataset paths to axis names and their corresponding resolutions.
+            - shapes (dict[str, dict[str, int]]): A dictionary mapping
+              dataset paths to axis names and their corresponding shapes.
 
     Raises:
-        KeyError: If the expected attributes or keys are missing in the Zarr group metadata.
+        KeyError: If the expected attributes or keys are missing in the
+            Zarr group metadata.
 
     Notes:
-        - This function assumes the Zarr group follows the multiscale metadata specification.
-        - The function relies on the presence of "multiscales" and "coordinateTransformations" attributes in the Zarr group metadata.
+        - This function assumes the Zarr group follows the multiscale
+          metadata specification.
+        - The function relies on the presence of "multiscales" and
+          "coordinateTransformations" attributes in the Zarr group metadata.
     """
 
     attrs = zarr_grp.attrs
@@ -288,7 +297,10 @@ def find_target_scale_by_offset(
         if target_scale is not None:
             break
     if target_scale is None:
-        msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array compatible with target offset {target_offset}"
+        msg = (
+            f"Zarr {zarr_grp.store.path}, {zarr_grp.path}"
+            f" does not contain array compatible with target offset {target_offset}"
+        )
         raise ValueError(msg)
     return (
         target_scale,
@@ -365,7 +377,10 @@ def find_target_scale(
         if target_scale is not None:
             break
     if target_scale is None:
-        msg = f"Zarr {zarr_grp.store.path}, {zarr_grp.path} does not contain array compatible with target resolution {target_resolution}"
+        msg = (
+            f"Zarr {zarr_grp.store.path}, {zarr_grp.path}"
+            f" does not contain array compatible with target resolution {target_resolution}"
+        )
         raise ValueError(msg)
     return (
         target_scale,
@@ -465,8 +480,9 @@ def get_axes_object(zarr_grp, multiscale_name: Optional[str] = None) -> list[Axi
     if multiscale_name is None:
         index = 0
     else:
-        for index, multiscale in enumerate(zarr_grp.attrs["multiscales"]):
+        for i, multiscale in enumerate(zarr_grp.attrs["multiscales"]):
             if multiscale.get("name") == multiscale_name:
+                index = i
                 break
         else:
             # raise an error if no matching multiscale found

@@ -1,11 +1,8 @@
 """Database utilities for storing evaluation results."""
 
-import json
 import logging
 import sqlite3
-import time
 from pathlib import Path
-from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +51,3 @@ def insert_result(
             (run, checkpoint, crop, label, threshold, metric, score),
         )
         conn.commit()
-
-
-if __name__ == "__main__":
-    # Test database creation
-    test_db = "/tmp/test_evaluation.db"
-    init_database(test_db)
-    logger.debug(f"Test database created at {test_db}")

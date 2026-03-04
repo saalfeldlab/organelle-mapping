@@ -1,8 +1,14 @@
-from organelle_mapping.config.augmentations import AugmentationPipeline
-from organelle_mapping.config.checkpoint_edit import CheckpointEditConfig
-from organelle_mapping.config.data import DataConfig
-from organelle_mapping.config.inference import InferenceConfig
-from organelle_mapping.config.models import Architecture
-from organelle_mapping.config.run import RunConfig
-from organelle_mapping.config.target import MSETarget, MultiLabelBCETarget, Target, TargetConfig
-from organelle_mapping.config.transform import BinaryConfig, LSDConfig, Transform, TransformConfig
+from organelle_mapping.config.augmentations import AugmentationPipeline as AugmentationPipeline
+from organelle_mapping.config.checkpoint_edit import CheckpointEditConfig as CheckpointEditConfig
+from organelle_mapping.config.data import DataConfig as DataConfig
+from organelle_mapping.config.inference import InferenceConfig as InferenceConfig
+from organelle_mapping.config.models import Architecture as Architecture
+from organelle_mapping.config.run import RunConfig as RunConfig
+from organelle_mapping.config.target import MSETarget as MSETarget
+from organelle_mapping.config.target import MultiLabelBCETarget as MultiLabelBCETarget
+from organelle_mapping.config.target import Target as Target
+from organelle_mapping.config.target import TargetConfig as TargetConfig
+from organelle_mapping.config.transform import BinaryConfig as BinaryConfig
+from organelle_mapping.config.transform import LSDConfig as LSDConfig
+from organelle_mapping.config.transform import Transform as Transform
+from organelle_mapping.config.transform import TransformConfig as TransformConfig

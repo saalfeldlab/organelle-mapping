@@ -268,21 +268,21 @@ class Crop:
         n_arr = encoding["unknown"] * np.ones(self.get_shape(), dtype=np.uint8)
         subcombos = []
         parent_labels = []
-        for l in self.get_annotated_classes():
-            label_encoding = self.get_encoding(l)
-            l_set = self.classes[l]
-            if l_set == atoms:
+        for label in self.get_annotated_classes():
+            label_encoding = self.get_encoding(label)
+            label_set = self.classes[label]
+            if label_set == atoms:
                 msg = "combination is already an annotated class"
                 raise ValueError(msg)
-            if l_set < atoms:
-                n_arr[self.get_array(l) == label_encoding["present"]] = encoding["present"]
-                if len(l_set) > 1:
-                    subcombos.append(l)
-            elif atoms.isdisjoint(l_set):
-                n_arr[self.get_array(l) == label_encoding["present"]] = encoding["absent"]
-            elif atoms < l_set:
-                n_arr[self.get_array(l) == label_encoding["absent"]] = encoding["absent"]
-                parent_labels.append(l)
+            if label_set < atoms:
+                n_arr[self.get_array(label) == label_encoding["present"]] = encoding["present"]
+                if len(label_set) > 1:
+                    subcombos.append(label)
+            elif atoms.isdisjoint(label_set):
+                n_arr[self.get_array(label) == label_encoding["present"]] = encoding["absent"]
+            elif atoms < label_set:
+                n_arr[self.get_array(label) == label_encoding["absent"]] = encoding["absent"]
+                parent_labels.append(label)
         if atoms <= self.get_annotated_classes():
             n_arr[np.logical_and.reduce([self.get_array(a) == self.get_encoding(a)["absent"] for a in atoms])] = (
                 encoding["absent"]
@@ -301,7 +301,7 @@ class Crop:
         # Check parent combinations for intersection logic
         if parent_labels and len(parent_labels) > 1:
             for parent_combo in utils.all_combinations(parent_labels):
-                if len(parent_combo) < 2:
+                if len(parent_combo) < 2:  # noqa: PLR2004
                     continue
                 # Check if target atoms equal intersection of parent atoms
                 parent_intersection = set.intersection(*[self.classes[p] for p in parent_combo])
@@ -318,6 +318,7 @@ class Crop:
         name: str,
         arr: np.ndarray,
         encoding: dict[str, int],
+        *,
         overwrite: bool = False,
     ):
         xarr = xr.DataArray(arr, coords=self.get_coords())
@@ -404,7 +405,7 @@ class Crop:
                 arr[arr == label_encoding["absent"]] = encoding["absent"]
             self.save_class(label, arr, encoding, overwrite=True)
 
-    def smooth_multiscale(self, label: Optional[str] = None, force: bool = False):
+    def smooth_multiscale(self, label: Optional[str] = None, *, force: bool = False):
         if label is None:
             for lbl in self.get_annotated_classes():
                 self.smooth_multiscale(lbl, force=force)
@@ -415,7 +416,10 @@ class Crop:
                 raise ValueError(msg)
             encoding = self.get_encoding(label)
             if encoding["unknown"] <= 8 * max(encoding["present"], encoding["absent"]):
-                msg = f"smoothing relies on large value for encoding unknown, found values {encoding} for {label} in {self.crop_path}"
+                msg = (
+                    f"smoothing relies on large value for encoding unknown,"
+                    f" found values {encoding} for {label} in {self.crop_path}"
+                )
                 raise ValueError(msg)
             scalelevels = self.get_scalelevels(label)
             # check if scales are already smoothed
@@ -488,11 +492,11 @@ class Crop:
 @click.argument("label-config", type=click.File("rb"))
 @click.argument("data-config", type=click.File("rb"))
 @click.option("--force", is_flag=True, help="Force regeneration even if already smoothed")
-def smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO, force: bool):
+def smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO, *, force: bool = False):
     _smooth_multiscale(label_config, data_config, force=force)
 
 
-def _smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO, force: bool = False):
+def _smooth_multiscale(label_config: BinaryIO, data_config: BinaryIO, *, force: bool = False):
     datas = yaml.safe_load(data_config)
     classes = utils.read_label_yaml(label_config)
     for dataset, ds_info in datas["datasets"].items():
@@ -731,7 +735,10 @@ def prepend_multiscale(zarr_grp, multiscale):
 
 def change_multiscale_name(zarr_grp, name):
     if len(zarr_grp.attrs["multiscales"]) > 1:
-        msg = f"Multiscales attribute in {zarr_grp.name} already contains several entries. Selection is not implemented for renaming."
+        msg = (
+            f"Multiscales attribute in {zarr_grp.name} already contains several entries."
+            " Selection is not implemented for renaming."
+        )
         raise NotImplementedError(msg)
     zarr_grp.attrs["multiscales"][0]["name"] = name
     zarr_grp.attrs.update(zarr_grp.attrs)

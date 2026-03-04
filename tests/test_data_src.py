@@ -2,7 +2,6 @@ import logging
 
 import gunpowder as gp
 import matplotlib.pyplot as plt
-import pytest
 
 from organelle_mapping.data import CellMapCropSource  # , data_pipeline, add_augmentation
 from organelle_mapping.train import make_data_pipeline

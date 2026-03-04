@@ -4,8 +4,6 @@ import sqlite3
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from organelle_mapping.database import init_database, insert_result
 
 

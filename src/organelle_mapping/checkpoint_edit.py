@@ -65,15 +65,14 @@ def transfer_checkpoint_weights(
             for buffer_name, buffer_value in optimizer_state["state"][ohk].items():
                 if not isinstance(buffer_value, torch.Tensor):
                     msg = f"Expected optimizer state '{buffer_name}' to be a tensor, got {type(buffer_value)}"
-                    raise TypeError(
-                        msg
-                    )
+                    raise TypeError(msg)
                 if buffer_value.ndim == weights[hk].ndim:
                     if buffer_value.size() != weights[hk].size():
-                        msg = f"Assumptions about how model weights map to optimizer state do not hold for key {hk}. Can't transfer optimizer state."
-                        raise ValueError(
-                            msg
+                        msg = (
+                            f"Assumptions about how model weights map to optimizer state do not hold for key {hk}."
+                            " Can't transfer optimizer state."
                         )
+                        raise ValueError(msg)
                     else:
                         buffers[ohk].append(buffer_name)
     else:
@@ -267,9 +266,7 @@ def main(
             # Construct from CLI arguments
             if not source_checkpoint or not source_experiment:
                 msg = "--source-checkpoint and --source-experiment are required when not using --config"
-                raise click.ClickException(
-                    msg
-                )
+                raise click.ClickException(msg)
 
             heads_keys_list = list(heads_keys) if heads_keys else None
 
@@ -292,11 +289,11 @@ def main(
     except ValidationError as e:
         logger.error(f"Configuration validation error: {e}")
         msg = f"Invalid configuration: {e}"
-        raise click.ClickException(msg)
+        raise click.ClickException(msg) from e
     except Exception as e:
         logger.error(f"Weight transfer failed: {e}")
         msg = f"Weight transfer failed: {e}"
-        raise click.ClickException(msg)
+        raise click.ClickException(msg) from e
 
 
 if __name__ == "__main__":

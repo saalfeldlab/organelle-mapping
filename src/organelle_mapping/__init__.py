@@ -1,5 +1,6 @@
 # SPDX-FileCopyrightText: 2024-present Larissa Heinrich <heinrichl@janelia.hhmi.org>
 #
 # SPDX-License-Identifier: MIT
-from organelle_mapping.data import CellMapCropSource, ExtractMask
-from organelle_mapping.loss import MaskedMultiLabelBCEwithLogits
+from organelle_mapping.data import CellMapCropSource as CellMapCropSource
+from organelle_mapping.data import ExtractMask as ExtractMask
+from organelle_mapping.loss import MaskedMultiLabelBCEwithLogits as MaskedMultiLabelBCEwithLogits

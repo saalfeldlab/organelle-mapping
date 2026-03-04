@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Literal, Optional, Sequence, Union
+from typing import Literal, Optional, Sequence, Union
 
 import gunpowder as gp
 import torch

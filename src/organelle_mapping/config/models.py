@@ -9,9 +9,9 @@ def validate_activation_string(value: str) -> str:
     """Validator for torch.nn activation class names"""
     try:
         activation_class = getattr(torch.nn, value)
-    except AttributeError:
+    except AttributeError as e:
         msg = f"torch.nn.{value} does not exist"
-        raise ValueError(msg)
+        raise ValueError(msg) from e
 
     if not (isinstance(activation_class, type) and issubclass(activation_class, torch.nn.Module)):
         msg = f"torch.nn.{value} is not a PyTorch module class"
@@ -21,7 +21,7 @@ def validate_activation_string(value: str) -> str:
         activation_class()
     except Exception as e:
         msg = f"Cannot instantiate torch.nn.{value}(): {e}"
-        raise ValueError(msg)
+        raise ValueError(msg) from e
 
     return value
 
@@ -118,7 +118,7 @@ class SwinUNETRConfig(ArchitectureConfig):
         return self
 
     def instantiate(self):
-        from monai.networks.nets import SwinUNETR
+        from monai.networks.nets import SwinUNETR  # noqa: PLC0415
 
         return SwinUNETR(
             img_size=self.input_shape,
@@ -185,7 +185,7 @@ class StandardUnetConfig(ArchitectureConfig):
         return self
 
     def instantiate(self):
-        from organelle_mapping.model import StandardUnet
+        from organelle_mapping.model import StandardUnet  # noqa: PLC0415
 
         return StandardUnet(
             self.in_channels,
@@ -267,7 +267,7 @@ class TemsUnetConfig(ArchitectureConfig):
         return self
 
     def instantiate(self):
-        from organelle_mapping.model import TemsUnet
+        from organelle_mapping.model import TemsUnet  # noqa: PLC0415
 
         return TemsUnet(
             in_channels=self.in_channels,

@@ -16,6 +16,7 @@ def single_block_inference(
     raw_arrs: list[NDArray],
     min_raw: int | float | list[int | float | None] | None = None,
     max_raw: int | float | list[int | float | None] | None = None,
+    *,
     batched_mode: bool = False,
 ) -> list[NDArray[np.float32]]:
     """Run predictions for a few single blocks.
@@ -47,22 +48,22 @@ def single_block_inference(
         max_raw = [
             max_raw,
         ] * len(raw_arrs)
-    for raw_idx, (raw_arr, min_r, max_r) in enumerate(zip(raw_arrs, min_raw, max_raw)):
+    for raw_idx, raw_arr in enumerate(raw_arrs):
         # figure out normalization parameters
-        if min_r is None:
+        if min_raw[raw_idx] is None:
             if issubclass(raw_arr.dtype.type, np.integer):
-                min_r = np.iinfo(raw_arr.dtype).min
+                min_raw[raw_idx] = np.iinfo(raw_arr.dtype).min
             else:
-                min_r = 0.0
-            logger.info(f"Inferred minimum value for input data as {min_r}")
-        if max_r is None:
+                min_raw[raw_idx] = 0.0
+            logger.info(f"Inferred minimum value for input data as {min_raw[raw_idx]}")
+        if max_raw[raw_idx] is None:
             if issubclass(raw_arr.dtype.type, np.integer):
-                max_r = np.iinfo(raw_arr.dtype).max
+                max_raw[raw_idx] = np.iinfo(raw_arr.dtype).max
             else:
-                max_r = 1.0
-            logger.info(f"Inferred maximum value for input data as {max_r}")
-        shift = min_r
-        scale = max_r - min_r
+                max_raw[raw_idx] = 1.0
+            logger.info(f"Inferred maximum value for input data as {max_raw[raw_idx]}")
+        shift = min_raw[raw_idx]
+        scale = max_raw[raw_idx] - min_raw[raw_idx]
 
         # Shift and scale map data s.t. min_raw -> 0, max_raw -> 1
         # Then shift again s.t. min_raw -> -1, max_raw -> 1

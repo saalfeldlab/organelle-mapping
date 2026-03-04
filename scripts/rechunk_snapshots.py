@@ -96,7 +96,7 @@ def add_ome_metadata(
 
     # Build axes - assuming 5D: (batch, channel, z, y, x)
     axes = []
-    if ndim >= 5:
+    if ndim >= 5:  # noqa: PLR2004
         axes = [
             {"name": "b", "type": "time"},  # batch (using time type to test viewer compatibility)
             {"name": "c", "type": "channel"},
@@ -104,7 +104,7 @@ def add_ome_metadata(
             {"name": "y", "type": "space", "unit": units},
             {"name": "x", "type": "space", "unit": units},
         ]
-    elif ndim == 4:
+    elif ndim == 4:  # noqa: PLR2004
         # Assume (channel, z, y, x)
         axes = [
             {"name": "c", "type": "channel"},
@@ -112,7 +112,7 @@ def add_ome_metadata(
             {"name": "y", "type": "space", "unit": units},
             {"name": "x", "type": "space", "unit": units},
         ]
-    elif ndim == 3:
+    elif ndim == 3:  # noqa: PLR2004
         # Assume (z, y, x)
         axes = [
             {"name": "z", "type": "space", "unit": units},
@@ -147,7 +147,7 @@ def add_ome_metadata(
 
 
 def rechunk_array_inplace(
-    zarr_path: Path, array_name: str = "output", add_metadata: bool = True, voxel_size: tuple | None = None
+    zarr_path: Path, array_name: str = "output", *, add_metadata: bool = True, voxel_size: tuple | None = None
 ):
     """Rechunk an array in a zarr file in-place and add OME-NGFF metadata.
 
@@ -183,7 +183,7 @@ def rechunk_array_inplace(
         if "voxel_size" in source_array.attrs:
             # Read from voxel_size attribute (gunpowder convention)
             vs = source_array.attrs["voxel_size"]
-            if isinstance(vs, (list, tuple)) and len(vs) >= 3:
+            if isinstance(vs, (list, tuple)) and len(vs) >= 3:  # noqa: PLR2004
                 voxel_size = tuple(float(x) for x in vs[-3:])  # Take last 3 values (z, y, x)
                 logger.info(f"  Read voxel_size from array attributes: {voxel_size}")
             else:
@@ -192,7 +192,7 @@ def rechunk_array_inplace(
         elif "resolution" in source_array.attrs:
             # Read from resolution attribute (alternative naming)
             resolution = source_array.attrs["resolution"]
-            if isinstance(resolution, (list, tuple)) and len(resolution) >= 3:
+            if isinstance(resolution, (list, tuple)) and len(resolution) >= 3:  # noqa: PLR2004
                 voxel_size = tuple(float(x) for x in resolution[-3:])  # Take last 3 values (z, y, x)
                 logger.info(f"  Read voxel_size from 'resolution' attribute: {voxel_size}")
             else:
@@ -206,7 +206,7 @@ def rechunk_array_inplace(
     offset = (0.0, 0.0, 0.0)
     if "offset" in source_array.attrs:
         offset_attr = source_array.attrs["offset"]
-        if isinstance(offset_attr, (list, tuple)) and len(offset_attr) >= 3:
+        if isinstance(offset_attr, (list, tuple)) and len(offset_attr) >= 3:  # noqa: PLR2004
             offset = tuple(float(x) for x in offset_attr[-3:])  # Take last 3 values (z, y, x)
             logger.info(f"  Read offset from array attributes: {offset}")
 
@@ -214,9 +214,9 @@ def rechunk_array_inplace(
     # 4D: (channel, z, y, x) - channel is dim 0
     # 5D: (batch, channel, z, y, x) - channel is dim 1
     ndim = len(source_array.shape)
-    if ndim == 4:
+    if ndim == 4:  # noqa: PLR2004
         channel_dim = 0
-    elif ndim == 5:
+    elif ndim == 5:  # noqa: PLR2004
         channel_dim = 1
     else:
         logger.warning(f"  Unexpected number of dimensions: {ndim}, expected 4 or 5")
@@ -304,7 +304,14 @@ def rechunk_worker(args):
     default=None,
     help='Voxel size in nm (z,y,x). If not specified, reads from array "resolution" attribute.',
 )
-def main(snapshots_dir: Path, array: str, workers: int, no_metadata: bool, voxel_size: str | None):
+def main(
+    snapshots_dir: Path,
+    *,
+    array: str | None = None,
+    workers: int | None = None,
+    no_metadata: bool = False,
+    voxel_size: str | None = None,
+):
     """Rechunk snapshot zarr files in SNAPSHOTS_DIR for neuroglancer visualization.
 
     This modifies the zarr files IN PLACE to have full channel chunks and adds OME-NGFF 0.4 metadata.
@@ -316,7 +323,7 @@ def main(snapshots_dir: Path, array: str, workers: int, no_metadata: bool, voxel
     voxel_size_tuple = None
     if voxel_size is not None:
         voxel_size_tuple = tuple(float(x) for x in voxel_size.split(","))
-        if len(voxel_size_tuple) != 3:
+        if len(voxel_size_tuple) != 3:  # noqa: PLR2004
             msg = f"voxel_size must have 3 values (z,y,x), got: {voxel_size}"
             raise ValueError(msg)
         logger.info(f"Using provided voxel_size={voxel_size_tuple} nm")

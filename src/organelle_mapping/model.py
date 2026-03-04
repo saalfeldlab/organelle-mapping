@@ -143,9 +143,10 @@ class TemsUnet(torch.nn.Module):
         downsample_factors=None,
         kernel_size_down=None,
         kernel_size_up=None,
+        *,
         residual=True,
         upsample_mode="trilinear",
-        padding="valid",
+        padding="valid",  # noqa: ARG002
         activation=torch.nn.ReLU,
         final_activation=torch.nn.Identity,
     ):

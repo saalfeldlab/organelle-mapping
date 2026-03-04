@@ -167,7 +167,9 @@ class ExtractMask(gp.BatchFilter):
         self.label_key = label_key
 
     def setup(self):
-        assert self.label_key in self.spec, f"Need {self.label_key}"
+        if self.label_key not in self.spec:
+            msg = f"Need {self.label_key}"
+            raise ValueError(msg)
         spec = self.spec[self.label_key].copy()
         self.provides(self.mask_key, spec)
 
@@ -193,7 +195,9 @@ class CollapseAny(gp.BatchFilter):
         self.collapsed_mask_key = collapsed_mask_key
 
     def setup(self):
-        assert self.mask_key in self.spec, f"Need {self.mask_key}"
+        if self.mask_key not in self.spec:
+            msg = f"Need {self.mask_key}"
+            raise ValueError(msg)
         spec = self.spec[self.mask_key].copy()
         self.provides(self.collapsed_mask_key, spec)
 
