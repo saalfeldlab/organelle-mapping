@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from organelle_mapping.config.data import DataConfig
 from organelle_mapping.config.models import Architecture
@@ -30,25 +30,28 @@ class EvaluationConfig(BaseModel):
         description="List of thresholds to evaluate (0.01 to 0.99)",
     )
 
+    # Database path for storing results
+    db_path: Optional[str] = Field(default=None, description="Path to SQLite database for storing results")
+
     @field_validator("experiment_run", mode="before")
     @classmethod
-    def load_run_config(cls, value) -> RunConfig:
+    def load_run_config(cls, value, info: ValidationInfo) -> RunConfig:
         """Load RunConfig from file path or return as-is if already a RunConfig."""
-        return load_subconfig(value, RunConfig)
+        return load_subconfig(value, RunConfig, info)
 
     @field_validator("eval_architecture", mode="before")
     @classmethod
-    def load_eval_architecture(cls, value) -> Optional[Architecture]:
+    def load_eval_architecture(cls, value, info: ValidationInfo) -> Optional[Architecture]:
         """Load Architecture from file path or return as-is if already an Architecture."""
         if value is None:
             return None
-        return load_subconfig(value, Architecture)
+        return load_subconfig(value, Architecture, info)
 
     @field_validator("data", mode="before")
     @classmethod
-    def load_data_config(cls, value) -> DataConfig:
+    def load_data_config(cls, value, info: ValidationInfo) -> DataConfig:
         """Load DataConfig from file path or return as-is if already a DataConfig."""
-        return load_subconfig(value, DataConfig)
+        return load_subconfig(value, DataConfig, info)
 
     @field_validator("thresholds")
     @classmethod

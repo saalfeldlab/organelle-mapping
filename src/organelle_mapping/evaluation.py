@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Dict, Optional
 
 import click
@@ -12,6 +13,7 @@ from pydantic import TypeAdapter
 from skimage.measure import block_reduce
 
 from organelle_mapping.config.evaluation import EvaluationConfig
+from organelle_mapping.database import init_database, insert_result
 from organelle_mapping.metrics import dice_score, jaccard
 from organelle_mapping.model import load_eval_model
 from organelle_mapping.utils import find_target_scale
@@ -278,9 +280,19 @@ def run(
     # Get configuration components
     run_config = eval_cfg.experiment_run
     network_config = eval_cfg.eval_architecture  # Uses experiment_run.architecture if None
-    all_labels = list(run_config.labels)
+    all_labels = []
+    for target in run_config.targets:
+        for transform in target.transforms:
+            if transform.source not in all_labels:
+                all_labels.append(transform.source)
     sampling = run_config.sampling
     data_cfg = eval_cfg.data
+
+    # Initialize database if configured
+    db_path = eval_cfg.db_path
+    if db_path:
+        init_database(db_path)
+        logger.info(f"Database initialized at {db_path}")
 
     # Filter labels if specific ones requested
     if label:
@@ -369,7 +381,7 @@ def run(
 
         # Load model
         logger.info(f"Loading model from {ckpt}")
-        model = load_eval_model(network_config, ckpt)
+        model = load_eval_model(network_config, run_config.targets, ckpt)
         device = next(model.parameters()).device
 
         # Store results for all evaluations for this checkpoint
@@ -421,6 +433,25 @@ def run(
                         thresholds=thresholds,
                     )
                     all_results[f"{ds_name}/{crop_name}"] = results
+
+                    # Write results to database
+                    if db_path:
+                        run_name = str(Path(ckpt).parent.name)
+                        ckpt_name = Path(ckpt).stem
+                        for lbl, metrics in results.items():
+                            for metric_name in ("dice", "jaccard"):
+                                insert_result(
+                                    db_path=db_path,
+                                    run=run_name,
+                                    checkpoint=ckpt_name,
+                                    dataset=ds_name,
+                                    crop=crop_name,
+                                    label=lbl,
+                                    threshold=metrics[f"{metric_name}_threshold"],
+                                    metric=metric_name,
+                                    score=metrics[metric_name],
+                                )
+                        logger.info(f"Results for {ds_name}/{crop_name} written to database")
                 except Exception as e:
                     logger.error(f"Failed to evaluate {ds_name}/{crop_name}: {e}", exc_info=True)
                     continue
