@@ -14,27 +14,27 @@ def test_database_creation():
         db_url = f"sqlite:///{tmpdir}/test.db"
         engine = init_database(db_url)
 
-        # Check that file was created
         assert Path(f"{tmpdir}/test.db").exists()
 
-        # Check schema
         inspector = inspect(engine)
-        tables = inspector.get_table_names()
-        assert "results" in tables
+        assert "results" in inspector.get_table_names()
 
         columns = inspector.get_columns("results")
         column_names = [col["name"] for col in columns]
         expected_columns = ["run", "checkpoint", "dataset", "crop", "label", "threshold", "metric", "score"]
         assert column_names == expected_columns
 
+        # Verify threshold is nullable
+        threshold_col = next(c for c in columns if c["name"] == "threshold")
+        assert threshold_col["nullable"] is True
+
 
 def test_insert_result():
-    """Test inserting evaluation results."""
+    """Test inserting evaluation results with threshold."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        db_url = f"sqlite:///{tmpdir}/test.db"
-        engine = init_database(db_url)
+        engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", 0.5, "dice", 0.85)
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85, threshold=0.5)
 
         with engine.connect() as conn:
             rows = conn.execute(select(results_table)).fetchall()
@@ -42,14 +42,26 @@ def test_insert_result():
             assert rows[0] == ("run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", 0.5, "dice", 0.85)
 
 
+def test_insert_result_without_threshold():
+    """Test inserting evaluation results without threshold (NULL)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = init_database(f"sqlite:///{tmpdir}/test.db")
+
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85)
+
+        with engine.connect() as conn:
+            rows = conn.execute(select(results_table)).fetchall()
+            assert len(rows) == 1
+            assert rows[0] == ("run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", None, "dice", 0.85)
+
+
 def test_insert_overwrite():
     """Test that upsert overwrites existing results."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        db_url = f"sqlite:///{tmpdir}/test.db"
-        engine = init_database(db_url)
+        engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", 0.5, "dice", 0.85)
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", 0.5, "dice", 0.90)
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85, threshold=0.5)
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.90, threshold=0.5)
 
         with engine.connect() as conn:
             rows = conn.execute(select(results_table)).fetchall()
@@ -57,47 +69,65 @@ def test_insert_overwrite():
             assert rows[0][7] == 0.90  # score should be updated
 
 
+def test_insert_overwrite_null_threshold():
+    """Test that upsert works correctly with NULL threshold."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = init_database(f"sqlite:///{tmpdir}/test.db")
+
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85)
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.90)
+
+        with engine.connect() as conn:
+            rows = conn.execute(select(results_table)).fetchall()
+            assert len(rows) == 1
+            assert rows[0][7] == 0.90
+
+
 def test_multiple_results():
     """Test inserting multiple different results."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        db_url = f"sqlite:///{tmpdir}/test.db"
-        engine = init_database(db_url)
+        engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
-        test_data = [
-            ("run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", 0.5, "dice", 0.85),
-            ("run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", 0.5, "jaccard", 0.74),
-            ("run01", "checkpoint_1000", "jrc_hela-2", "crop1", "er", 0.3, "dice", 0.72),
-            ("run01", "checkpoint_2000", "jrc_hela-2", "crop1", "mito", 0.5, "dice", 0.88),
-        ]
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85, threshold=0.5)
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "jaccard", 0.74, threshold=0.5)
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "er", "dice", 0.72, threshold=0.3)
+        insert_result(engine, "run01", "checkpoint_2000", "jrc_hela-2", "crop1", "mito", "dice", 0.88, threshold=0.5)
 
-        for data in test_data:
-            insert_result(engine, *data)
+        with engine.connect() as conn:
+            rows = conn.execute(select(results_table)).fetchall()
+            assert len(rows) == 4
+
+
+def test_different_thresholds_same_label():
+    """Test that results at different thresholds are stored separately."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = init_database(f"sqlite:///{tmpdir}/test.db")
+
+        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito", "dice", 0.70, threshold=0.3)
+        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito", "dice", 0.85, threshold=0.5)
+        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito", "dice", 0.75, threshold=0.7)
 
         with engine.connect() as conn:
             rows = conn.execute(
-                select(results_table).order_by(
-                    results_table.c.checkpoint, results_table.c.label, results_table.c.metric
-                )
+                select(results_table)
+                .where(results_table.c.label == "mito")
+                .order_by(results_table.c.threshold)
             ).fetchall()
-            assert len(rows) == 4
-            assert set(rows) == set(test_data)
+            assert len(rows) == 3
+            assert [r[5] for r in rows] == [0.3, 0.5, 0.7]  # thresholds
+            assert [r[7] for r in rows] == [0.70, 0.85, 0.75]  # scores
 
 
 def test_query_best_checkpoint_per_label():
     """Test querying for the best checkpoint per label."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        db_url = f"sqlite:///{tmpdir}/test.db"
-        engine = init_database(db_url)
+        engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
-        test_data = [
-            ("run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", 0.5, "dice", 0.80),
-            ("run01", "checkpoint_2000", "jrc_hela-2", "crop1", "mito", 0.5, "dice", 0.90),
-            ("run01", "checkpoint_3000", "jrc_hela-2", "crop1", "mito", 0.5, "dice", 0.85),
-            ("run01", "checkpoint_1000", "jrc_hela-2", "crop1", "er", 0.3, "dice", 0.70),
-            ("run01", "checkpoint_2000", "jrc_hela-2", "crop1", "er", 0.3, "dice", 0.75),
-        ]
-        for data in test_data:
-            insert_result(engine, *data)
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.80, threshold=0.5)
+        insert_result(engine, "run01", "checkpoint_2000", "jrc_hela-2", "crop1", "mito", "dice", 0.90, threshold=0.5)
+        insert_result(engine, "run01", "checkpoint_3000", "jrc_hela-2", "crop1", "mito", "dice", 0.85, threshold=0.5)
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "er", "dice", 0.70, threshold=0.3)
+        insert_result(engine, "run01", "checkpoint_2000", "jrc_hela-2", "crop1", "er", "dice", 0.75, threshold=0.3)
 
         with engine.connect() as conn:
             stmt = (
@@ -120,15 +150,10 @@ def test_query_best_checkpoint_per_label():
 def test_query_across_datasets():
     """Test querying results across different datasets."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        db_url = f"sqlite:///{tmpdir}/test.db"
-        engine = init_database(db_url)
+        engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
-        test_data = [
-            ("run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", 0.5, "dice", 0.85),
-            ("run01", "checkpoint_1000", "jrc_hela-3", "crop5", "mito", 0.5, "dice", 0.78),
-        ]
-        for data in test_data:
-            insert_result(engine, *data)
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85, threshold=0.5)
+        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-3", "crop5", "mito", "dice", 0.78, threshold=0.5)
 
         with engine.connect() as conn:
             stmt = (

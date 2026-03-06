@@ -161,17 +161,20 @@ def evaluate_predictions(
 
         channel_name = channel_names.get(channel, f"channel_{channel}") if channel_names else f"channel_{channel}"
 
-        # Sweep thresholds to find best scores
+        # Sweep thresholds and collect all scores
         best_dice = 0.0
         best_dice_threshold = 0.0
         best_jaccard = 0.0
         best_jaccard_threshold = 0.0
+        scores = {}
 
         for threshold in thresholds:
             pred_binary = (pred_channel > threshold).astype(np.uint8)
 
             dice = dice_score(gt_binary, pred_binary)
             jacc = jaccard(gt_binary, pred_binary)
+
+            scores[threshold] = {"dice": dice, "jaccard": jacc}
 
             if dice > best_dice:
                 best_dice = dice
@@ -192,10 +195,11 @@ def evaluate_predictions(
         )
 
         results[channel_name] = {
-            "dice": best_dice,
-            "dice_threshold": best_dice_threshold,
-            "jaccard": best_jaccard,
-            "jaccard_threshold": best_jaccard_threshold,
+            "best_dice": best_dice,
+            "best_dice_threshold": best_dice_threshold,
+            "best_jaccard": best_jaccard,
+            "best_jaccard_threshold": best_jaccard_threshold,
+            "scores": scores,
         }
 
     return results
@@ -437,19 +441,20 @@ def run(
                     if db_engine is not None:
                         run_name = str(Path(ckpt).parent.name)
                         ckpt_name = Path(ckpt).stem
-                        for lbl, metrics in results.items():
-                            for metric_name in ("dice", "jaccard"):
-                                insert_result(
-                                    engine=db_engine,
-                                    run=run_name,
-                                    checkpoint=ckpt_name,
-                                    dataset=ds_name,
-                                    crop=crop_name,
-                                    label=lbl,
-                                    threshold=metrics[f"{metric_name}_threshold"],
-                                    metric=metric_name,
-                                    score=metrics[metric_name],
-                                )
+                        for lbl, label_metrics in results.items():
+                            for thresh, scores in label_metrics["scores"].items():
+                                for metric_name, score_val in scores.items():
+                                    insert_result(
+                                        engine=db_engine,
+                                        run=run_name,
+                                        checkpoint=ckpt_name,
+                                        dataset=ds_name,
+                                        crop=crop_name,
+                                        label=lbl,
+                                        metric=metric_name,
+                                        score=score_val,
+                                        threshold=thresh,
+                                    )
                         logger.info(f"Results for {ds_name}/{crop_name} written to database")
                 except Exception as e:
                     logger.error(f"Failed to evaluate {ds_name}/{crop_name}: {e}", exc_info=True)
@@ -475,10 +480,10 @@ def run(
 
         for _crop_id, crop_results in all_results.items():
             for lbl, metrics in crop_results.items():
-                all_dice_scores.append(metrics["dice"])
-                all_jaccard_scores.append(metrics["jaccard"])
-                label_dice_scores[lbl].append(metrics["dice"])
-                label_jaccard_scores[lbl].append(metrics["jaccard"])
+                all_dice_scores.append(metrics["best_dice"])
+                all_jaccard_scores.append(metrics["best_jaccard"])
+                label_dice_scores[lbl].append(metrics["best_dice"])
+                label_jaccard_scores[lbl].append(metrics["best_jaccard"])
 
         # Log per-label averages
         logger.info("Per-label averages:")
@@ -502,7 +507,7 @@ def run(
             all_scores = []
             for crop_results in results.values():
                 for metrics in crop_results.values():
-                    all_scores.append(metrics["dice"])
+                    all_scores.append(metrics["best_dice"])
             logger.info(f"\n{ckpt_name}:")
             logger.info(f"  Mean Dice: {np.mean(all_scores):.4f} ± {np.std(all_scores):.4f}")
             logger.info(f"  Crops evaluated: {len(results)}")

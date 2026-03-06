@@ -6,6 +6,7 @@ Supports SQLite (default) and PostgreSQL.
 
 import logging
 from pathlib import Path
+from typing import Optional
 
 from sqlalchemy import (
     Column,
@@ -32,13 +33,24 @@ results_table = Table(
     Column("dataset", String, nullable=False),
     Column("crop", String, nullable=False),
     Column("label", String, nullable=False),
-    Column("threshold", Float, nullable=False),
+    Column("threshold", Float, nullable=True),
     Column("metric", String, nullable=False),
     Column("score", Float, nullable=False),
     UniqueConstraint("run", "checkpoint", "dataset", "crop", "label", "threshold", "metric", name="uq_result"),
 )
 
 UNIQUE_COLUMNS = ["run", "checkpoint", "dataset", "crop", "label", "threshold", "metric"]
+
+
+def _where_clause(values: dict):
+    """Build WHERE clause handling NULLs correctly (IS NULL instead of = NULL)."""
+    conditions = []
+    for col in UNIQUE_COLUMNS:
+        if values[col] is None:
+            conditions.append(results_table.c[col].is_(None))
+        else:
+            conditions.append(results_table.c[col] == values[col])
+    return conditions
 
 
 def init_database(db_url: str) -> Engine:
@@ -67,9 +79,9 @@ def insert_result(
     dataset: str,
     crop: str,
     label: str,
-    threshold: float,
     metric: str,
     score: float,
+    threshold: Optional[float] = None,
 ) -> None:
     """Insert or update a single evaluation result."""
     values = {
@@ -84,19 +96,15 @@ def insert_result(
     }
 
     with engine.begin() as conn:
-        # Check if row exists
-        stmt = select(results_table).where(
-            *[results_table.c[col] == values[col] for col in UNIQUE_COLUMNS]
-        )
-        existing = conn.execute(stmt).first()
+        existing = conn.execute(
+            select(results_table).where(*_where_clause(values))
+        ).first()
 
         if existing:
-            # Update score
-            update_stmt = (
+            conn.execute(
                 results_table.update()
-                .where(*[results_table.c[col] == values[col] for col in UNIQUE_COLUMNS])
+                .where(*_where_clause(values))
                 .values(score=score)
             )
-            conn.execute(update_stmt)
         else:
             conn.execute(insert(results_table).values(**values))
