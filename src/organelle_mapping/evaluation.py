@@ -289,10 +289,9 @@ def run(
     data_cfg = eval_cfg.data
 
     # Initialize database if configured
-    db_path = eval_cfg.db_path
-    if db_path:
-        init_database(db_path)
-        logger.info(f"Database initialized at {db_path}")
+    db_engine = None
+    if eval_cfg.db_url:
+        db_engine = init_database(eval_cfg.db_url)
 
     # Filter labels if specific ones requested
     if label:
@@ -435,13 +434,13 @@ def run(
                     all_results[f"{ds_name}/{crop_name}"] = results
 
                     # Write results to database
-                    if db_path:
+                    if db_engine is not None:
                         run_name = str(Path(ckpt).parent.name)
                         ckpt_name = Path(ckpt).stem
                         for lbl, metrics in results.items():
                             for metric_name in ("dice", "jaccard"):
                                 insert_result(
-                                    db_path=db_path,
+                                    engine=db_engine,
                                     run=run_name,
                                     checkpoint=ckpt_name,
                                     dataset=ds_name,

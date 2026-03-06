@@ -28,6 +28,7 @@ dependencies = [
   "gunpowder",
   "torch",
   "click",
+  "sqlalchemy",
   "xarray",
   "xarray-datatree",
   "zarr",

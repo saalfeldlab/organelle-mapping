@@ -30,8 +30,11 @@ class EvaluationConfig(BaseModel):
         description="List of thresholds to evaluate (0.01 to 0.99)",
     )
 
-    # Database path for storing results
-    db_path: Optional[str] = Field(default=None, description="Path to SQLite database for storing results")
+    # Database URL for storing results
+    db_url: Optional[str] = Field(
+        default=None,
+        description="SQLAlchemy database URL (e.g. 'sqlite:///results.db' or 'postgresql://user:pass@host/db')",
+    )
 
     @field_validator("experiment_run", mode="before")
     @classmethod
