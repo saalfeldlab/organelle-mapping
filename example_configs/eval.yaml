@@ -28,6 +28,9 @@ checkpoints:
 # Data to evaluate on
 data: valdata_8nm_org+mem.yaml
 
+# Database for storing results (optional, can also be passed via --db-url CLI flag)
+# db_url: "sqlite:///eval_results.db"
+
 # Example: Custom threshold list for specific values
 thresholds: 
   - 0.1

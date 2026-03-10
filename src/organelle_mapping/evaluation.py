@@ -16,6 +16,7 @@ from organelle_mapping.config.evaluation import EvaluationConfig
 from organelle_mapping.database import init_database, insert_result
 from organelle_mapping.metrics import dice_score, jaccard
 from organelle_mapping.model import load_eval_model
+from organelle_mapping.query import query as query_group
 from organelle_mapping.utils import find_target_scale
 
 logger = logging.getLogger("organelle_mapping.evaluation")
@@ -210,6 +211,9 @@ def cli():
     pass
 
 
+cli.add_command(query_group)
+
+
 @cli.command()
 @click.option(
     "--eval-config",
@@ -258,6 +262,12 @@ def cli():
     help="Specific label(s) to evaluate (can be used multiple times, default: all labels)",
 )
 @click.option(
+    "--db-url",
+    type=str,
+    required=False,
+    help="Database URL for storing results (overrides config value, e.g. 'sqlite:///results.db')",
+)
+@click.option(
     "--log-level",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
     default="INFO",
@@ -269,6 +279,7 @@ def run(
     checkpoint: tuple,
     threshold: tuple,
     label: tuple,
+    db_url: Optional[str],
     log_level: str,
 ):
     """Evaluate model predictions on validation data."""
@@ -292,10 +303,11 @@ def run(
     sampling = run_config.sampling
     data_cfg = eval_cfg.data
 
-    # Initialize database if configured
+    # Initialize database if configured (CLI flag overrides config)
+    effective_db_url = db_url or eval_cfg.db_url
     db_engine = None
-    if eval_cfg.db_url:
-        db_engine = init_database(eval_cfg.db_url)
+    if effective_db_url:
+        db_engine = init_database(effective_db_url)
 
     # Filter labels if specific ones requested
     if label:
