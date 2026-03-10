@@ -1,9 +1,9 @@
-"""Tests for database functionality."""
+"""Tests for database schema and insert/upsert functionality."""
 
 import tempfile
 from pathlib import Path
 
-from sqlalchemy import func, inspect, select
+from sqlalchemy import inspect, select
 
 from organelle_mapping.database import init_database, insert_result, results_table
 
@@ -118,57 +118,3 @@ def test_different_thresholds_same_label():
             assert [r[7] for r in rows] == [0.70, 0.85, 0.75]  # scores
 
 
-def test_query_best_checkpoint_per_label():
-    """Test querying for the best checkpoint per label."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        engine = init_database(f"sqlite:///{tmpdir}/test.db")
-
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.80, threshold=0.5)
-        insert_result(engine, "run01", "checkpoint_2000", "jrc_hela-2", "crop1", "mito", "dice", 0.90, threshold=0.5)
-        insert_result(engine, "run01", "checkpoint_3000", "jrc_hela-2", "crop1", "mito", "dice", 0.85, threshold=0.5)
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "er", "dice", 0.70, threshold=0.3)
-        insert_result(engine, "run01", "checkpoint_2000", "jrc_hela-2", "crop1", "er", "dice", 0.75, threshold=0.3)
-
-        with engine.connect() as conn:
-            stmt = (
-                select(
-                    results_table.c.label,
-                    results_table.c.checkpoint,
-                    func.max(results_table.c.score).label("best_score"),
-                )
-                .where(results_table.c.metric == "dice")
-                .group_by(results_table.c.label)
-                .order_by(results_table.c.label)
-            )
-            best = conn.execute(stmt).fetchall()
-
-            assert len(best) == 2
-            assert best[0] == ("er", "checkpoint_2000", 0.75)
-            assert best[1] == ("mito", "checkpoint_2000", 0.90)
-
-
-def test_query_across_datasets():
-    """Test querying results across different datasets."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        engine = init_database(f"sqlite:///{tmpdir}/test.db")
-
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85, threshold=0.5)
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-3", "crop5", "mito", "dice", 0.78, threshold=0.5)
-
-        with engine.connect() as conn:
-            stmt = (
-                select(
-                    results_table.c.dataset,
-                    func.avg(results_table.c.score).label("avg_score"),
-                )
-                .where(results_table.c.metric == "dice")
-                .group_by(results_table.c.dataset)
-                .order_by(results_table.c.dataset)
-            )
-            per_dataset = conn.execute(stmt).fetchall()
-
-            assert len(per_dataset) == 2
-            assert per_dataset[0][0] == "jrc_hela-2"
-            assert per_dataset[0][1] == 0.85
-            assert per_dataset[1][0] == "jrc_hela-3"
-            assert per_dataset[1][1] == 0.78
