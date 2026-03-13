@@ -47,7 +47,25 @@ results_table = Table(
 )
 
 UNIQUE_COLUMNS = ["run", "checkpoint", "dataset", "crop", "channel", "postprocessing_type", "threshold", "metric"]
-UNIQUE_COLUMNS = ["run", "checkpoint", "dataset", "crop", "label", "threshold", "metric"]
+
+crops_table = Table(
+    "crops",
+    metadata,
+    Column("dataset", String, nullable=False),
+    Column("crop", String, nullable=False),
+    Column("label", String, nullable=False),
+    Column("scale_level", String, nullable=False),
+    Column("resolution_z", Float, nullable=False),
+    Column("resolution_y", Float, nullable=False),
+    Column("resolution_x", Float, nullable=False),
+    Column("total_voxels", Float, nullable=False),
+    Column("present", Float, nullable=False),
+    Column("absent", Float, nullable=False),
+    Column("unknown", Float, nullable=False),
+    UniqueConstraint("dataset", "crop", "label", "scale_level", name="uq_crop"),
+)
+
+CROPS_UNIQUE_COLUMNS = ["dataset", "crop", "label", "scale_level"]
 
 
 def _where_clause(values: dict):
@@ -120,6 +138,60 @@ def insert_result(
             )
         else:
             conn.execute(insert(results_table).values(**values))
+
+
+def insert_crop(
+    engine: Engine,
+    dataset: str,
+    crop: str,
+    label: str,
+    scale_level: str,
+    resolution_z: float,
+    resolution_y: float,
+    resolution_x: float,
+    total_voxels: float,
+    present: float,
+    absent: float,
+    unknown: float,
+) -> None:
+    """Insert or update a crop ground truth voxel count."""
+    values = {
+        "dataset": dataset,
+        "crop": crop,
+        "label": label,
+        "scale_level": scale_level,
+        "resolution_z": resolution_z,
+        "resolution_y": resolution_y,
+        "resolution_x": resolution_x,
+        "total_voxels": total_voxels,
+        "present": present,
+        "absent": absent,
+        "unknown": unknown,
+    }
+
+    unique_conditions = [crops_table.c[col] == values[col] for col in CROPS_UNIQUE_COLUMNS]
+
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(crops_table).where(*unique_conditions)
+        ).first()
+
+        if existing:
+            conn.execute(
+                crops_table.update()
+                .where(*unique_conditions)
+                .values(
+                    resolution_z=resolution_z,
+                    resolution_y=resolution_y,
+                    resolution_x=resolution_x,
+                    total_voxels=total_voxels,
+                    present=present,
+                    absent=absent,
+                    unknown=unknown,
+                )
+            )
+        else:
+            conn.execute(insert(crops_table).values(**values))
 
 
 def _filter_conditions(filters: dict) -> list:
