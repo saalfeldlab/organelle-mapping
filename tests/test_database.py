@@ -21,12 +21,19 @@ def test_database_creation():
 
         columns = inspector.get_columns("results")
         column_names = [col["name"] for col in columns]
-        expected_columns = ["run", "checkpoint", "dataset", "crop", "label", "threshold", "metric", "score"]
+        expected_columns = [
+            "run", "checkpoint", "dataset", "crop", "channel", "label",
+            "postprocessing_type", "threshold", "metric", "score",
+        ]
         assert column_names == expected_columns
 
         # Verify threshold is nullable
         threshold_col = next(c for c in columns if c["name"] == "threshold")
         assert threshold_col["nullable"] is True
+
+        # Verify postprocessing_type is not nullable
+        pp_col = next(c for c in columns if c["name"] == "postprocessing_type")
+        assert pp_col["nullable"] is False
 
 
 def test_insert_result():
@@ -34,12 +41,18 @@ def test_insert_result():
     with tempfile.TemporaryDirectory() as tmpdir:
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85, threshold=0.5)
+        insert_result(
+            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
+            "mito_binary", "mito", "dice", 0.85, threshold=0.5,
+        )
 
         with engine.connect() as conn:
             rows = conn.execute(select(results_table)).fetchall()
             assert len(rows) == 1
-            assert rows[0] == ("run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", 0.5, "dice", 0.85)
+            assert rows[0] == (
+                "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
+                "mito_binary", "mito", "threshold", 0.5, "dice", 0.85,
+            )
 
 
 def test_insert_result_without_threshold():
@@ -47,12 +60,18 @@ def test_insert_result_without_threshold():
     with tempfile.TemporaryDirectory() as tmpdir:
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85)
+        insert_result(
+            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
+            "mito_binary", "mito", "dice", 0.85,
+        )
 
         with engine.connect() as conn:
             rows = conn.execute(select(results_table)).fetchall()
             assert len(rows) == 1
-            assert rows[0] == ("run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", None, "dice", 0.85)
+            assert rows[0] == (
+                "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
+                "mito_binary", "mito", "threshold", None, "dice", 0.85,
+            )
 
 
 def test_insert_overwrite():
@@ -60,13 +79,19 @@ def test_insert_overwrite():
     with tempfile.TemporaryDirectory() as tmpdir:
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85, threshold=0.5)
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.90, threshold=0.5)
+        insert_result(
+            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
+            "mito_binary", "mito", "dice", 0.85, threshold=0.5,
+        )
+        insert_result(
+            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
+            "mito_binary", "mito", "dice", 0.90, threshold=0.5,
+        )
 
         with engine.connect() as conn:
             rows = conn.execute(select(results_table)).fetchall()
             assert len(rows) == 1
-            assert rows[0][7] == 0.90  # score should be updated
+            assert rows[0][9] == 0.90  # score should be updated
 
 
 def test_insert_overwrite_null_threshold():
@@ -74,13 +99,19 @@ def test_insert_overwrite_null_threshold():
     with tempfile.TemporaryDirectory() as tmpdir:
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85)
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.90)
+        insert_result(
+            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
+            "mito_binary", "mito", "dice", 0.85,
+        )
+        insert_result(
+            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
+            "mito_binary", "mito", "dice", 0.90,
+        )
 
         with engine.connect() as conn:
             rows = conn.execute(select(results_table)).fetchall()
             assert len(rows) == 1
-            assert rows[0][7] == 0.90
+            assert rows[0][9] == 0.90
 
 
 def test_multiple_results():
@@ -88,10 +119,22 @@ def test_multiple_results():
     with tempfile.TemporaryDirectory() as tmpdir:
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "dice", 0.85, threshold=0.5)
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "mito", "jaccard", 0.74, threshold=0.5)
-        insert_result(engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1", "er", "dice", 0.72, threshold=0.3)
-        insert_result(engine, "run01", "checkpoint_2000", "jrc_hela-2", "crop1", "mito", "dice", 0.88, threshold=0.5)
+        insert_result(
+            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
+            "mito_binary", "mito", "dice", 0.85, threshold=0.5,
+        )
+        insert_result(
+            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
+            "mito_binary", "mito", "jaccard", 0.74, threshold=0.5,
+        )
+        insert_result(
+            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
+            "er_binary", "er", "dice", 0.72, threshold=0.3,
+        )
+        insert_result(
+            engine, "run01", "checkpoint_2000", "jrc_hela-2", "crop1",
+            "mito_binary", "mito", "dice", 0.88, threshold=0.5,
+        )
 
         with engine.connect() as conn:
             rows = conn.execute(select(results_table)).fetchall()
@@ -103,18 +146,16 @@ def test_different_thresholds_same_label():
     with tempfile.TemporaryDirectory() as tmpdir:
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
-        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito", "dice", 0.70, threshold=0.3)
-        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito", "dice", 0.85, threshold=0.5)
-        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito", "dice", 0.75, threshold=0.7)
+        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito_binary", "mito", "dice", 0.70, threshold=0.3)
+        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito_binary", "mito", "dice", 0.85, threshold=0.5)
+        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito_binary", "mito", "dice", 0.75, threshold=0.7)
 
         with engine.connect() as conn:
             rows = conn.execute(
                 select(results_table)
-                .where(results_table.c.label == "mito")
+                .where(results_table.c.channel == "mito_binary")
                 .order_by(results_table.c.threshold)
             ).fetchall()
             assert len(rows) == 3
-            assert [r[5] for r in rows] == [0.3, 0.5, 0.7]  # thresholds
-            assert [r[7] for r in rows] == [0.70, 0.85, 0.75]  # scores
-
-
+            assert [r[7] for r in rows] == [0.3, 0.5, 0.7]  # thresholds (index 7)
+            assert [r[9] for r in rows] == [0.70, 0.85, 0.75]  # scores (index 9)

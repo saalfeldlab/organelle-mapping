@@ -34,13 +34,19 @@ results_table = Table(
     Column("checkpoint", String, nullable=False),
     Column("dataset", String, nullable=False),
     Column("crop", String, nullable=False),
+    Column("channel", String, nullable=False),
     Column("label", String, nullable=False),
+    Column("postprocessing_type", String, nullable=False),
     Column("threshold", Float, nullable=True),
     Column("metric", String, nullable=False),
     Column("score", Float, nullable=False),
-    UniqueConstraint("run", "checkpoint", "dataset", "crop", "label", "threshold", "metric", name="uq_result"),
+    UniqueConstraint(
+        "run", "checkpoint", "dataset", "crop", "channel", "postprocessing_type", "threshold", "metric",
+        name="uq_result",
+    ),
 )
 
+UNIQUE_COLUMNS = ["run", "checkpoint", "dataset", "crop", "channel", "postprocessing_type", "threshold", "metric"]
 UNIQUE_COLUMNS = ["run", "checkpoint", "dataset", "crop", "label", "threshold", "metric"]
 
 
@@ -80,9 +86,11 @@ def insert_result(
     checkpoint: str,
     dataset: str,
     crop: str,
+    channel: str,
     label: str,
     metric: str,
     score: float,
+    postprocessing_type: str = "threshold",
     threshold: Optional[float] = None,
 ) -> None:
     """Insert or update a single evaluation result."""
@@ -91,7 +99,9 @@ def insert_result(
         "checkpoint": checkpoint,
         "dataset": dataset,
         "crop": crop,
+        "channel": channel,
         "label": label,
+        "postprocessing_type": postprocessing_type,
         "threshold": threshold,
         "metric": metric,
         "score": score,
@@ -212,7 +222,10 @@ def query_checkpoint_comparison(
     metric: str = "dice",
     filters: Optional[dict] = None,
 ) -> list[dict]:
-    """Compare checkpoints: average score per label per checkpoint.
+    """Compare checkpoints: average best-per-crop score per label per checkpoint.
+
+    For each (checkpoint, label, dataset, crop) combination, finds the best score
+    across all thresholds/postprocessing, then averages those best scores.
 
     Returns list of dicts with keys: label, checkpoint, avg_score, num_crops.
     """
@@ -220,16 +233,35 @@ def query_checkpoint_comparison(
     if filters:
         conditions.extend(_filter_conditions(filters))
 
-    stmt = (
+    # Subquery: best score per (checkpoint, label, dataset, crop)
+    best_per_crop = (
         select(
             results_table.c.label,
             results_table.c.checkpoint,
-            func.avg(results_table.c.score).label("avg_score"),
-            func.count().label("num_crops"),
+            results_table.c.dataset,
+            results_table.c.crop,
+            func.max(results_table.c.score).label("best_score"),
         )
         .where(*conditions)
-        .group_by(results_table.c.label, results_table.c.checkpoint)
-        .order_by(results_table.c.label, results_table.c.checkpoint)
+        .group_by(
+            results_table.c.label,
+            results_table.c.checkpoint,
+            results_table.c.dataset,
+            results_table.c.crop,
+        )
+        .subquery()
+    )
+
+    # Average the best-per-crop scores
+    stmt = (
+        select(
+            best_per_crop.c.label,
+            best_per_crop.c.checkpoint,
+            func.avg(best_per_crop.c.best_score).label("avg_score"),
+            func.count().label("num_crops"),
+        )
+        .group_by(best_per_crop.c.label, best_per_crop.c.checkpoint)
+        .order_by(best_per_crop.c.label, best_per_crop.c.checkpoint)
     )
 
     with engine.connect() as conn:

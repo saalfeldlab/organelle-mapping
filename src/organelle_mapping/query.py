@@ -24,7 +24,9 @@ COLUMN_ALIASES = {
     "checkpoints": "checkpoint",
     "datasets": "dataset",
     "crops": "crop",
+    "channels": "channel",
     "labels": "label",
+    "postprocessing_types": "postprocessing_type",
     "metrics": "metric",
 }
 
@@ -124,7 +126,7 @@ def best(ctx, metric: str, run_name: Optional[str], label: Optional[str], datase
         filters["checkpoint"] = checkpoint
 
     rows = query_best_per_label(engine, metric=metric, filters=filters or None)
-    columns = ["label", "score", "checkpoint", "threshold", "dataset", "crop", "run"]
+    columns = ["label", "channel", "score", "checkpoint", "postprocessing_type", "threshold", "dataset", "crop", "run"]
     click.echo(format_output(rows, columns, fmt))
 
 
@@ -230,5 +232,8 @@ def scores(ctx, run_name: Optional[str], checkpoint: Optional[str], dataset: Opt
         filters["metric"] = metric
 
     rows = query_results(engine, filters=filters or None, limit=limit, order_by=order_by, sort_direction=sort_direction)
-    columns = ["run", "checkpoint", "dataset", "crop", "label", "threshold", "metric", "score"]
+    columns = [
+        "run", "checkpoint", "dataset", "crop", "channel", "label",
+        "postprocessing_type", "threshold", "metric", "score",
+    ]
     click.echo(format_output(rows, columns, fmt))

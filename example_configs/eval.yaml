@@ -4,7 +4,7 @@ experiment_run: run.yaml
 # Override architecture for evaluation
 eval_architecture:
   name: "standard_unet"
-  input_shape: 
+  input_shape:
     - 204
     - 204
     - 204
@@ -31,15 +31,45 @@ data: valdata_8nm_org+mem.yaml
 # Database for storing results (optional, can also be passed via --db-url CLI flag)
 # db_url: "sqlite:///eval_results.db"
 
-# Example: Custom threshold list for specific values
-thresholds: 
-  - 0.1
-  - 0.2
-  - 0.3
-  - 0.4
-  - 0.5
-  - 0.6
-  - 0.7
-  - 0.8
-  - 0.9
+# Default metrics for channels that don't specify their own.
+# Channels that omit 'metrics' inherit this list.
+default_metrics: [dice, jaccard]
 
+# Default postprocessing for channels that don't specify their own.
+# Channels that omit 'postprocessing' inherit this list.
+default_postprocessing:
+  - type: threshold
+    threshold: 0.1
+  - type: threshold
+    threshold: 0.2
+  - type: threshold
+    threshold: 0.3
+  - type: threshold
+    threshold: 0.4
+  - type: threshold
+    threshold: 0.5
+  - type: threshold
+    threshold: 0.6
+  - type: threshold
+    threshold: 0.7
+  - type: threshold
+    threshold: 0.8
+  - type: threshold
+    threshold: 0.9
+
+# Channels to evaluate (required). Each channel references a channel descriptor
+# from the run config (e.g. 'mito_binary', 'er_binary').
+eval_channels:
+  - channel: mito_binary
+    # metrics and postprocessing omitted → inherits defaults above
+  - channel: er_binary
+  - channel: all_mem_binary
+    metrics: [dice]  # per-channel override
+    # Per-channel postprocessing override:
+    postprocessing:
+      - type: threshold
+        threshold: 0.3
+      - type: threshold
+        threshold: 0.5
+      - type: threshold
+        threshold: 0.7

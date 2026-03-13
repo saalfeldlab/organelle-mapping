@@ -23,16 +23,16 @@ logger = logging.getLogger("organelle_mapping.evaluation")
 
 
 def normalize_raw(raw: np.ndarray, min_val: float = 0, max_val: float = 255) -> np.ndarray:
-    """Normalize raw data to match training normalization."""
-    # Match training: gp.Normalize(factor=1/factor) + gp.IntensityScaleShift
-    # Determine factor based on data type (like training does)
-    factors = {np.dtype("uint8"): 255, np.dtype("uint16"): 2**16 - 1}
-    factor = factors.get(raw.dtype, 255.0)  # default to 255 if unknown
+    """Normalize raw data to match training normalization.
 
-    normalized = raw.astype(np.float32) / factor  # [0, 1] range
-    scale = (max_val - min_val) / factor
-    shift = min_val / factor
-    return normalized * scale + shift
+    Replicates the training pipeline:
+      1. gp.Normalize: raw / dtype_factor → [0, 1]
+      2. gp.IntensityScaleShift: maps [min_val, max_val] → [0, 1]
+      3. IntensityScaleShift augment: scale=2, shift=-1 → [-1, 1]
+
+    Net effect: (raw - min_val) / (max_val - min_val) * 2 - 1
+    """
+    return (raw.astype(np.float32) - min_val) / (max_val - min_val) * 2 - 1
 
 
 def predict_block(
@@ -61,7 +61,7 @@ def predict_crop(
     voxel_size_coord,
     min_raw: float,
     max_raw: float,
-    label_list: list,
+    num_channels: int,
 ) -> np.ndarray:
     """Predict on an entire crop using blockwise processing."""
     logger.info(f"Start coord {start_coord}, end coord {end_coord}")
@@ -76,13 +76,13 @@ def predict_crop(
     raw_resolution = Coordinate(raw_xarray[1, 1, 1].coords[ax].item() for ax in raw_xarray.dims) - raw_begin
     shape = (end_coord - start_coord + raw_resolution) / voxel_size_coord
     logger.info(f"Calculated shape as {shape}")
-    # Initialize prediction array matching GT size
-    predictions = np.zeros((len(label_list), *tuple(shape)), dtype=np.float32)
+    # Initialize prediction array for all model output channels
+    predictions = np.zeros((num_channels, *tuple(shape)), dtype=np.float32)
 
-    # Process in blocks
-    for z_start in range(start_coord[0], end_coord[0], block_output_shape_world[0]):
-        for y_start in range(start_coord[1], end_coord[1], block_output_shape_world[1]):
-            for x_start in range(start_coord[2], end_coord[2], block_output_shape_world[2]):
+    # Process in blocks (end_coord is inclusive, so add one voxel to include it in the range)
+    for z_start in range(start_coord[0], end_coord[0] + 1, block_output_shape_world[0]):
+        for y_start in range(start_coord[1], end_coord[1] + 1, block_output_shape_world[1]):
+            for x_start in range(start_coord[2], end_coord[2] + 1, block_output_shape_world[2]):
                 # Calculate world-space ROI for this block
                 block_begin_world = Coordinate((z_start, y_start, x_start))
                 # Calculate world-space input ROI for this block
@@ -141,69 +141,44 @@ def predict_crop(
     return predictions
 
 
-def evaluate_predictions(
-    predictions: np.ndarray,
-    ground_truth: np.ndarray,
-    channel_names: Optional[Dict[int, str]] = None,
-    thresholds: Optional[list] = None,
-) -> Dict[str, Dict[str, float]]:
-    """Evaluate predictions against ground truth for all channels with threshold sweep."""
-    if predictions.shape != ground_truth.shape:
-        msg = f"Shape mismatch: predictions {predictions.shape} vs ground_truth {ground_truth.shape}"
-        raise ValueError(msg)
+def evaluate_single_channel(
+    pred_channel: np.ndarray,
+    gt_binary: np.ndarray,
+    config,
+) -> dict:
+    """Evaluate a single prediction channel against ground truth using per-channel config."""
+    all_scores = []
+    best: Dict[str, float] = {}
 
-    n_channels = predictions.shape[0]
-    results = {}
+    for pp in config.postprocessing:
+        params, processed = pp.apply(pred_channel)
+        metric_scores = {}
 
-    for channel in range(n_channels):
-        pred_channel = predictions[channel]
-        gt_channel = ground_truth[channel]
-        gt_binary = gt_channel.astype(np.uint8)
+        if "dice" in config.metrics:
+            metric_scores["dice"] = dice_score(gt_binary, processed)
+        if "jaccard" in config.metrics:
+            metric_scores["jaccard"] = jaccard(gt_binary, processed)
 
-        channel_name = channel_names.get(channel, f"channel_{channel}") if channel_names else f"channel_{channel}"
+        all_scores.append({"postprocessing_type": pp.type, "params": params, "metrics": metric_scores})
 
-        # Sweep thresholds and collect all scores
-        best_dice = 0.0
-        best_dice_threshold = 0.0
-        best_jaccard = 0.0
-        best_jaccard_threshold = 0.0
-        scores = {}
+        # Track best per metric
+        for metric_name, score_val in metric_scores.items():
+            best_key = f"best_{metric_name}"
+            if score_val > best.get(best_key, 0.0):
+                best[best_key] = score_val
+                best[f"best_{metric_name}_params"] = params
 
-        for threshold in thresholds:
-            pred_binary = (pred_channel > threshold).astype(np.uint8)
+    # Log key stats
+    gt_positive_ratio = gt_binary.mean()
+    best_strs = ", ".join(
+        f"{k}={v:.3f}" if isinstance(v, float) else f"{k}={v}" for k, v in best.items()
+    )
+    logger.info(
+        f"{config.channel}: pred_range=[{pred_channel.min():.3f}, {pred_channel.max():.3f}], "
+        f"pred_mean={pred_channel.mean():.3f}, gt_pos={gt_positive_ratio:.3f}, {best_strs}"
+    )
 
-            dice = dice_score(gt_binary, pred_binary)
-            jacc = jaccard(gt_binary, pred_binary)
-
-            scores[threshold] = {"dice": dice, "jaccard": jacc}
-
-            if dice > best_dice:
-                best_dice = dice
-                best_dice_threshold = threshold
-
-            if jacc > best_jaccard:
-                best_jaccard = jacc
-                best_jaccard_threshold = threshold
-
-        # Show key stats
-        gt_positive_ratio = gt_binary.mean()
-        pred_positive_ratio = (pred_channel > best_dice_threshold).mean()
-        logger.info(
-            f"{channel_name}: pred_range=[{pred_channel.min():.3f}, {pred_channel.max():.3f}], "
-            f"pred_mean={pred_channel.mean():.3f}, gt_pos={gt_positive_ratio:.3f}, "
-            f"pred_pos={pred_positive_ratio:.3f}, "
-            f"best_dice_thr={best_dice_threshold:.3f}, best_jacc_thr={best_jaccard_threshold:.3f}"
-        )
-
-        results[channel_name] = {
-            "best_dice": best_dice,
-            "best_dice_threshold": best_dice_threshold,
-            "best_jaccard": best_jaccard,
-            "best_jaccard_threshold": best_jaccard_threshold,
-            "scores": scores,
-        }
-
-    return results
+    return {**best, "scores": all_scores}
 
 
 @click.group()
@@ -246,26 +221,16 @@ cli.add_command(query_group)
     help="Specific checkpoint(s) to evaluate (can be used multiple times, default: all checkpoints in config)",
 )
 @click.option(
-    "--threshold",
-    "-t",
-    type=float,
-    required=False,
-    multiple=True,
-    help="Specific threshold(s) to evaluate (can be used multiple times, default: all thresholds in config)",
-)
-@click.option(
-    "--label",
-    "-l",
-    type=str,
-    required=False,
-    multiple=True,
-    help="Specific label(s) to evaluate (can be used multiple times, default: all labels)",
-)
-@click.option(
     "--db-url",
     type=str,
     required=False,
     help="Database URL for storing results (overrides config value, e.g. 'sqlite:///results.db')",
+)
+@click.option(
+    "--save-predictions",
+    type=click.Path(),
+    required=False,
+    help="Directory to save raw predictions as zarr (e.g. './predictions.zarr')",
 )
 @click.option(
     "--log-level",
@@ -277,9 +242,8 @@ def run(
     dataset: Optional[str],
     crop: tuple,
     checkpoint: tuple,
-    threshold: tuple,
-    label: tuple,
     db_url: Optional[str],
+    save_predictions: Optional[str],
     log_level: str,
 ):
     """Evaluate model predictions on validation data."""
@@ -294,14 +258,24 @@ def run(
 
     # Get configuration components
     run_config = eval_cfg.experiment_run
-    network_config = eval_cfg.eval_architecture  # Uses experiment_run.architecture if None
-    all_labels = []
-    for target in run_config.targets:
-        for transform in target.transforms:
-            if transform.source not in all_labels:
-                all_labels.append(transform.source)
+    network_config = eval_cfg.eval_architecture
     sampling = run_config.sampling
     data_cfg = eval_cfg.data
+    num_channels = run_config.total_channels
+
+    # Build descriptor → model output channel index
+    all_descriptors = run_config.channel_descriptors
+    descriptor_to_index = {desc: i for i, desc in enumerate(all_descriptors)}
+
+    # Build descriptor → source label (for GT loading)
+    descriptor_to_source: Dict[str, str] = {}
+    for target in run_config.targets:
+        for transform in target.transforms:
+            for desc in transform.channel_descriptors:
+                descriptor_to_source[desc] = transform.source
+
+    # Get eval channel configs (already defaulted + validated by EvaluationConfig)
+    eval_channel_configs = list(eval_cfg.eval_channels)
 
     # Initialize database if configured (CLI flag overrides config)
     effective_db_url = db_url or eval_cfg.db_url
@@ -309,19 +283,9 @@ def run(
     if effective_db_url:
         db_engine = init_database(effective_db_url)
 
-    # Filter labels if specific ones requested
-    if label:
-        requested_labels = set(label)
-        available_labels = set(all_labels)
-        if not requested_labels.issubset(available_labels):
-            invalid_labels = requested_labels - available_labels
-            msg = f"Invalid labels: {invalid_labels}. Available: {all_labels}"
-            raise ValueError(msg)
-        # Preserve order from run config
-        label_list = [lbl for lbl in all_labels if lbl in requested_labels]
-        logger.info(f"Evaluating specific labels: {label_list}")
-    else:
-        label_list = all_labels
+    # Compute channel indices and source labels for the active eval channels
+    channel_indices = [descriptor_to_index[ec.channel] for ec in eval_channel_configs]
+    eval_labels = [descriptor_to_source[ec.channel] for ec in eval_channel_configs]
 
     # Filter checkpoints if specific ones requested
     if checkpoint:
@@ -331,31 +295,16 @@ def run(
             invalid_checkpoints = requested_checkpoints - available_checkpoints
             msg = f"Invalid checkpoints: {invalid_checkpoints}. Available: {eval_cfg.checkpoints}"
             raise ValueError(msg)
-        # Preserve order from config
         checkpoints = [c for c in eval_cfg.checkpoints if c in requested_checkpoints]
         logger.info(f"Evaluating specific checkpoints: {checkpoints}")
     else:
         checkpoints = eval_cfg.checkpoints
 
-    # Filter thresholds if specific ones requested
-    if threshold:
-        requested_thresholds = set(threshold)
-        available_thresholds = set(eval_cfg.thresholds)
-        if not requested_thresholds.issubset(available_thresholds):
-            invalid_thresholds = requested_thresholds - available_thresholds
-            msg = f"Invalid thresholds: {invalid_thresholds}. Available: {eval_cfg.thresholds}"
-            raise ValueError(msg)
-        # Keep sorted order
-        thresholds = sorted(requested_thresholds)
-        logger.info(f"Evaluating specific thresholds: {thresholds}")
-    else:
-        thresholds = eval_cfg.thresholds
-
-    logger.info(f"Labels to evaluate: {label_list}")
+    logger.info(f"Channels to evaluate: {[ec.channel for ec in eval_channel_configs]}")
+    logger.info(f"Channel indices in model output: {channel_indices}")
     logger.info(f"Target sampling: {sampling}")
     logger.info(f"Architecture: {network_config.name} (padding={network_config.padding})")
     logger.info(f"Checkpoints to evaluate: {checkpoints}")
-    logger.info(f"Number of thresholds: {len(thresholds)}")
 
     # Determine which datasets and crops to evaluate
     if dataset:
@@ -369,22 +318,11 @@ def run(
 
     # Filter crops if specific ones requested
     if crop:
-        # Get all available crops across all datasets
-        all_crops = []
-        for dataset_info in datasets_to_eval:
-            for crop_group in dataset_info.labels.crops:
-                all_crops.extend(crop_group.split(","))
-
-        requested_crops = set(crop)
-        available_crops = set(all_crops)
-        if not requested_crops.issubset(available_crops):
-            invalid_crops = requested_crops - available_crops
-            msg = f"Invalid crops: {invalid_crops}. Available: {sorted(all_crops)}"
-            raise ValueError(msg)
         crops_to_eval = list(crop)
         logger.info(f"Evaluating specific crops: {crops_to_eval}")
     else:
         crops_to_eval = None
+
     # Store results for all checkpoints
     checkpoint_results = {}
 
@@ -399,75 +337,82 @@ def run(
         model = load_eval_model(network_config, run_config.targets, ckpt)
         device = next(model.parameters()).device
 
-        # Store results for all evaluations for this checkpoint
         all_results = {}
 
         # Iterate over datasets
         for ds_name, dataset_info in datasets_to_eval.items():
             logger.info(f"\nEvaluating dataset: {ds_name}")
-
-            # Get contrast values for normalization
             min_raw, max_raw = dataset_info.em.contrast
 
-            # Determine which crops to evaluate for this dataset
+            # Determine crops for this dataset
+            dataset_crops = []
+            for crop_group in dataset_info.labels.crops:
+                dataset_crops.extend(crop_group.split(","))
+
             if crops_to_eval is not None:
-                # Filter crops for this specific dataset
-                dataset_crops = []
-                for crop_group in dataset_info.labels.crops:
-                    dataset_crops.extend(crop_group.split(","))
-
-                # Only evaluate crops that exist in this dataset
                 crops_for_dataset = [c for c in crops_to_eval if c in dataset_crops]
-
                 if not crops_for_dataset:
                     logger.info(f"None of the requested crops found in dataset '{ds_name}', skipping")
                     continue
-
                 logger.info(f"Evaluating crops: {crops_for_dataset}")
             else:
-                # Get all crops for this dataset
-                crops_for_dataset = []
-                for crop_group in dataset_info.labels.crops:
-                    crops_for_dataset.extend(crop_group.split(","))
+                crops_for_dataset = dataset_crops
                 logger.info(f"Evaluating {len(crops_for_dataset)} crops")
 
             # Evaluate each crop
             for crop_name in crops_for_dataset:
                 logger.info(f"\nEvaluating crop: {crop_name}")
                 try:
+                    ckpt_path = Path(ckpt).resolve()
+                    run_name = f"{ckpt_path.parent.parent.name}/{ckpt_path.parent.name}"
+                    ckpt_name = ckpt_path.stem
+
+                    # Build save path for predictions if requested
+                    pred_save_path = None
+                    if save_predictions:
+                        pred_save_path = Path(save_predictions) / run_name / ckpt_name / ds_name / crop_name
+
                     results = evaluate_single_crop(
                         network_config=network_config,
                         model=model,
                         device=device,
                         dataset_info=dataset_info,
                         crop_name=crop_name,
-                        label_list=label_list,
+                        eval_channel_configs=eval_channel_configs,
+                        channel_indices=channel_indices,
+                        eval_labels=eval_labels,
+                        num_channels=num_channels,
                         sampling=sampling,
                         min_raw=min_raw,
                         max_raw=max_raw,
-                        thresholds=thresholds,
+                        all_descriptors=all_descriptors,
+                        save_path=pred_save_path,
                     )
                     all_results[f"{ds_name}/{crop_name}"] = results
 
                     # Write results to database
                     if db_engine is not None:
-                        run_name = str(Path(ckpt).parent.name)
-                        ckpt_name = Path(ckpt).stem
-                        for lbl, label_metrics in results.items():
-                            for thresh, scores in label_metrics["scores"].items():
-                                for metric_name, score_val in scores.items():
+                        for channel_desc, channel_metrics in results.items():
+                            for score_entry in channel_metrics["scores"]:
+                                pp_type = score_entry["postprocessing_type"]
+                                params = score_entry["params"]
+                                for metric_name, score_val in score_entry["metrics"].items():
                                     insert_result(
                                         engine=db_engine,
                                         run=run_name,
                                         checkpoint=ckpt_name,
                                         dataset=ds_name,
                                         crop=crop_name,
-                                        label=lbl,
+                                        channel=channel_desc,
+                                        label=descriptor_to_source[channel_desc],
                                         metric=metric_name,
                                         score=score_val,
-                                        threshold=thresh,
+                                        postprocessing_type=pp_type,
+                                        threshold=params.get("threshold"),
                                     )
                         logger.info(f"Results for {ds_name}/{crop_name} written to database")
+                except KeyboardInterrupt:
+                    raise
                 except Exception as e:
                     logger.error(f"Failed to evaluate {ds_name}/{crop_name}: {e}", exc_info=True)
                     continue
@@ -484,29 +429,27 @@ def run(
             logger.info("No crops were successfully evaluated.")
             continue
 
-        # Calculate overall statistics for this checkpoint
-        all_dice_scores = []
-        all_jaccard_scores = []
-        label_dice_scores = {lbl: [] for lbl in label_list}
-        label_jaccard_scores = {lbl: [] for lbl in label_list}
+        # Collect per-channel scores
+        channel_scores: Dict[str, Dict[str, list]] = {
+            ec.channel: {f"best_{m}": [] for m in ec.metrics} for ec in eval_channel_configs
+        }
 
         for _crop_id, crop_results in all_results.items():
-            for lbl, metrics in crop_results.items():
-                all_dice_scores.append(metrics["best_dice"])
-                all_jaccard_scores.append(metrics["best_jaccard"])
-                label_dice_scores[lbl].append(metrics["best_dice"])
-                label_jaccard_scores[lbl].append(metrics["best_jaccard"])
+            for channel_desc, metrics in crop_results.items():
+                for metric_key in channel_scores.get(channel_desc, {}):
+                    if metric_key in metrics:
+                        channel_scores[channel_desc][metric_key].append(metrics[metric_key])
 
-        # Log per-label averages
-        logger.info("Per-label averages:")
-        for lbl in label_list:
-            if label_dice_scores[lbl]:
-                avg_dice = np.mean(label_dice_scores[lbl])
-                std_dice = np.std(label_dice_scores[lbl])
-                logger.info(f"  {lbl}: Dice={avg_dice:.4f} ± {std_dice:.4f}")
+        # Log per-channel averages
+        logger.info("Per-channel averages:")
+        for channel_desc, metric_lists in channel_scores.items():
+            parts = []
+            for metric_key, values in metric_lists.items():
+                if values:
+                    parts.append(f"{metric_key}={np.mean(values):.4f} ± {np.std(values):.4f}")
+            if parts:
+                logger.info(f"  {channel_desc}: {', '.join(parts)}")
 
-        # Log overall average
-        logger.info(f"Overall mean Dice: {np.mean(all_dice_scores):.4f} ± {np.std(all_dice_scores):.4f}")
         logger.info(f"Total crops evaluated: {len(all_results)}")
 
     # Log final summary across all checkpoints
@@ -516,13 +459,16 @@ def run(
 
     for ckpt_name, results in checkpoint_results.items():
         if results:
+            # Aggregate first metric's best scores across all channels and crops
             all_scores = []
             for crop_results in results.values():
                 for metrics in crop_results.values():
-                    all_scores.append(metrics["best_dice"])
-            logger.info(f"\n{ckpt_name}:")
-            logger.info(f"  Mean Dice: {np.mean(all_scores):.4f} ± {np.std(all_scores):.4f}")
-            logger.info(f"  Crops evaluated: {len(results)}")
+                    if "best_dice" in metrics:
+                        all_scores.append(metrics["best_dice"])
+            if all_scores:
+                logger.info(f"\n{ckpt_name}:")
+                logger.info(f"  Mean Dice: {np.mean(all_scores):.4f} ± {np.std(all_scores):.4f}")
+                logger.info(f"  Crops evaluated: {len(results)}")
 
 
 def evaluate_single_crop(
@@ -531,16 +477,31 @@ def evaluate_single_crop(
     device,
     dataset_info,
     crop_name: str,
-    label_list: list,
+    eval_channel_configs: list,
+    channel_indices: list,
+    eval_labels: list,
+    num_channels: int,
     sampling: dict,
     min_raw: float,
     max_raw: float,
-    thresholds: list,
+    all_descriptors: Optional[list[str]] = None,
+    save_path: Optional[Path] = None,
 ) -> Dict[str, Dict[str, float]]:
-    """Evaluate a single crop and return results."""
+    """Evaluate a single crop and return results.
+
+    Args:
+        eval_channel_configs: List of EvalChannelConfig for channels to evaluate.
+        channel_indices: Model output channel index for each eval channel.
+        eval_labels: Source label name for each eval channel (for GT loading).
+        num_channels: Total number of model output channels.
+        all_descriptors: Channel descriptor names for all model output channels (for saving).
+        save_path: If provided, save raw predictions to this zarr path.
+    """
+    # Deduplicate labels while preserving order (multiple channels may share a source)
+    unique_labels = list(dict.fromkeys(eval_labels))
 
     # Find the appropriate scale level based on sampling
-    first_label = label_list[0]
+    first_label = unique_labels[0]
     first_gt_path = f"{dataset_info.labels.data}/{dataset_info.labels.group}/{crop_name}/{first_label}"
     logger.info(f"Finding scale level for sampling {sampling} from: {first_gt_path}")
 
@@ -551,70 +512,61 @@ def evaluate_single_crop(
 
     voxel_size_coord = Coordinate(tuple(resolution.values()))
 
-    # Open ground truth datasets for each label
-    gt_xarrays = {}
-    gt_encodings = {}
-    for label in label_list:
-        gt_path = f"{dataset_info.labels.data}/{dataset_info.labels.group}/{crop_name}/{label}/{scale_level}"
+    # Open ground truth datasets for each unique source label
+    gt_arrays = {}
+    for label_name in unique_labels:
+        gt_path = f"{dataset_info.labels.data}/{dataset_info.labels.group}/{crop_name}/{label_name}/{scale_level}"
         logger.info(f"Opening ground truth: {gt_path}")
         gt_xarray = fst.read_xarray(gt_path)
-        gt_xarrays[label] = gt_xarray
 
-        # Get encoding from attributes
+        # Get encoding and annotation type from attributes
         try:
             z = zarr.open(gt_path, mode="r")
-            encoding = z.attrs["cellmap"]["annotation"]["annotation_type"]["encoding"]
-            gt_encodings[label] = encoding
-            logger.info(f"Label {label} encoding: {encoding}")
+            ann_attrs = z.attrs["cellmap"]["annotation"]
+            encoding = ann_attrs["annotation_type"]["encoding"]
+            ann_type = ann_attrs["annotation_type"]["type"]
+            logger.info(f"Label {label_name} encoding: {encoding}, type: {ann_type}")
         except Exception as e:
-            logger.warning(f"Could not get encoding for {label}, using default: {e}")
-            gt_encodings[label] = {"absent": 0, "present": 1, "unknown": 255}
+            logger.warning(f"Could not get annotation attrs for {label_name}, using default: {e}")
+            encoding = {"absent": 0, "present": 1, "unknown": 255}
+            ann_type = "semantic_segmentation"
+
+        # Convert to binary
+        gt_array = gt_xarray.values
+        if ann_type == "smooth_semantic_segmentation":
+            # Smooth downsampled: continuous values, threshold at 0.5 (majority rule)
+            gt_binary = ((gt_array >= 0.5 * encoding["present"]) & (gt_array != encoding["unknown"])).astype(np.uint8)
+            logger.debug(
+                f"{label_name}: Smooth GT, threshold 0.5 (min={gt_array.min():.3f}, max={gt_array.max():.3f})"
+            )
+        else:
+            gt_binary = (gt_array == encoding["present"]).astype(np.uint8)
+
+        gt_arrays[label_name] = (gt_xarray, gt_binary)
 
     # Get the crop's ROI from the first ground truth xarray
-    # All labels in the same crop should have the same ROI
-    first_gt_xarray = next(iter(gt_xarrays.values()))
-    axes = list(first_gt_xarray.dims)  # Get axes from xarray dimensions instead
-    # Extract world coordinates from xarray
+    first_gt_xarray = next(v[0] for v in gt_arrays.values())
+    axes = list(first_gt_xarray.dims)
     start_coord = Coordinate(first_gt_xarray[0, 0, 0].coords[ax].item() for ax in axes)
-
-    # Calculate ROI from coordinates
     end_coord = Coordinate(first_gt_xarray[-1, -1, -1].coords[ax].item() for ax in axes)
 
-    # Verify all GT xarrays have the same shape
-    for label, gt_xarray in gt_xarrays.items():
-        if gt_xarray.shape != first_gt_xarray.shape:
-            logger.warning(f"Label {label} has different shape: {gt_xarray.shape} vs {first_gt_xarray.shape}")
-
+    # Build gt_data array indexed by eval channel order
     logger.info("Loading ground truth data...")
-    gt_data = np.zeros((len(label_list), *tuple(first_gt_xarray.shape)), dtype=np.uint8)
-    for i, (label, gt_xarray) in enumerate(gt_xarrays.items()):
-        # Read the entire GT array (it's already cropped to the annotation region)
-        gt_array = gt_xarray.values
-        # Convert to binary: present=1, absent/unknown=0
-        encoding = gt_encodings[label]
-        # Use threshold approach (handles both exact and downsampled cases)
-        if encoding["present"] == 1:
-            gt_binary = (gt_array > 0).astype(np.uint8)
-            logger.debug(f"{label}: Using threshold 0 for GT (min={gt_array.min():.3f}, max={gt_array.max():.3f})")
-        else:
-            # For other encoding schemes, use exact match
-            gt_binary = (gt_array == encoding["present"]).astype(np.uint8)
-        gt_data[i] = gt_binary
+    gt_data = np.stack([gt_arrays[lbl][1] for lbl in eval_labels])
+    logger.info(f"GT data shape: {gt_data.shape}")
+    logger.info(f"GT data has positive samples: {[gt_data[i].sum() > 0 for i in range(len(eval_labels))]}")
 
     # Open raw dataset and find appropriate scale level
     raw_path = f"{dataset_info.em.data}/{dataset_info.em.group}"
     logger.info(f"Opening raw data from: {raw_path}")
 
-    # Use find_target_scale for raw data too
     z_raw = zarr.open(raw_path, mode="r")
     raw_scale_level, _, raw_resolution, _ = find_target_scale(z_raw, sampling)
     logger.info(f"Using raw scale level: {raw_scale_level} with resolution: {raw_resolution}")
 
-    # Verify resolution matches
     if raw_resolution != resolution:
         logger.warning(f"Raw resolution {raw_resolution} doesn't match GT resolution {resolution}")
 
-    # Open the raw dataset at the found scale using fibsem_tools
     raw_scale_path = f"{raw_path}/{raw_scale_level}"
     logger.info(f"Opening raw dataset with fibsem_tools: {raw_scale_path}")
     raw_xarray = fst.read_xarray(raw_scale_path)
@@ -622,24 +574,26 @@ def evaluate_single_crop(
     logger.info(f"Checking if start_coord {start_coord} exists in raw coordinates...")
     logger.info(f"Raw coordinate ranges: {[(ax, raw_xarray.coords[ax].values[[0, -1]]) for ax in axes]}")
 
-    while any(start_coord[dim] not in raw_xarray.coords[ax] for dim, ax in enumerate(axes)):
+    max_resolution_attempts = 10
+    for _attempt in range(max_resolution_attempts):
+        if all(start_coord[dim] in raw_xarray.coords[ax] for dim, ax in enumerate(axes)):
+            break
         logger.info("Coordinate mismatch detected, trying higher resolution...")
         higher_resolution = {ax: raw_resolution[ax] / 2.0 for ax in axes}
         logger.info(f"Looking for resolution: {higher_resolution}")
-        # Convert resolution dict to Coordinate for arithmetic
         raw_res_coord = Coordinate(raw_resolution[ax] for ax in axes)
         start_coord = start_coord - raw_res_coord / 4.0
         end_coord = end_coord + raw_res_coord / 4.0
         raw_scale_level, _, raw_resolution, _ = find_target_scale(z_raw, higher_resolution)
         raw_scale_path = f"{raw_path}/{raw_scale_level}"
         raw_xarray = fst.read_xarray(raw_scale_path)
-
         logger.info(f"Found {raw_scale_level} with resolution {raw_resolution}")
+    else:
+        msg = f"Could not find matching raw resolution after {max_resolution_attempts} attempts"
+        raise RuntimeError(msg)
 
-    # Predict using blockwise processing
+    # Predict all model channels using blockwise processing
     logger.info("Running blockwise prediction...")
-    logger.info(f"GT data shape: {gt_data.shape}, dtype: {gt_data.dtype}")
-    logger.info(f"GT data has positive samples: {[gt_data[i].sum() > 0 for i in range(len(label_list))]}")
     predictions = predict_crop(
         model=model,
         device=device,
@@ -650,17 +604,52 @@ def evaluate_single_crop(
         voxel_size_coord=voxel_size_coord,
         min_raw=min_raw,
         max_raw=max_raw,
-        label_list=label_list,
+        num_channels=num_channels,
     )
 
-    # Crop predictions to match GT shape if needed
-    if predictions.shape[-3:] != gt_data.shape[-3:]:
-        msg = "Spatial shape of predictions does not match groundtruth."
+    # Save raw predictions if requested (one OME-NGFF group per channel)
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        descriptors = all_descriptors or [str(i) for i in range(predictions.shape[0])]
+        offset = list(start_coord)
+        voxel_size = list(voxel_size_coord)
+        spatial_axes = ["z", "y", "x"]
+
+        for i, desc in enumerate(descriptors):
+            channel_path = save_path / desc
+            channel_path.mkdir(parents=True, exist_ok=True)
+            group = zarr.open_group(str(channel_path), mode="w")
+            group.array("s0", predictions[i], chunks=True, dtype="float32")
+            group.attrs["multiscales"] = [
+                {
+                    "version": "0.4",
+                    "axes": [{"name": ax, "type": "space", "unit": "nanometer"} for ax in spatial_axes],
+                    "datasets": [
+                        {
+                            "path": "s0",
+                            "coordinateTransformations": [
+                                {"type": "scale", "scale": voxel_size},
+                                {"type": "translation", "translation": offset},
+                            ],
+                        }
+                    ],
+                }
+            ]
+        logger.info(f"Saved raw predictions to {save_path}")
+
+    # Extract only the channels we want to evaluate
+    eval_predictions = predictions[channel_indices]
+
+    if eval_predictions.shape[-3:] != gt_data.shape[-3:]:
+        msg = f"Spatial shape mismatch: predictions {eval_predictions.shape[-3:]} vs GT {gt_data.shape[-3:]}"
         raise ValueError(msg)
-    # Evaluate
+
+    # Evaluate each channel with its own config
     logger.info("Evaluating predictions...")
-    # Create channel name map from label names
-    channel_name_map = dict(enumerate(label_list))
-    results = evaluate_predictions(predictions, gt_data, channel_name_map, thresholds)
+    results = {}
+    for i, ec in enumerate(eval_channel_configs):
+        pred_channel = eval_predictions[i]
+        gt_channel = gt_data[i]
+        results[ec.channel] = evaluate_single_channel(pred_channel, gt_channel, ec)
 
     return results

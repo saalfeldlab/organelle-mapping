@@ -19,22 +19,22 @@ from organelle_mapping.query import format_output, query
 def _populate_db(engine):
     """Insert a standard set of test data."""
     # run01: two checkpoints, two datasets, two labels
-    insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito", "dice", 0.80, threshold=0.5)
-    insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito", "jaccard", 0.67, threshold=0.5)
-    insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "er", "dice", 0.70, threshold=0.3)
-    insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "er", "jaccard", 0.54, threshold=0.3)
+    insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito_binary", "mito", "dice", 0.80, threshold=0.5)
+    insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito_binary", "mito", "jaccard", 0.67, threshold=0.5)
+    insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "er_binary", "er", "dice", 0.70, threshold=0.3)
+    insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "er_binary", "er", "jaccard", 0.54, threshold=0.3)
 
-    insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "mito", "dice", 0.90, threshold=0.5)
-    insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "mito", "jaccard", 0.82, threshold=0.5)
-    insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "er", "dice", 0.75, threshold=0.4)
-    insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "er", "jaccard", 0.60, threshold=0.4)
+    insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "mito_binary", "mito", "dice", 0.90, threshold=0.5)
+    insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "mito_binary", "mito", "jaccard", 0.82, threshold=0.5)
+    insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "er_binary", "er", "dice", 0.75, threshold=0.4)
+    insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "er_binary", "er", "jaccard", 0.60, threshold=0.4)
 
     # Different dataset
-    insert_result(engine, "run01", "ckpt_1000", "ds2", "crop3", "mito", "dice", 0.78, threshold=0.5)
-    insert_result(engine, "run01", "ckpt_2000", "ds2", "crop3", "mito", "dice", 0.88, threshold=0.6)
+    insert_result(engine, "run01", "ckpt_1000", "ds2", "crop3", "mito_binary", "mito", "dice", 0.78, threshold=0.5)
+    insert_result(engine, "run01", "ckpt_2000", "ds2", "crop3", "mito_binary", "mito", "dice", 0.88, threshold=0.6)
 
     # Different run
-    insert_result(engine, "run02", "ckpt_500", "ds1", "crop1", "mito", "dice", 0.72, threshold=0.5)
+    insert_result(engine, "run02", "ckpt_500", "ds1", "crop1", "mito_binary", "mito", "dice", 0.72, threshold=0.5)
 
 
 # --- query_results tests ---
@@ -117,11 +117,11 @@ def test_best_per_label_with_three_checkpoints():
     """Test best per label correctly picks the top checkpoint among several."""
     with tempfile.TemporaryDirectory() as tmpdir:
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
-        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito", "dice", 0.80, threshold=0.5)
-        insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "mito", "dice", 0.90, threshold=0.5)
-        insert_result(engine, "run01", "ckpt_3000", "ds1", "crop1", "mito", "dice", 0.85, threshold=0.5)
-        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "er", "dice", 0.70, threshold=0.3)
-        insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "er", "dice", 0.75, threshold=0.3)
+        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "mito_binary", "mito", "dice", 0.80, threshold=0.5)
+        insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "mito_binary", "mito", "dice", 0.90, threshold=0.5)
+        insert_result(engine, "run01", "ckpt_3000", "ds1", "crop1", "mito_binary", "mito", "dice", 0.85, threshold=0.5)
+        insert_result(engine, "run01", "ckpt_1000", "ds1", "crop1", "er_binary", "er", "dice", 0.70, threshold=0.3)
+        insert_result(engine, "run01", "ckpt_2000", "ds1", "crop1", "er_binary", "er", "dice", 0.75, threshold=0.3)
 
         rows = query_best_per_label(engine, metric="dice")
 
@@ -165,6 +165,9 @@ def test_distinct_values():
 
         labels = query_distinct_values(engine, "label")
         assert labels == ["er", "mito"]
+
+        channels = query_distinct_values(engine, "channel")
+        assert channels == ["er_binary", "mito_binary"]
 
         checkpoints = query_distinct_values(engine, "checkpoint", filters={"run": "run01"})
         assert checkpoints == ["ckpt_1000", "ckpt_2000"]
