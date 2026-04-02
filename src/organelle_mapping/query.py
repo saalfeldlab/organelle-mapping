@@ -109,8 +109,9 @@ def query(ctx, db_url: str, output_format: str):
 @click.option("--dataset", default=None, help="Filter by dataset")
 @click.option("--checkpoint", default=None, help="Filter by checkpoint")
 @click.pass_context
-def best(ctx, metric: str, run_name: Optional[str], label: Optional[str], dataset: Optional[str],
-         checkpoint: Optional[str]):
+def best(
+    ctx, metric: str, run_name: Optional[str], label: Optional[str], dataset: Optional[str], checkpoint: Optional[str]
+):
     """Find the best score per label."""
     engine = ctx.obj["engine"]
     fmt = ctx.obj["format"]
@@ -161,8 +162,9 @@ def compare(ctx, metric: str, run_name: Optional[str], label: Optional[str], dat
 @click.option("--dataset", default=None, help="Filter by dataset")
 @click.option("--label", default=None, help="Filter by label")
 @click.pass_context
-def list_values(ctx, column: str, run_name: Optional[str], checkpoint: Optional[str], dataset: Optional[str],
-                label: Optional[str]):
+def list_values(
+    ctx, column: str, run_name: Optional[str], checkpoint: Optional[str], dataset: Optional[str], label: Optional[str]
+):
     """List distinct values for a column (runs, checkpoints, datasets, crops, labels, metrics)."""
     engine = ctx.obj["engine"]
     fmt = ctx.obj["format"]
@@ -211,8 +213,18 @@ def list_values(ctx, column: str, run_name: Optional[str], checkpoint: Optional[
     "--sort", "sort_direction", type=click.Choice(["asc", "desc"]), default="desc", help="Sort order (default: desc)"
 )
 @click.pass_context
-def scores(ctx, run_name: Optional[str], checkpoint: Optional[str], dataset: Optional[str], crop: Optional[str],
-           label: Optional[str], metric: Optional[str], limit: int, order_by: str, sort_direction: str):
+def scores(
+    ctx,
+    run_name: Optional[str],
+    checkpoint: Optional[str],
+    dataset: Optional[str],
+    crop: Optional[str],
+    label: Optional[str],
+    metric: Optional[str],
+    limit: int,
+    order_by: str,
+    sort_direction: str,
+):
     """Dump raw scores with flexible filtering."""
     engine = ctx.obj["engine"]
     fmt = ctx.obj["format"]
@@ -233,7 +245,15 @@ def scores(ctx, run_name: Optional[str], checkpoint: Optional[str], dataset: Opt
 
     rows = query_results(engine, filters=filters or None, limit=limit, order_by=order_by, sort_direction=sort_direction)
     columns = [
-        "run", "checkpoint", "dataset", "crop", "channel", "label",
-        "postprocessing_type", "threshold", "metric", "score",
+        "run",
+        "checkpoint",
+        "dataset",
+        "crop",
+        "channel",
+        "label",
+        "postprocessing_type",
+        "threshold",
+        "metric",
+        "score",
     ]
     click.echo(format_output(rows, columns, fmt))

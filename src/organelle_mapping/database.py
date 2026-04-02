@@ -41,7 +41,14 @@ results_table = Table(
     Column("metric", String, nullable=False),
     Column("score", Float, nullable=False),
     UniqueConstraint(
-        "run", "checkpoint", "dataset", "crop", "channel", "postprocessing_type", "threshold", "metric",
+        "run",
+        "checkpoint",
+        "dataset",
+        "crop",
+        "channel",
+        "postprocessing_type",
+        "threshold",
+        "metric",
         name="uq_result",
     ),
 )
@@ -126,16 +133,10 @@ def insert_result(
     }
 
     with engine.begin() as conn:
-        existing = conn.execute(
-            select(results_table).where(*_where_clause(values))
-        ).first()
+        existing = conn.execute(select(results_table).where(*_where_clause(values))).first()
 
         if existing:
-            conn.execute(
-                results_table.update()
-                .where(*_where_clause(values))
-                .values(score=score)
-            )
+            conn.execute(results_table.update().where(*_where_clause(values)).values(score=score))
         else:
             conn.execute(insert(results_table).values(**values))
 
@@ -172,9 +173,7 @@ def insert_crop(
     unique_conditions = [crops_table.c[col] == values[col] for col in CROPS_UNIQUE_COLUMNS]
 
     with engine.begin() as conn:
-        existing = conn.execute(
-            select(crops_table).where(*unique_conditions)
-        ).first()
+        existing = conn.execute(select(crops_table).where(*unique_conditions)).first()
 
         if existing:
             conn.execute(

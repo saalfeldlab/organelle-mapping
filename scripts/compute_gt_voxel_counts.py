@@ -100,9 +100,7 @@ def main(data_config, db_url, log_level):
                                     break
 
                             if not resolution:
-                                logger.warning(
-                                    f"  No resolution found for {label_name}/{scale_level}, skipping"
-                                )
+                                logger.warning(f"  No resolution found for {label_name}/{scale_level}, skipping")
                                 continue
 
                             insert_crop(
@@ -126,9 +124,7 @@ def main(data_config, db_url, log_level):
                             )
 
                         except KeyError as e:
-                            logger.warning(
-                                f"  Missing metadata for {label_name}/{scale_level}: {e}, skipping"
-                            )
+                            logger.warning(f"  Missing metadata for {label_name}/{scale_level}: {e}, skipping")
                             continue
 
     logger.info("Done.")

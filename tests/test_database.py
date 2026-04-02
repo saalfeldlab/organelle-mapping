@@ -42,16 +42,32 @@ def test_insert_result():
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
         insert_result(
-            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
-            "mito_binary", "mito", "dice", 0.85, threshold=0.5,
+            engine,
+            "run01",
+            "checkpoint_1000",
+            "jrc_hela-2",
+            "crop1",
+            "mito_binary",
+            "mito",
+            "dice",
+            0.85,
+            threshold=0.5,
         )
 
         with engine.connect() as conn:
             rows = conn.execute(select(results_table)).fetchall()
             assert len(rows) == 1
             assert rows[0] == (
-                "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
-                "mito_binary", "mito", "threshold", 0.5, "dice", 0.85,
+                "run01",
+                "checkpoint_1000",
+                "jrc_hela-2",
+                "crop1",
+                "mito_binary",
+                "mito",
+                "threshold",
+                0.5,
+                "dice",
+                0.85,
             )
 
 
@@ -69,8 +85,16 @@ def test_insert_result_without_threshold():
             rows = conn.execute(select(results_table)).fetchall()
             assert len(rows) == 1
             assert rows[0] == (
-                "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
-                "mito_binary", "mito", "threshold", None, "dice", 0.85,
+                "run01",
+                "checkpoint_1000",
+                "jrc_hela-2",
+                "crop1",
+                "mito_binary",
+                "mito",
+                "threshold",
+                None,
+                "dice",
+                0.85,
             )
 
 
@@ -80,12 +104,28 @@ def test_insert_overwrite():
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
         insert_result(
-            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
-            "mito_binary", "mito", "dice", 0.85, threshold=0.5,
+            engine,
+            "run01",
+            "checkpoint_1000",
+            "jrc_hela-2",
+            "crop1",
+            "mito_binary",
+            "mito",
+            "dice",
+            0.85,
+            threshold=0.5,
         )
         insert_result(
-            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
-            "mito_binary", "mito", "dice", 0.90, threshold=0.5,
+            engine,
+            "run01",
+            "checkpoint_1000",
+            "jrc_hela-2",
+            "crop1",
+            "mito_binary",
+            "mito",
+            "dice",
+            0.90,
+            threshold=0.5,
         )
 
         with engine.connect() as conn:
@@ -100,12 +140,26 @@ def test_insert_overwrite_null_threshold():
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
         insert_result(
-            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
-            "mito_binary", "mito", "dice", 0.85,
+            engine,
+            "run01",
+            "checkpoint_1000",
+            "jrc_hela-2",
+            "crop1",
+            "mito_binary",
+            "mito",
+            "dice",
+            0.85,
         )
         insert_result(
-            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
-            "mito_binary", "mito", "dice", 0.90,
+            engine,
+            "run01",
+            "checkpoint_1000",
+            "jrc_hela-2",
+            "crop1",
+            "mito_binary",
+            "mito",
+            "dice",
+            0.90,
         )
 
         with engine.connect() as conn:
@@ -120,20 +174,52 @@ def test_multiple_results():
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
         insert_result(
-            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
-            "mito_binary", "mito", "dice", 0.85, threshold=0.5,
+            engine,
+            "run01",
+            "checkpoint_1000",
+            "jrc_hela-2",
+            "crop1",
+            "mito_binary",
+            "mito",
+            "dice",
+            0.85,
+            threshold=0.5,
         )
         insert_result(
-            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
-            "mito_binary", "mito", "jaccard", 0.74, threshold=0.5,
+            engine,
+            "run01",
+            "checkpoint_1000",
+            "jrc_hela-2",
+            "crop1",
+            "mito_binary",
+            "mito",
+            "jaccard",
+            0.74,
+            threshold=0.5,
         )
         insert_result(
-            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
-            "er_binary", "er", "dice", 0.72, threshold=0.3,
+            engine,
+            "run01",
+            "checkpoint_1000",
+            "jrc_hela-2",
+            "crop1",
+            "er_binary",
+            "er",
+            "dice",
+            0.72,
+            threshold=0.3,
         )
         insert_result(
-            engine, "run01", "checkpoint_2000", "jrc_hela-2", "crop1",
-            "mito_binary", "mito", "dice", 0.88, threshold=0.5,
+            engine,
+            "run01",
+            "checkpoint_2000",
+            "jrc_hela-2",
+            "crop1",
+            "mito_binary",
+            "mito",
+            "dice",
+            0.88,
+            threshold=0.5,
         )
 
         with engine.connect() as conn:
