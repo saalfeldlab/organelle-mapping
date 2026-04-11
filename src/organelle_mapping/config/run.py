@@ -11,6 +11,7 @@ from organelle_mapping.config.utils import load_subconfig
 
 
 class RunConfig(BaseModel):
+    name: str = Field(..., description="Human-readable name for this training run (e.g. 'run11/val')")
     iterations: int
     targets: Sequence[Target] = Field(min_items=1, description="Target outputs with loss functions")
     sampling: dict[str, int] = Field(
