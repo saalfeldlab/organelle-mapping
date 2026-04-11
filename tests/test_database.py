@@ -22,8 +22,16 @@ def test_database_creation():
         columns = inspector.get_columns("results")
         column_names = [col["name"] for col in columns]
         expected_columns = [
-            "run", "checkpoint", "dataset", "crop", "channel", "label",
-            "postprocessing_type", "threshold", "metric", "score",
+            "run",
+            "checkpoint",
+            "dataset",
+            "crop",
+            "channel",
+            "label",
+            "postprocessing_type",
+            "threshold",
+            "metric",
+            "score",
         ]
         assert column_names == expected_columns
 
@@ -77,8 +85,15 @@ def test_insert_result_without_threshold():
         engine = init_database(f"sqlite:///{tmpdir}/test.db")
 
         insert_result(
-            engine, "run01", "checkpoint_1000", "jrc_hela-2", "crop1",
-            "mito_binary", "mito", "dice", 0.85,
+            engine,
+            "run01",
+            "checkpoint_1000",
+            "jrc_hela-2",
+            "crop1",
+            "mito_binary",
+            "mito",
+            "dice",
+            0.85,
         )
 
         with engine.connect() as conn:

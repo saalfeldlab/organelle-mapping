@@ -193,6 +193,7 @@ def insert_crop(
             conn.execute(insert(crops_table).values(**values))
 
 
+
 def _filter_conditions(filters: dict) -> list:
     """Build WHERE conditions from a filter dict, skipping None values."""
     conditions = []
@@ -205,8 +206,8 @@ def _filter_conditions(filters: dict) -> list:
 def query_results(
     engine: Engine,
     filters: Optional[dict] = None,
-    limit: int = 100,
-    order_by: str = "score",
+    limit: Optional[int] = None,
+    order_by: Optional[str] = "score",
     sort_direction: str = "desc",
 ) -> list[dict]:
     """Query results with optional filters.
@@ -214,8 +215,8 @@ def query_results(
     Args:
         engine: SQLAlchemy engine.
         filters: Dict of column_name -> value to filter on. None values are ignored.
-        limit: Maximum number of rows to return.
-        order_by: Column name to sort by.
+        limit: Maximum number of rows to return. None for no limit.
+        order_by: Column name to sort by. None for no ordering.
         sort_direction: "asc" for ascending, "desc" for descending.
     """
     stmt = select(results_table)
@@ -224,8 +225,11 @@ def query_results(
         if conditions:
             stmt = stmt.where(*conditions)
 
-    col = results_table.c[order_by]
-    stmt = stmt.order_by(col if sort_direction == "asc" else desc(col)).limit(limit)
+    if order_by is not None:
+        col = results_table.c[order_by]
+        stmt = stmt.order_by(col if sort_direction == "asc" else desc(col))
+    if limit is not None:
+        stmt = stmt.limit(limit)
 
     with engine.connect() as conn:
         rows = conn.execute(stmt).fetchall()

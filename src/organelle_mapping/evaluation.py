@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -13,11 +14,11 @@ from pydantic import TypeAdapter
 from skimage.measure import block_reduce
 
 from organelle_mapping.config.evaluation import EvaluationConfig
-from organelle_mapping.database import init_database, insert_result
+from organelle_mapping.database import init_database, insert_result, query_results
 from organelle_mapping.metrics import dice_score, jaccard
 from organelle_mapping.model import load_eval_model
 from organelle_mapping.query import query as query_group
-from organelle_mapping.utils import find_target_scale
+from organelle_mapping.utils import find_target_scale, setup_package_logger
 
 logger = logging.getLogger("organelle_mapping.evaluation")
 
@@ -141,25 +142,88 @@ def predict_crop(
     return predictions
 
 
+def checkpoint_name(ckpt: str) -> str:
+    """Extract checkpoint name (stem) from a checkpoint path."""
+    return Path(ckpt).resolve().stem
+
+
+def expected_per_crop(eval_cfg: "EvaluationConfig") -> set[tuple]:
+    """Derive the set of expected result keys for any single crop.
+
+    Returns a set of (channel, postprocessing_type, <param values...>, metric) tuples.
+    The param values come from each postprocessing config's ``params`` property,
+    so the tuple structure adapts to different postprocessing types.
+    """
+    expected: set[tuple] = set()
+    for ec in eval_cfg.eval_channels:
+        for pp in ec.postprocessing:
+            for metric in ec.metrics:
+                expected.add((ec.channel, pp.type, *pp.params.values(), metric))
+    return expected
+
+
+def _build_param_columns_by_type(eval_cfg: "EvaluationConfig") -> dict[str, list[str]]:
+    """Build a lookup from postprocessing type name to its DB param column names.
+
+    Derived from the config's postprocessing objects via ``params.keys()``.
+    """
+    param_columns_by_type: dict[str, list[str]] = {}
+    for ec in eval_cfg.eval_channels:
+        for pp in ec.postprocessing:
+            if pp.type not in param_columns_by_type:
+                param_columns_by_type[pp.type] = list(pp.params.keys())
+    return param_columns_by_type
+
+
+def _row_to_key(row: dict, param_columns_by_type: dict[str, list[str]]) -> tuple:
+    """Project a DB result row to a (channel, pp_type, <param values...>, metric) tuple.
+
+    Uses ``param_columns_by_type`` to extract the right columns for each postprocessing type.
+    """
+    cols = param_columns_by_type[row["postprocessing_type"]]
+    return (row["channel"], row["postprocessing_type"], *(row[c] for c in cols), row["metric"])
+
+
 def evaluate_single_channel(
     pred_channel: np.ndarray,
     gt_binary: np.ndarray,
     config,
+    existing_results: Optional[set[tuple]] = None,
 ) -> dict:
-    """Evaluate a single prediction channel against ground truth using per-channel config."""
+    """Evaluate a single prediction channel against ground truth using per-channel config.
+
+    Args:
+        pred_channel: Model prediction for this channel.
+        gt_binary: Binary ground truth.
+        config: EvalChannelConfig for this channel.
+        existing_results: If provided, skip postprocessing/metric combos already in this set.
+            Each element is a (channel, pp_type, *params_values, metric) tuple.
+    """
     all_scores = []
     best: Dict[str, float] = {}
 
     for pp in config.postprocessing:
+        # Skip entire postprocessing if all its metrics already exist
+        pp_keys = {(config.channel, pp.type, *pp.params.values(), m) for m in config.metrics}
+        if existing_results and pp_keys.issubset(existing_results):
+            logger.debug(f"{config.channel}/{pp.type}: all metrics already in DB, skipping")
+            continue
+
         params, processed = pp.apply(pred_channel)
         metric_scores = {}
 
-        if "dice" in config.metrics:
-            metric_scores["dice"] = dice_score(gt_binary, processed)
-        if "jaccard" in config.metrics:
-            metric_scores["jaccard"] = jaccard(gt_binary, processed)
+        for metric in config.metrics:
+            key = (config.channel, pp.type, *pp.params.values(), metric)
+            if existing_results and key in existing_results:
+                logger.debug(f"{config.channel}/{pp.type}/{metric}: already in DB, skipping")
+                continue
+            if metric == "dice":
+                metric_scores["dice"] = dice_score(gt_binary, processed)
+            elif metric == "jaccard":
+                metric_scores["jaccard"] = jaccard(gt_binary, processed)
 
-        all_scores.append({"postprocessing_type": pp.type, "params": params, "metrics": metric_scores})
+        if metric_scores:
+            all_scores.append({"postprocessing_type": pp.type, "params": params, "metrics": metric_scores})
 
         # Track best per metric
         for metric_name, score_val in metric_scores.items():
@@ -170,9 +234,7 @@ def evaluate_single_channel(
 
     # Log key stats
     gt_positive_ratio = gt_binary.mean()
-    best_strs = ", ".join(
-        f"{k}={v:.3f}" if isinstance(v, float) else f"{k}={v}" for k, v in best.items()
-    )
+    best_strs = ", ".join(f"{k}={v:.3f}" if isinstance(v, float) else f"{k}={v}" for k, v in best.items())
     logger.info(
         f"{config.channel}: pred_range=[{pred_channel.min():.3f}, {pred_channel.max():.3f}], "
         f"pred_mean={pred_channel.mean():.3f}, gt_pos={gt_positive_ratio:.3f}, {best_strs}"
@@ -182,82 +244,104 @@ def evaluate_single_channel(
 
 
 @click.group()
-def cli():
-    pass
-
-
-cli.add_command(query_group)
-
-
-@cli.command()
-@click.option(
-    "--eval-config",
-    "-e",
-    type=click.Path(exists=True),
-    required=True,
-    help="Path to evaluation configuration YAML file",
-)
-@click.option(
-    "--dataset",
-    "-ds",
-    type=str,
-    required=False,
-    help="Dataset name from data config to evaluate (default: all datasets)",
-)
-@click.option(
-    "--crop",
-    "-c",
-    type=str,
-    required=False,
-    multiple=True,
-    help="Specific crop(s) to evaluate (can be used multiple times, default: all crops)",
-)
-@click.option(
-    "--checkpoint",
-    "-ckpt",
-    type=str,
-    required=False,
-    multiple=True,
-    help="Specific checkpoint(s) to evaluate (can be used multiple times, default: all checkpoints in config)",
-)
-@click.option(
-    "--db-url",
-    type=str,
-    required=False,
-    help="Database URL for storing results (overrides config value, e.g. 'sqlite:///results.db')",
-)
-@click.option(
-    "--save-predictions",
-    type=click.Path(),
-    required=False,
-    help="Directory to save raw predictions as zarr (e.g. './predictions.zarr')",
-)
 @click.option(
     "--log-level",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
     default="INFO",
 )
-def run(
-    eval_config: str,
-    dataset: Optional[str],
-    crop: tuple,
-    checkpoint: tuple,
-    db_url: Optional[str],
-    save_predictions: Optional[str],
-    log_level: str,
-):
-    """Evaluate model predictions on validation data."""
-    pkg_logger = logging.getLogger("organelle_mapping")
-    pkg_logger.setLevel(log_level.upper())
+def cli(log_level: str):
+    setup_package_logger(log_level)
 
-    # Load evaluation config
-    logger.info(f"Loading evaluation config from {eval_config}")
+
+cli.add_command(query_group)
+
+
+def _load_eval_config(eval_config: str) -> "EvaluationConfig":
+    """Load and validate an EvaluationConfig from a YAML file."""
     with open(eval_config) as f:
         eval_config_dict = yaml.safe_load(f)
-    eval_cfg = TypeAdapter(EvaluationConfig).validate_python(eval_config_dict)
+    return TypeAdapter(EvaluationConfig).validate_python(eval_config_dict)
+
+
+def _expand_crops(data_cfg) -> dict[str, list[str]]:
+    """Expand comma-separated crop groups for all datasets.
+
+    Returns dict of dataset_name → list of individual crop names.
+    """
+    result = {}
+    for ds_name, dataset_info in data_cfg.datasets.items():
+        crops: list[str] = []
+        for crop_group in dataset_info.labels.crops:
+            crops.extend(crop_group.split(","))
+        result[ds_name] = crops
+    return result
+
+
+@cli.command()
+@click.option("--eval-config", "-e", type=click.Path(exists=True), required=True, help="Path to evaluation config YAML")
+@click.option("--db-url", type=str, required=True, help="Database URL (e.g. 'sqlite:///results.db')")
+def status(eval_config: str, db_url: str):
+    """Check which evaluation results are already in the database."""
+    eval_cfg = _load_eval_config(eval_config)
+
+    expected = expected_per_crop(eval_cfg)
+    param_cols_by_type = _build_param_columns_by_type(eval_cfg)
+    engine = init_database(db_url)
+    crops_by_dataset = _expand_crops(eval_cfg.data)
+
+    total_expected = 0
+    total_found = 0
+    missing_by_crop: dict[tuple[str, str, str, str], int] = {}
+
+    run_name = eval_cfg.experiment_run.name
+    for ckpt in eval_cfg.checkpoints:
+        ckpt_name = checkpoint_name(ckpt)
+        db_rows = query_results(engine, filters={"run": run_name, "checkpoint": ckpt_name}, order_by=None)
+        existing_by_crop: dict[tuple[str, str], set[tuple]] = defaultdict(set)
+        for row in db_rows:
+            existing_by_crop[(row["dataset"], row["crop"])].add(_row_to_key(row, param_cols_by_type))
+
+        for ds_name, dataset_crops in crops_by_dataset.items():
+            for crop_name in dataset_crops:
+                existing = existing_by_crop.get((ds_name, crop_name), set())
+                found = expected & existing
+                missing = expected - existing
+                total_expected += len(expected)
+                total_found += len(found)
+                if missing:
+                    missing_by_crop[(run_name, ckpt_name, ds_name, crop_name)] = len(missing)
+
+    total_missing = total_expected - total_found
+    click.echo(f"Expected: {total_expected} results")
+    click.echo(f"Found:    {total_found} results")
+    click.echo(f"Missing:  {total_missing} results")
+
+    if missing_by_crop:
+        click.echo("\nMissing results by crop:")
+        for (run_name, ckpt_name, ds_name, crop_name), count in sorted(missing_by_crop.items()):
+            click.echo(f"  {run_name} / {ckpt_name} / {ds_name} / {crop_name}: {count} results")
+
+
+@cli.command()
+@click.option("--eval-config", "-e", type=click.Path(exists=True), required=True, help="Path to evaluation config YAML")
+@click.option("--db-url", type=str, required=False, help="Database URL (e.g. 'sqlite:///results.db')")
+@click.option("--save-predictions", type=click.Path(), required=False, help="Directory to save raw predictions as zarr")
+@click.option("--overwrite", is_flag=True, default=False, help="Recompute and overwrite existing results.")
+def run(
+    eval_config: str,
+    db_url: Optional[str],
+    save_predictions: Optional[str],
+    *,
+    overwrite: bool,
+):
+    """Evaluate model predictions on validation data."""
+    # Load evaluation config
+    logger.info(f"Loading evaluation config from {eval_config}")
+    eval_cfg = _load_eval_config(eval_config)
 
     # Get configuration components
     run_config = eval_cfg.experiment_run
+    run_name = run_config.name
     network_config = eval_cfg.eval_architecture
     sampling = run_config.sampling
     data_cfg = eval_cfg.data
@@ -277,51 +361,29 @@ def run(
     # Get eval channel configs (already defaulted + validated by EvaluationConfig)
     eval_channel_configs = list(eval_cfg.eval_channels)
 
-    # Initialize database if configured (CLI flag overrides config)
-    effective_db_url = db_url or eval_cfg.db_url
+    # Initialize database if configured
     db_engine = None
-    if effective_db_url:
-        db_engine = init_database(effective_db_url)
+    if db_url:
+        db_engine = init_database(db_url)
 
     # Compute channel indices and source labels for the active eval channels
     channel_indices = [descriptor_to_index[ec.channel] for ec in eval_channel_configs]
     eval_labels = [descriptor_to_source[ec.channel] for ec in eval_channel_configs]
 
-    # Filter checkpoints if specific ones requested
-    if checkpoint:
-        requested_checkpoints = set(checkpoint)
-        available_checkpoints = set(eval_cfg.checkpoints)
-        if not requested_checkpoints.issubset(available_checkpoints):
-            invalid_checkpoints = requested_checkpoints - available_checkpoints
-            msg = f"Invalid checkpoints: {invalid_checkpoints}. Available: {eval_cfg.checkpoints}"
-            raise ValueError(msg)
-        checkpoints = [c for c in eval_cfg.checkpoints if c in requested_checkpoints]
-        logger.info(f"Evaluating specific checkpoints: {checkpoints}")
-    else:
-        checkpoints = eval_cfg.checkpoints
+    checkpoints = eval_cfg.checkpoints
+    crops_by_dataset = _expand_crops(data_cfg)
 
     logger.info(f"Channels to evaluate: {[ec.channel for ec in eval_channel_configs]}")
     logger.info(f"Channel indices in model output: {channel_indices}")
     logger.info(f"Target sampling: {sampling}")
     logger.info(f"Architecture: {network_config.name} (padding={network_config.padding})")
     logger.info(f"Checkpoints to evaluate: {checkpoints}")
+    logger.info(f"Datasets: {list(data_cfg.datasets.keys())}")
 
-    # Determine which datasets and crops to evaluate
-    if dataset:
-        if dataset not in data_cfg.datasets:
-            msg = f"Dataset '{dataset}' not found in data config"
-            raise ValueError(msg)
-        datasets_to_eval = {dataset: data_cfg.datasets[dataset]}
-    else:
-        datasets_to_eval = data_cfg.datasets
-        logger.info(f"Evaluating all {len(datasets_to_eval)} datasets")
-
-    # Filter crops if specific ones requested
-    if crop:
-        crops_to_eval = list(crop)
-        logger.info(f"Evaluating specific crops: {crops_to_eval}")
-    else:
-        crops_to_eval = None
+    # Pre-compute expected results per crop and param column lookup
+    skip_existing = not overwrite and db_engine is not None
+    expected = expected_per_crop(eval_cfg)
+    param_cols_by_type = _build_param_columns_by_type(eval_cfg)
 
     # Store results for all checkpoints
     checkpoint_results = {}
@@ -332,6 +394,25 @@ def run(
         logger.info(f"Evaluating checkpoint: {ckpt}")
         logger.info(f"{'=' * 70}")
 
+        ckpt_name = checkpoint_name(ckpt)
+
+        # Query existing results for this checkpoint
+        existing_by_crop: dict[tuple[str, str], set[tuple]] = defaultdict(set)
+        if skip_existing:
+            db_rows = query_results(db_engine, filters={"run": run_name, "checkpoint": ckpt_name}, order_by=None)
+            for row in db_rows:
+                existing_by_crop[(row["dataset"], row["crop"])].add(_row_to_key(row, param_cols_by_type))
+
+            # Check if ALL crops across ALL datasets are done → skip model load
+            all_done = all(
+                expected.issubset(existing_by_crop.get((ds_name, crop_name), set()))
+                for ds_name, dataset_crops in crops_by_dataset.items()
+                for crop_name in dataset_crops
+            )
+            if all_done:
+                logger.info("Skipping checkpoint (all results already in database)")
+                continue
+
         # Load model
         logger.info(f"Loading model from {ckpt}")
         model = load_eval_model(network_config, run_config.targets, ckpt)
@@ -340,37 +421,28 @@ def run(
         all_results = {}
 
         # Iterate over datasets
-        for ds_name, dataset_info in datasets_to_eval.items():
+        for ds_name, dataset_info in data_cfg.datasets.items():
             logger.info(f"\nEvaluating dataset: {ds_name}")
             min_raw, max_raw = dataset_info.em.contrast
-
-            # Determine crops for this dataset
-            dataset_crops = []
-            for crop_group in dataset_info.labels.crops:
-                dataset_crops.extend(crop_group.split(","))
-
-            if crops_to_eval is not None:
-                crops_for_dataset = [c for c in crops_to_eval if c in dataset_crops]
-                if not crops_for_dataset:
-                    logger.info(f"None of the requested crops found in dataset '{ds_name}', skipping")
-                    continue
-                logger.info(f"Evaluating crops: {crops_for_dataset}")
-            else:
-                crops_for_dataset = dataset_crops
-                logger.info(f"Evaluating {len(crops_for_dataset)} crops")
+            crops_for_dataset = crops_by_dataset[ds_name]
+            logger.info(f"Evaluating {len(crops_for_dataset)} crops")
 
             # Evaluate each crop
             for crop_name in crops_for_dataset:
                 logger.info(f"\nEvaluating crop: {crop_name}")
-                try:
-                    ckpt_path = Path(ckpt).resolve()
-                    run_name = f"{ckpt_path.parent.parent.name}/{ckpt_path.parent.name}"
-                    ckpt_name = ckpt_path.stem
 
+                # Skip if all results for this crop already exist in the database
+                if skip_existing and expected.issubset(existing_by_crop.get((ds_name, crop_name), set())):
+                    logger.info(f"Skipping {ds_name}/{crop_name} (complete)")
+                    continue
+
+                try:
                     # Build save path for predictions if requested
                     pred_save_path = None
                     if save_predictions:
                         pred_save_path = Path(save_predictions) / run_name / ckpt_name / ds_name / crop_name
+
+                    existing_for_crop = existing_by_crop.get((ds_name, crop_name), None) if skip_existing else None
 
                     results = evaluate_single_crop(
                         network_config=network_config,
@@ -387,10 +459,11 @@ def run(
                         max_raw=max_raw,
                         all_descriptors=all_descriptors,
                         save_path=pred_save_path,
+                        existing_results=existing_for_crop,
                     )
                     all_results[f"{ds_name}/{crop_name}"] = results
 
-                    # Write results to database
+                    # Write only new results to database
                     if db_engine is not None:
                         for channel_desc, channel_metrics in results.items():
                             for score_entry in channel_metrics["scores"]:
@@ -408,7 +481,7 @@ def run(
                                         metric=metric_name,
                                         score=score_val,
                                         postprocessing_type=pp_type,
-                                        threshold=params.get("threshold"),
+                                        **params,
                                     )
                         logger.info(f"Results for {ds_name}/{crop_name} written to database")
                 except KeyboardInterrupt:
@@ -486,6 +559,7 @@ def evaluate_single_crop(
     max_raw: float,
     all_descriptors: Optional[list[str]] = None,
     save_path: Optional[Path] = None,
+    existing_results: Optional[set[tuple]] = None,
 ) -> Dict[str, Dict[str, float]]:
     """Evaluate a single crop and return results.
 
@@ -536,9 +610,7 @@ def evaluate_single_crop(
         if ann_type == "smooth_semantic_segmentation":
             # Smooth downsampled: continuous values, threshold at 0.5 (majority rule)
             gt_binary = ((gt_array >= 0.5 * encoding["present"]) & (gt_array != encoding["unknown"])).astype(np.uint8)
-            logger.debug(
-                f"{label_name}: Smooth GT, threshold 0.5 (min={gt_array.min():.3f}, max={gt_array.max():.3f})"
-            )
+            logger.debug(f"{label_name}: Smooth GT, threshold 0.5 (min={gt_array.min():.3f}, max={gt_array.max():.3f})")
         else:
             gt_binary = (gt_array == encoding["present"]).astype(np.uint8)
 
@@ -650,6 +722,6 @@ def evaluate_single_crop(
     for i, ec in enumerate(eval_channel_configs):
         pred_channel = eval_predictions[i]
         gt_channel = gt_data[i]
-        results[ec.channel] = evaluate_single_channel(pred_channel, gt_channel, ec)
+        results[ec.channel] = evaluate_single_channel(pred_channel, gt_channel, ec, existing_results)
 
     return results

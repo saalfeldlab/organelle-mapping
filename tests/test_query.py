@@ -2,9 +2,13 @@
 
 import json
 import tempfile
+from pathlib import Path
 
+import yaml
 from click.testing import CliRunner
+from pydantic import TypeAdapter
 
+from organelle_mapping.config.evaluation import EvaluationConfig
 from organelle_mapping.database import (
     init_database,
     insert_result,
@@ -13,6 +17,7 @@ from organelle_mapping.database import (
     query_distinct_values,
     query_results,
 )
+from organelle_mapping.evaluation import checkpoint_name, cli, expected_per_crop
 from organelle_mapping.query import format_output, query
 
 
@@ -363,3 +368,210 @@ def test_cli_empty_database():
         result = runner.invoke(query, ["--db-url", db_url, "best"])
         assert result.exit_code == 0
         assert "No results" in result.output
+
+
+# --- checkpoint_name tests ---
+
+
+def test_checkpoint_name():
+    """Test checkpoint name extraction from path."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ckpt_dir = Path(tmpdir) / "run01" / "checkpoints"
+        ckpt_dir.mkdir(parents=True)
+        ckpt_file = ckpt_dir / "model_checkpoint_100000"
+        ckpt_file.touch()
+
+        assert checkpoint_name(str(ckpt_file)) == "model_checkpoint_100000"
+
+
+def test_checkpoint_name_with_extension():
+    """Test checkpoint name strips file extension."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ckpt_dir = Path(tmpdir) / "experiments" / "models"
+        ckpt_dir.mkdir(parents=True)
+        ckpt_file = ckpt_dir / "best_model.pt"
+        ckpt_file.touch()
+
+        assert checkpoint_name(str(ckpt_file)) == "best_model"
+
+
+# --- expected_per_crop tests ---
+
+
+def _make_minimal_eval_config(tmpdir, checkpoints=None):
+    """Create a minimal EvaluationConfig for testing.
+
+    Returns (eval_cfg, checkpoint_paths).
+    """
+    # Create checkpoint files
+    if checkpoints is None:
+        checkpoints = ["model_checkpoint_1000"]
+    ckpt_dir = Path(tmpdir) / "run01" / "checkpoints"
+    ckpt_dir.mkdir(parents=True)
+    ckpt_paths = []
+    for ckpt in checkpoints:
+        ckpt_file = ckpt_dir / ckpt
+        ckpt_file.touch()
+        ckpt_paths.append(str(ckpt_file))
+
+    run_config = {
+        "name": "test_run",
+        "iterations": 1000,
+        "targets": [
+            {
+                "loss_function": {"type": "mse"},
+                "transforms": [
+                    {"type": "binary", "source": "mito"},
+                    {"type": "binary", "source": "er"},
+                ],
+            }
+        ],
+        "architecture": {
+            "name": "standard_unet",
+            "input_shape": [204, 204, 204],
+            "output_shape": [64, 64, 64],
+            "out_channels": 2,
+            "in_channels": 1,
+            "num_fmaps": 16,
+            "fmap_inc_factor": 6,
+        },
+        "data": {
+            "datasets": {
+                "dummy": {
+                    "em": {"data": "/fake/em.zarr", "group": "em", "contrast": [0, 255]},
+                    "labels": {"data": "/fake/labels.zarr", "group": "labels", "crops": ["c1"]},
+                },
+            },
+        },
+        "augmentations": {"augmentations": []},
+        "sampling": {"z": 8, "y": 8, "x": 8},
+    }
+
+    config_dict = {
+        "experiment_run": run_config,
+        "checkpoints": ckpt_paths,
+        "data": {
+            "datasets": {
+                "ds1": {
+                    "em": {"data": "/fake/em.zarr", "group": "em", "contrast": [0, 255]},
+                    "labels": {"data": "/fake/labels.zarr", "group": "labels", "crops": ["crop1", "crop2,crop3"]},
+                },
+            },
+        },
+        "default_metrics": ["dice", "jaccard"],
+        "default_postprocessing": [
+            {"type": "threshold", "threshold": 0.3},
+            {"type": "threshold", "threshold": 0.5},
+        ],
+        "eval_channels": [
+            {"channel": "mito_binary"},
+            {"channel": "er_binary"},
+        ],
+    }
+
+    eval_cfg = TypeAdapter(EvaluationConfig).validate_python(config_dict)
+    return eval_cfg, ckpt_paths
+
+
+def test_expected_per_crop_count():
+    """Test that expected_per_crop produces the correct number of keys."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        eval_cfg, _ckpt_paths = _make_minimal_eval_config(tmpdir)
+
+        keys = expected_per_crop(eval_cfg)
+
+        # 2 channels x 2 postprocessing x 2 metrics = 8
+        assert len(keys) == 8
+
+
+def test_expected_per_crop_structure():
+    """Test that each key tuple has the expected structure."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        eval_cfg, _ckpt_paths = _make_minimal_eval_config(tmpdir)
+
+        keys = expected_per_crop(eval_cfg)
+
+        for key in keys:
+            # (channel, pp_type, <param values...>, metric)
+            assert len(key) == 4
+            channel, pp_type, threshold, metric = key
+            assert channel in ("mito_binary", "er_binary")
+            assert pp_type == "threshold"
+            assert threshold in (0.3, 0.5)
+            assert metric in ("dice", "jaccard")
+
+
+# --- status CLI tests ---
+
+
+def _write_eval_config_file(tmpdir, ckpt_paths):
+    """Write a minimal eval config YAML file for CLI testing."""
+    config_file = Path(tmpdir) / "eval.yaml"
+    config_dict = {
+        "experiment_run": {
+            "name": "test_run",
+            "iterations": 1000,
+            "targets": [
+                {
+                    "loss_function": {"type": "mse"},
+                    "transforms": [{"type": "binary", "source": "mito"}],
+                }
+            ],
+            "architecture": {
+                "name": "standard_unet",
+                "input_shape": [204, 204, 204],
+                "output_shape": [64, 64, 64],
+                "out_channels": 1,
+                "in_channels": 1,
+                "num_fmaps": 16,
+                "fmap_inc_factor": 6,
+            },
+            "data": {
+                "datasets": {
+                    "dummy": {
+                        "em": {"data": "/fake/em.zarr", "group": "em", "contrast": [0, 255]},
+                        "labels": {"data": "/fake/labels.zarr", "group": "labels", "crops": ["c1"]},
+                    },
+                },
+            },
+            "augmentations": {"augmentations": []},
+            "sampling": {"z": 8, "y": 8, "x": 8},
+        },
+        "checkpoints": ckpt_paths,
+        "data": {
+            "datasets": {
+                "ds1": {
+                    "em": {"data": "/fake/em.zarr", "group": "em", "contrast": [0, 255]},
+                    "labels": {"data": "/fake/labels.zarr", "group": "labels", "crops": ["crop1"]},
+                },
+            },
+        },
+        "default_metrics": ["dice"],
+        "default_postprocessing": [{"type": "threshold", "threshold": 0.5}],
+        "eval_channels": [{"channel": "mito_binary"}],
+    }
+    with open(config_file, "w") as f:
+        yaml.dump(config_dict, f)
+    return config_file
+
+
+def test_cli_status_empty_db():
+    """Test status command with empty database."""
+    runner = CliRunner()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create checkpoint files
+        ckpt_dir = Path(tmpdir) / "run01" / "checkpoints"
+        ckpt_dir.mkdir(parents=True)
+        ckpt_file = ckpt_dir / "model_checkpoint_1000"
+        ckpt_file.touch()
+        ckpt_paths = [str(ckpt_file)]
+
+        db_url = f"sqlite:///{tmpdir}/test.db"
+        init_database(db_url)
+
+        config_file = _write_eval_config_file(tmpdir, ckpt_paths)
+
+        result = runner.invoke(cli, ["status", "-e", str(config_file), "--db-url", db_url])
+        assert result.exit_code == 0, result.output
+        assert "Expected:" in result.output
+        assert "Missing:" in result.output
