@@ -28,9 +28,6 @@ checkpoints:
 # Data to evaluate on
 data: valdata_8nm_org+mem.yaml
 
-# Database for storing results (optional, can also be passed via --db-url CLI flag)
-# db_url: "sqlite:///eval_results.db"
-
 # Default metrics for channels that don't specify their own.
 # Channels that omit 'metrics' inherit this list.
 default_metrics: [dice, jaccard]

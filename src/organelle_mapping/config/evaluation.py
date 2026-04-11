@@ -15,6 +15,16 @@ class PostprocessingConfig(BaseModel, ABC):
 
     type: str = Field(description="Type of postprocessing to apply")
 
+    @property
+    @abstractmethod
+    def params(self) -> dict:
+        """Return DB column params without needing prediction data.
+
+        Returns:
+            Dict of DB column name → value (e.g. {"threshold": 0.5}).
+        """
+        ...
+
     @abstractmethod
     def apply(self, pred_channel: np.ndarray) -> tuple[dict, np.ndarray]:
         """Apply postprocessing to a prediction channel.
@@ -41,9 +51,13 @@ class ThresholdPostprocessing(PostprocessingConfig):
             raise ValueError(msg)
         return v
 
+    @property
+    def params(self) -> dict:
+        return {"threshold": self.threshold}
+
     def apply(self, pred_channel: np.ndarray) -> tuple[dict, np.ndarray]:
         """Binarize predictions by thresholding."""
-        return {"threshold": self.threshold}, (pred_channel > self.threshold).astype(np.uint8)
+        return self.params, (pred_channel > self.threshold).astype(np.uint8)
 
 
 Postprocessing = Annotated[Union[ThresholdPostprocessing], Field(discriminator="type")]
@@ -96,11 +110,6 @@ class EvaluationConfig(BaseModel):
         ..., min_length=1, description="Channels to evaluate with per-channel metrics and postprocessing."
     )
 
-    # Database URL for storing results
-    db_url: Optional[str] = Field(
-        default=None,
-        description="SQLAlchemy database URL (e.g. 'sqlite:///results.db' or 'postgresql://user:pass@host/db')",
-    )
 
     @field_validator("experiment_run", mode="before")
     @classmethod
@@ -144,9 +153,7 @@ class EvaluationConfig(BaseModel):
                 ec.metrics = list(self.default_metrics)
             if ec.postprocessing is None:
                 if self.default_postprocessing is None:
-                    msg = (
-                        f"Channel '{ec.channel}' has no postprocessing and no default_postprocessing is set."
-                    )
+                    msg = f"Channel '{ec.channel}' has no postprocessing and no default_postprocessing is set."
                     raise ValueError(msg)
                 ec.postprocessing = list(self.default_postprocessing)
         return self
