@@ -240,9 +240,14 @@ def create_transfer_checkpoint(
 @click.option("--output", required=True, type=click.Path(path_type=Path), help="Output checkpoint path.")
 @click.option(
     "--log-level",
-    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
-    default="INFO",
-    help="Set the logging level.",
+    "log_levels",
+    multiple=True,
+    default=("INFO",),
+    help=(
+        "Logging level. Use 'LEVEL' (e.g. 'DEBUG') to set the organelle_mapping logger, "
+        "or '<logger>.<LEVEL>' (e.g. 'gunpowder.DEBUG', 'lsd_lite.ERROR') for other loggers. "
+        "May be passed multiple times."
+    ),
 )
 def main(
     config: Optional[Path],
@@ -251,10 +256,10 @@ def main(
     target_descriptors: tuple[str, ...],
     heads_keys: tuple[str, ...],
     output: Path,
-    log_level: str,
+    log_levels: tuple[str, ...],
 ):
     """Transfer weights between model checkpoints with different label configurations."""
-    setup_package_logger(log_level)
+    setup_package_logger(log_levels)
 
     try:
         if config:

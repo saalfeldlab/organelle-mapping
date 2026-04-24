@@ -3,7 +3,7 @@ import logging
 import os
 from decimal import Decimal
 from statistics import mode
-from typing import BinaryIO, Literal, Optional
+from typing import BinaryIO, Literal, Optional, Sequence
 
 import numpy as np
 import yaml
@@ -25,22 +25,55 @@ from pydantic_ome_ngff.v04.transform import VectorScale, VectorTranslation
 logger = logging.getLogger(__name__)
 
 
-def setup_package_logger(log_level: str = "INFO") -> None:
-    """Set up the organelle_mapping package logger with consistent formatting.
+_VALID_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+
+def _attach_console_handler(logger: logging.Logger) -> None:
+    """Attach a standard console handler to a logger if it doesn't already have one."""
+    if logger.handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%m-%d %H:%M:%S")
+    )
+    logger.addHandler(handler)
+    logger.propagate = False
+
+
+def setup_package_logger(log_level: str | Sequence[str] = "INFO") -> None:
+    """Configure the organelle_mapping logger and optionally other loggers.
 
     Args:
-        log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_level: Either a single level string (e.g. ``"DEBUG"``) that sets the
+            ``organelle_mapping`` logger, or a sequence of entries of the form
+            ``"<logger>.<LEVEL>"`` (e.g. ``"gunpowder.DEBUG"``) / ``"<LEVEL>"``
+            (treated as the default ``organelle_mapping`` level).
     """
-    pkg_logger = logging.getLogger("organelle_mapping")
-    pkg_logger.setLevel(log_level.upper())
+    entries: Sequence[str] = [log_level] if isinstance(log_level, str) else list(log_level)
 
-    # Add console handler if none exists
-    if not pkg_logger.handlers:
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%m-%d %H:%M:%S")
-        handler.setFormatter(formatter)
-        pkg_logger.addHandler(handler)
-        pkg_logger.propagate = False  # Don't propagate to root logger
+    default_level = "INFO"
+    overrides: dict[str, str] = {}
+    for entry in entries:
+        logger_name, sep, level = entry.rpartition(".")
+        if sep and logger_name and level.upper() in _VALID_LOG_LEVELS:
+            overrides[logger_name] = level.upper()
+        elif entry.upper() in _VALID_LOG_LEVELS:
+            default_level = entry.upper()
+        else:
+            msg = (
+                f"Invalid log level spec: {entry!r}. "
+                f"Expected 'LEVEL' or '<logger>.<LEVEL>' with LEVEL in {_VALID_LOG_LEVELS}."
+            )
+            raise ValueError(msg)
+
+    pkg_logger = logging.getLogger("organelle_mapping")
+    pkg_logger.setLevel(default_level)
+    _attach_console_handler(pkg_logger)
+
+    for name, level in overrides.items():
+        lg = logging.getLogger(name)
+        lg.setLevel(level)
+        _attach_console_handler(lg)
 
 
 def decimal_arr(arr, precision: int = 2) -> np.ndarray:

@@ -132,12 +132,18 @@ def ensemble_predictions(
 @click.group()
 @click.option(
     "--log-level",
-    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
-    default="INFO",
+    "log_levels",
+    multiple=True,
+    default=("INFO",),
+    help=(
+        "Logging level. Use 'LEVEL' (e.g. 'DEBUG') to set the organelle_mapping logger, "
+        "or '<logger>.<LEVEL>' (e.g. 'gunpowder.DEBUG', 'lsd_lite.ERROR') for other loggers. "
+        "May be passed multiple times."
+    ),
 )
-def cli(log_level: str):
+def cli(log_levels: tuple[str, ...]):
     """Postprocessing tools for predictions."""
-    setup_package_logger(log_level)
+    setup_package_logger(log_levels)
 
 
 @cli.command()

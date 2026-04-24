@@ -175,11 +175,17 @@ def open_ome_ds(store: Path, name: str, mode: str = "r") -> Array:
 @click.group()
 @click.option(
     "--log-level",
-    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
-    default="INFO",
+    "log_levels",
+    multiple=True,
+    default=("INFO",),
+    help=(
+        "Logging level. Use 'LEVEL' (e.g. 'DEBUG') to set the organelle_mapping logger, "
+        "or '<logger>.<LEVEL>' (e.g. 'gunpowder.DEBUG', 'lsd_lite.ERROR') for other loggers. "
+        "May be passed multiple times."
+    ),
 )
-def cli(log_level):
-    setup_package_logger(log_level)
+def cli(log_levels: tuple[str, ...]):
+    setup_package_logger(log_levels)
 
 
 def spawn_worker(

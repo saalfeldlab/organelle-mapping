@@ -31,11 +31,19 @@ logger = logging.getLogger(__name__)
 
 @click.group()
 @click.option(
-    "--log-level", type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False), default="INFO"
+    "--log-level",
+    "log_levels",
+    multiple=True,
+    default=("INFO",),
+    help=(
+        "Logging level. Use 'LEVEL' (e.g. 'DEBUG') to set the organelle_mapping logger, "
+        "or '<logger>.<LEVEL>' (e.g. 'gunpowder.DEBUG', 'lsd_lite.ERROR') for other loggers. "
+        "May be passed multiple times."
+    ),
 )
-def cli(log_level: str):
+def cli(log_levels: tuple[str, ...]):
     """Data preparation utilities for organelle mapping."""
-    setup_package_logger(log_level)
+    setup_package_logger(log_levels)
 
 
 def filter_crops_for_sampling(datasets, sampling, labels):

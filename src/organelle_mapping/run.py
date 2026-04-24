@@ -47,12 +47,17 @@ def run(run: RunConfig):
 @click.argument("run-config", type=click.File("rb"))
 @click.option(
     "--log-level",
-    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
-    default="INFO",
-    help="Set the logging level.",
+    "log_levels",
+    multiple=True,
+    default=("INFO",),
+    help=(
+        "Logging level. Use 'LEVEL' (e.g. 'DEBUG') to set the organelle_mapping logger, "
+        "or '<logger>.<LEVEL>' (e.g. 'gunpowder.DEBUG', 'lsd_lite.ERROR') for other loggers. "
+        "May be passed multiple times."
+    ),
 )
-def main(run_config, log_level="INFO"):
-    setup_package_logger(log_level)
+def main(run_config, log_levels=("INFO",)):
+    setup_package_logger(log_levels)
 
     config = TypeAdapter(RunConfig).validate_python(
         yaml.safe_load(run_config), context={"base_dir": Path(run_config.name).parent}
