@@ -63,9 +63,13 @@ class SwinUNETRConfig(ArchitectureConfig):
     output_shape: tuple[int, int, int] = (196, 196, 196)
     in_channels: int = Field(1, gt=0)
     out_channels: int = Field(..., gt=0)
+    patch_size: int = Field(2, gt=0)
     depths: Sequence[int] = Field((2, 2, 2, 2), min_items=1)
     num_heads: Sequence[int] = Field((3, 6, 12, 24), min_items=1)
+    window_size: Sequence[int] | int = 7
     feature_size: int = Field(24, gt=0)
+    qkv_bias: bool = True
+    mlp_ratio: float = 4.0
     norm_name: Union[NormName, tuple[Any, ...]] = "instance"
     drop_rate: float = Field(0.0, ge=0.0, le=1.0)
     attn_drop_rate: float = Field(0.0, ge=0.0, le=1.0)
@@ -121,12 +125,15 @@ class SwinUNETRConfig(ArchitectureConfig):
         from monai.networks.nets import SwinUNETR  # noqa: PLC0415
 
         return SwinUNETR(
-            img_size=self.input_shape,
             in_channels=self.in_channels,
             out_channels=self.out_channels,
+            patch_size=self.patch_size,
             depths=self.depths,
             num_heads=self.num_heads,
+            window_size=self.window_size,
             feature_size=self.feature_size,
+            qkv_bias=self.qkv_bias,
+            mlp_ratio=self.mlp_ratio,
             norm_name=self.norm_name,
             drop_rate=self.drop_rate,
             attn_drop_rate=self.attn_drop_rate,
@@ -136,6 +143,72 @@ class SwinUNETRConfig(ArchitectureConfig):
             spatial_dims=3,
             downsample=self.downsample,
             use_v2=self.use_v2,
+        )
+
+
+class UNETRConfig(ArchitectureConfig):
+    name: Literal["unetr"]
+    input_shape: tuple[int, int, int] = (196, 196, 196)
+    output_shape: tuple[int, int, int] = (196, 196, 196)
+    in_channels: int = Field(1, gt=0)
+    out_channels: int = Field(..., gt=0)
+    feature_size: int = Field(16, gt=0)
+    hidden_size: int = Field(768, gt=0)
+    mlp_dim: int = Field(3072, gt=0)
+    num_heads: int = Field(12, gt=0)
+    proj_type: str = "conv"
+    norm_name: Union[NormName, tuple[Any, ...]] = "instance"
+    conv_block: bool = True
+    res_block: bool = True
+    dropout_rate: float = Field(0.0, ge=0.0, le=1.0)
+    qkv_bias: bool = False
+    output_head_keys: Sequence[str] = ["base_model.out.conv.conv.weight", "base_model.out.conv.conv.bias"]
+
+    @model_validator(mode="after")
+    def validate_input_shape(self):
+        if self.input_shape != self.output_shape:
+            msg = (
+                f"input_shape ({self.input_shape}) and output_shape ({self.output_shape}) "
+                f"must be the same for UNETR."
+            )
+            raise ValueError(msg)
+        return self
+
+    @field_validator("norm_name", mode="after")
+    @classmethod
+    def validate_norm_name(cls, value):
+        if isinstance(value, tuple):
+            if len(value) == 0:
+                msg = f"norm_name ({value}) must be a single value or a tuple with one value."
+                raise ValueError(msg)
+            TypeAdapter(NormName).validate_python(value[0])
+        return value
+
+    @model_validator(mode="after")
+    def validate_hidden_size_divisible_by_num_heads(self):
+        if self.hidden_size % self.num_heads != 0:
+            msg = f"hidden_size ({self.hidden_size}) must be divisible by num_heads ({self.num_heads})."
+            raise ValueError(msg)
+        return self
+
+    def instantiate(self):
+        from monai.networks.nets import UNETR  # noqa: PLC0415
+
+        return UNETR(
+            in_channels=self.in_channels,
+            out_channels=self.out_channels,
+            img_size=self.input_shape,
+            feature_size=self.feature_size,
+            hidden_size=self.hidden_size,
+            mlp_dim=self.mlp_dim,
+            num_heads=self.num_heads,
+            proj_type=self.proj_type,
+            norm_name=self.norm_name,
+            conv_block=self.conv_block,
+            res_block=self.res_block,
+            dropout_rate=self.dropout_rate,
+            spatial_dims=3,
+            qkv_bias=self.qkv_bias,
         )
 
 
@@ -286,6 +359,6 @@ class TemsUnetConfig(ArchitectureConfig):
 
 
 Architecture = Annotated[
-    Union[StandardUnetConfig, SwinUNETRConfig, TemsUnetConfig],
+    Union[StandardUnetConfig, SwinUNETRConfig, UNETRConfig, TemsUnetConfig],
     Field(discriminator="name"),
 ]
