@@ -142,6 +142,17 @@ class LSDConfig(TransformConfig):
         - 'label': Background is treated as its own shape and gets computed LSDs""",
     )
     binary_threshold: float = 0.5
+    backend: Literal["lsd-lite", "lsd-jax"] = Field(
+        default="lsd-lite",
+        description="LSD computation backend. 'lsd-lite' uses scipy (default), 'lsd-jax' uses JIT-compiled JAX.",
+    )
+
+    @model_validator(mode="after")
+    def validate_backend_constraints(self):
+        if self.backend == "lsd-jax" and self.downsample not in (None, 1):
+            msg = "lsd-jax backend does not support downsample != 1"
+            raise ValueError(msg)
+        return self
 
     @property
     def num_channels(self) -> int:
@@ -169,6 +180,7 @@ class LSDConfig(TransformConfig):
             background_value=(0, 255),
             sigma=self.sigma,
             downsample=self.downsample,
+            backend=self.backend,
         )
         return (threshold_to_binary, binary_to_instances, lsd)
 

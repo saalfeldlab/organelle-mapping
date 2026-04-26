@@ -165,6 +165,7 @@ NUM_MKL_THREADS = "1"
 OPENBLAS_NUM_THREADS = "1"
 OPENMP_NUM_THREADS = "1"
 OMP_NUM_THREADS = "1"
+XLA_FLAGS = "--xla_cpu_multi_thread_eigen=false"
 
 [tool.pixi.tasks]
 test = "pytest -v"

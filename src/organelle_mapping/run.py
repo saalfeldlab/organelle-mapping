@@ -1,8 +1,10 @@
 import logging
+import multiprocessing
 from pathlib import Path
 
 import click
 import gunpowder as gp
+import torch
 import yaml
 from pydantic import TypeAdapter
 
@@ -57,6 +59,22 @@ def run(run: RunConfig):
     ),
 )
 def main(run_config, log_levels=("INFO",)):
+    # Force fork start method for gunpowder PreCache workers so they inherit
+    # the LSD service singleton (a module-level global in corditea._lsd_service).
+    # Python 3.14 made forkserver the default on Linux, which breaks that
+    # inheritance and causes workers to fall back to in-process JAX, hitting
+    # CUDA_ERROR_DEVICE_UNAVAILABLE en masse against the device the service holds.
+    multiprocessing.set_start_method("fork", force=True)
+
+    # Pre-init main's CUDA on GPU 0 before any subprocess spawn. On clusters
+    # with Exclusive_Process compute mode, JAX's startup in the LSD service
+    # process can transiently touch GPU 0 during device enumeration and grab
+    # the exclusive lock; main's subsequent model.to('cuda') then fails with
+    # "CUDA-capable device(s) is/are busy or unavailable". Forcing the lock
+    # in main first makes the service's enumeration cleanly bounce off.
+    if torch.cuda.is_available():
+        torch.zeros(1, device="cuda")
+
     setup_package_logger(log_levels)
 
     config = TypeAdapter(RunConfig).validate_python(
