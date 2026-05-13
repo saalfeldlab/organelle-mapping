@@ -286,13 +286,14 @@ def _expand_crops(data_cfg) -> dict[str, list[str]]:
 @cli.command()
 @click.option("--eval-config", "-e", type=click.Path(exists=True), required=True, help="Path to evaluation config YAML")
 @click.option("--db-url", type=str, required=True, help="Database URL (e.g. 'sqlite:///results.db')")
-def status(eval_config: str, db_url: str):
+@click.option("--verbose", "-v", is_flag=True, default=False, help="List the per-crop missing breakdown.")
+def status(eval_config: str, db_url: str, *, verbose: bool):
     """Check which evaluation results are already in the database."""
     eval_cfg = _load_eval_config(eval_config)
 
     expected = expected_per_crop(eval_cfg)
     param_cols_by_type = _build_param_columns_by_type(eval_cfg)
-    engine = init_database(db_url)
+    engine = init_database(db_url, read_only=True)
     crops_by_dataset = _expand_crops(eval_cfg.data)
 
     total_expected = 0
@@ -318,14 +319,23 @@ def status(eval_config: str, db_url: str):
                     missing_by_crop[(run_name, ckpt_name, ds_name, crop_name)] = len(missing)
 
     total_missing = total_expected - total_found
+    pct_complete = (100.0 * total_found / total_expected) if total_expected else 0.0
+
+    if verbose and missing_by_crop:
+        per_crop_expected = len(expected)
+        click.echo("Missing results by crop:")
+        for (run_name, ckpt_name, ds_name, crop_name), count in sorted(missing_by_crop.items()):
+            crop_pct = 100.0 * (per_crop_expected - count) / per_crop_expected if per_crop_expected else 0.0
+            click.echo(
+                f"  {run_name} / {ckpt_name} / {ds_name} / {crop_name}: "
+                f"{count} / {per_crop_expected} missing ({crop_pct:.1f}% complete)"
+            )
+        click.echo()
+
     click.echo(f"Expected: {total_expected} results")
     click.echo(f"Found:    {total_found} results")
     click.echo(f"Missing:  {total_missing} results")
-
-    if missing_by_crop:
-        click.echo("\nMissing results by crop:")
-        for (run_name, ckpt_name, ds_name, crop_name), count in sorted(missing_by_crop.items()):
-            click.echo(f"  {run_name} / {ckpt_name} / {ds_name} / {crop_name}: {count} results")
+    click.echo(f"Complete: {pct_complete:.1f}%")
 
 
 @cli.command()

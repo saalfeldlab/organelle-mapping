@@ -5,8 +5,10 @@ Supports SQLite (default) and PostgreSQL.
 """
 
 import logging
+import random
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional, TypeVar
 
 from sqlalchemy import (
     Column,
@@ -18,12 +20,53 @@ from sqlalchemy import (
     UniqueConstraint,
     create_engine,
     desc,
+    event,
     func,
     insert,
     select,
+    text,
 )
+from sqlalchemy.exc import OperationalError
 
 logger = logging.getLogger(__name__)
+
+# SQLite robustness defaults. busy_timeout is how long sqlite itself will
+# spin-wait on a locked DB before raising; the retry layer covers cases
+# where contention exceeds that window (e.g. a writer that holds the lock
+# for tens of seconds).
+DEFAULT_SQLITE_TIMEOUT = 30.0
+WRITE_RETRY_ATTEMPTS = 8
+WRITE_RETRY_BASE_DELAY = 0.1
+WRITE_RETRY_MAX_DELAY = 5.0
+
+T = TypeVar("T")
+
+
+def _is_locked_error(exc: BaseException) -> bool:
+    msg = str(getattr(exc, "orig", None) or exc).lower()
+    return "database is locked" in msg or "database table is locked" in msg
+
+
+def _retry_on_lock(func: Callable[[], T]) -> T:
+    """Run a write callable, retrying with backoff on SQLite lock errors."""
+    delay = WRITE_RETRY_BASE_DELAY
+    for attempt in range(1, WRITE_RETRY_ATTEMPTS + 1):
+        try:
+            return func()
+        except OperationalError as exc:
+            if not _is_locked_error(exc) or attempt == WRITE_RETRY_ATTEMPTS:
+                raise
+            sleep_for = min(delay + random.uniform(0, delay), WRITE_RETRY_MAX_DELAY)
+            logger.warning(
+                "Database locked; retrying in %.2fs (attempt %d/%d)",
+                sleep_for,
+                attempt,
+                WRITE_RETRY_ATTEMPTS,
+            )
+            time.sleep(sleep_for)
+            delay = min(delay * 2, WRITE_RETRY_MAX_DELAY)
+    # Unreachable: loop either returns or raises.
+    raise RuntimeError("unreachable")
 
 metadata = MetaData()
 
@@ -86,23 +129,74 @@ def _where_clause(values: dict):
     return conditions
 
 
-def init_database(db_url: str) -> Engine:
+def init_database(db_url: str, timeout: Optional[float] = None, *, read_only: bool = False) -> Engine:
     """Initialize database with schema and return an engine.
 
     Args:
         db_url: SQLAlchemy database URL.
             SQLite: "sqlite:///path/to/db.sqlite"
             PostgreSQL: "postgresql://user:pass@host/dbname"
+        timeout: SQLite-only. Seconds to wait for a busy lock before raising
+            "database is locked". Defaults to ``DEFAULT_SQLITE_TIMEOUT`` so
+            that concurrent writers wait rather than fail outright.
+        read_only: SQLite-only. Open the file read-only at the OS level
+            (``mode=ro`` URI), and skip schema creation and the WAL pragma.
+            Use when querying a snapshot — especially on NFS — where any
+            accidental write risks corruption.
     """
-    if db_url.startswith("sqlite:///"):
+    is_sqlite = db_url.startswith("sqlite:")
+
+    if is_sqlite and read_only:
+        if not db_url.startswith("sqlite:///"):
+            raise ValueError(f"read_only=True requires a sqlite:/// URL, got {db_url}")
+        path = db_url[len("sqlite:///") :]
+        # SQLite URI mode with mode=ro opens the file O_RDONLY at the OS
+        # level — any write attempt errors instead of corrupting.
+        db_url = f"sqlite:///file:{path}?mode=ro&uri=true"
+    elif db_url.startswith("sqlite:///"):
         db_path = db_url.replace("sqlite:///", "")
         if db_path:
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
-    engine = create_engine(db_url)
-    metadata.create_all(engine)
+    connect_args: dict = {}
+    if is_sqlite:
+        connect_args["timeout"] = timeout if timeout is not None else DEFAULT_SQLITE_TIMEOUT
+
+    engine = create_engine(db_url, connect_args=connect_args)
+
+    if is_sqlite and not read_only:
+        # WAL gives concurrent reads alongside a single writer and shorter
+        # write-lock holds. It requires a real local filesystem — never put
+        # this DB on NFS. journal_mode=WAL persists on the file; the PRAGMA
+        # is set on every connect so it is self-healing if someone toggles
+        # it off elsewhere.
+        @event.listens_for(engine, "connect")
+        def _set_sqlite_pragmas(dbapi_conn, _record):  # type: ignore[no-untyped-def]
+            cursor = dbapi_conn.cursor()
+            try:
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+            finally:
+                cursor.close()
+
+    if not read_only:
+        metadata.create_all(engine)
     logger.info(f"Database initialized at {db_url}")
     return engine
+
+
+def vacuum_into(engine: Engine, dest_path: str) -> None:
+    """Copy the SQLite DB to ``dest_path`` via ``VACUUM INTO``.
+
+    Produces a self-contained, defragmented copy in default rollback-journal
+    mode regardless of the source's journal mode. Safe to run while writers
+    are active on the source. The destination must not already exist.
+    """
+    if engine.dialect.name != "sqlite":
+        raise ValueError(f"vacuum_into only supports SQLite (got {engine.dialect.name})")
+    Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
+    with engine.connect() as conn:
+        conn.execute(text("VACUUM INTO :dest"), {"dest": dest_path})
 
 
 def insert_result(
@@ -132,13 +226,16 @@ def insert_result(
         "score": score,
     }
 
-    with engine.begin() as conn:
-        existing = conn.execute(select(results_table).where(*_where_clause(values))).first()
+    def _write() -> None:
+        with engine.begin() as conn:
+            existing = conn.execute(select(results_table).where(*_where_clause(values))).first()
 
-        if existing:
-            conn.execute(results_table.update().where(*_where_clause(values)).values(score=score))
-        else:
-            conn.execute(insert(results_table).values(**values))
+            if existing:
+                conn.execute(results_table.update().where(*_where_clause(values)).values(score=score))
+            else:
+                conn.execute(insert(results_table).values(**values))
+
+    _retry_on_lock(_write)
 
 
 def insert_crop(
@@ -172,25 +269,28 @@ def insert_crop(
 
     unique_conditions = [crops_table.c[col] == values[col] for col in CROPS_UNIQUE_COLUMNS]
 
-    with engine.begin() as conn:
-        existing = conn.execute(select(crops_table).where(*unique_conditions)).first()
+    def _write() -> None:
+        with engine.begin() as conn:
+            existing = conn.execute(select(crops_table).where(*unique_conditions)).first()
 
-        if existing:
-            conn.execute(
-                crops_table.update()
-                .where(*unique_conditions)
-                .values(
-                    resolution_z=resolution_z,
-                    resolution_y=resolution_y,
-                    resolution_x=resolution_x,
-                    total_voxels=total_voxels,
-                    present=present,
-                    absent=absent,
-                    unknown=unknown,
+            if existing:
+                conn.execute(
+                    crops_table.update()
+                    .where(*unique_conditions)
+                    .values(
+                        resolution_z=resolution_z,
+                        resolution_y=resolution_y,
+                        resolution_x=resolution_x,
+                        total_voxels=total_voxels,
+                        present=present,
+                        absent=absent,
+                        unknown=unknown
+                    )
                 )
-            )
-        else:
-            conn.execute(insert(crops_table).values(**values))
+            else:
+                conn.execute(insert(crops_table).values(**values))
+
+    _retry_on_lock(_write)
 
 
 

@@ -98,7 +98,7 @@ def format_output(rows: list[dict], columns: list[str], fmt: str) -> str:
 def query(ctx, db_url: str, output_format: str):
     """Query evaluation results database."""
     ctx.ensure_object(dict)
-    ctx.obj["engine"] = init_database(db_url)
+    ctx.obj["engine"] = init_database(db_url, read_only=True)
     ctx.obj["format"] = output_format
 
 
