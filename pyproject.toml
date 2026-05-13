@@ -184,6 +184,7 @@ xarray-datatree = "*"
 
 [tool.pixi.pypi-dependencies]
 organelle-mapping = { path = ".", editable = true }
+jax = { version = "*", extras = ["cuda13"] }
 
 [tool.pixi.feature.local-deps.pypi-options]
 dependency-overrides = { corditea = { path = "../corditea", editable = true } }
