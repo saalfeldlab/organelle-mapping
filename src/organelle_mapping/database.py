@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Table,
     UniqueConstraint,
+    case,
     create_engine,
     desc,
     event,
@@ -112,6 +113,7 @@ crops_table = Table(
     Column("present", Float, nullable=False),
     Column("absent", Float, nullable=False),
     Column("unknown", Float, nullable=False),
+    Column("crop_group", String, nullable=True),
     UniqueConstraint("dataset", "crop", "label", "scale_level", name="uq_crop"),
 )
 
@@ -251,6 +253,7 @@ def insert_crop(
     present: float,
     absent: float,
     unknown: float,
+    crop_group: Optional[str] = None,
 ) -> None:
     """Insert or update a crop ground truth voxel count."""
     values = {
@@ -265,6 +268,7 @@ def insert_crop(
         "present": present,
         "absent": absent,
         "unknown": unknown,
+        "crop_group": crop_group,
     }
 
     unique_conditions = [crops_table.c[col] == values[col] for col in CROPS_UNIQUE_COLUMNS]
@@ -284,7 +288,8 @@ def insert_crop(
                         total_voxels=total_voxels,
                         present=present,
                         absent=absent,
-                        unknown=unknown
+                        unknown=unknown,
+                        crop_group=crop_group,
                     )
                 )
             else:
@@ -301,6 +306,30 @@ def _filter_conditions(filters: dict) -> list:
         if value is not None:
             conditions.append(results_table.c[col_name] == value)
     return conditions
+
+
+def _nonempty_crops_cte(min_present: int = 100):
+    """CTE projecting (dataset, crop, label, crop_group, evaluable) for valid crops.
+
+    - `present > min_present` filter (defaults to 100 — drops all-negative crops).
+    - `crop_group` falls back to the crop name itself when NULL (singleton group).
+    - `evaluable = total_voxels - unknown` at s0; the canonical voxel-weighting weight.
+    """
+    s0_evaluable = case(
+        (crops_table.c.scale_level == "s0", crops_table.c.total_voxels - crops_table.c.unknown)
+    )
+    return (
+        select(
+            crops_table.c.dataset,
+            crops_table.c.crop,
+            crops_table.c.label,
+            func.coalesce(func.max(crops_table.c.crop_group), crops_table.c.crop).label("crop_group"),
+            func.max(s0_evaluable).label("evaluable"),
+        )
+        .group_by(crops_table.c.dataset, crops_table.c.crop, crops_table.c.label)
+        .having(func.max(crops_table.c.present) > min_present)
+        .cte("nonempty_crops")
+    )
 
 
 def query_results(
@@ -340,29 +369,42 @@ def query_best_per_label(
     engine: Engine,
     metric: str = "dice",
     filters: Optional[dict] = None,
+    min_present: int = 100,
 ) -> list[dict]:
     """Find the best score per label for a given metric.
 
-    Returns rows with: label, best score, and the checkpoint/threshold/dataset/crop that achieved it.
+    Filters out all-negative (dataset, crop, label) triples via the standard
+    `present > min_present` join. Returns the single highest-scoring row per
+    label — no aggregation, so voxel-weighting and crop_group don't apply here.
     """
-    # Subquery: max score per label
+    nonempty_crops = _nonempty_crops_cte(min_present)
     conditions = [results_table.c.metric == metric]
     if filters:
         conditions.extend(_filter_conditions(filters))
 
+    join_on = (
+        (results_table.c.dataset == nonempty_crops.c.dataset)
+        & (results_table.c.crop == nonempty_crops.c.crop)
+        & (results_table.c.label == nonempty_crops.c.label)
+    )
+
+    # Subquery: max score per label, restricted to valid crops.
     max_subq = (
         select(results_table.c.label, func.max(results_table.c.score).label("best_score"))
+        .select_from(results_table.join(nonempty_crops, join_on))
         .where(*conditions)
         .group_by(results_table.c.label)
         .subquery()
     )
 
-    # Join back to get full row details for the best score
+    # Join back to get full row details for the best score.
     stmt = (
         select(results_table)
-        .join(
-            max_subq,
-            (results_table.c.label == max_subq.c.label) & (results_table.c.score == max_subq.c.best_score),
+        .select_from(
+            results_table.join(nonempty_crops, join_on).join(
+                max_subq,
+                (results_table.c.label == max_subq.c.label) & (results_table.c.score == max_subq.c.best_score),
+            )
         )
         .where(*conditions)
         .order_by(results_table.c.label)
@@ -396,47 +438,82 @@ def query_checkpoint_comparison(
     engine: Engine,
     metric: str = "dice",
     filters: Optional[dict] = None,
+    min_present: int = 100,
 ) -> list[dict]:
-    """Compare checkpoints: average best-per-crop score per label per checkpoint.
+    """Compare checkpoints: voxel-weighted score per label per checkpoint.
 
-    For each (checkpoint, label, dataset, crop) combination, finds the best score
-    across all thresholds/postprocessing, then averages those best scores.
+    Applies the standard conventions: `present > min_present` filter, two-stage
+    `crop_group` aggregation, and weighting by `evaluable` voxels (s0
+    `total_voxels - unknown`). For each `(checkpoint, label, dataset, crop)`
+    the best score across thresholds/postprocessing is taken first, then those
+    are averaged across crop groups weighted by their evaluable voxel count.
 
-    Returns list of dicts with keys: label, checkpoint, avg_score, num_crops.
+    Returns list of dicts with keys: label, checkpoint, avg_score, num_groups.
     """
+    nonempty_crops = _nonempty_crops_cte(min_present)
     conditions = [results_table.c.metric == metric]
     if filters:
         conditions.extend(_filter_conditions(filters))
 
-    # Subquery: best score per (checkpoint, label, dataset, crop)
+    join_on = (
+        (results_table.c.dataset == nonempty_crops.c.dataset)
+        & (results_table.c.crop == nonempty_crops.c.crop)
+        & (results_table.c.label == nonempty_crops.c.label)
+    )
+
+    # Stage 1: best score per (checkpoint, label, dataset, crop) — peak across thresholds/postproc.
     best_per_crop = (
         select(
             results_table.c.label,
             results_table.c.checkpoint,
             results_table.c.dataset,
             results_table.c.crop,
+            nonempty_crops.c.crop_group,
+            nonempty_crops.c.evaluable,
             func.max(results_table.c.score).label("best_score"),
         )
+        .select_from(results_table.join(nonempty_crops, join_on))
         .where(*conditions)
         .group_by(
             results_table.c.label,
             results_table.c.checkpoint,
             results_table.c.dataset,
             results_table.c.crop,
+            nonempty_crops.c.crop_group,
+            nonempty_crops.c.evaluable,
         )
         .subquery()
     )
 
-    # Average the best-per-crop scores
-    stmt = (
+    # Stage 2: voxel-weighted score per crop_group within (label, checkpoint, dataset).
+    per_group = (
         select(
             best_per_crop.c.label,
             best_per_crop.c.checkpoint,
-            func.avg(best_per_crop.c.best_score).label("avg_score"),
-            func.count().label("num_crops"),
+            best_per_crop.c.dataset,
+            best_per_crop.c.crop_group,
+            func.sum(best_per_crop.c.best_score * best_per_crop.c.evaluable).label("sw"),
+            func.sum(best_per_crop.c.evaluable).label("w"),
         )
-        .group_by(best_per_crop.c.label, best_per_crop.c.checkpoint)
-        .order_by(best_per_crop.c.label, best_per_crop.c.checkpoint)
+        .group_by(
+            best_per_crop.c.label,
+            best_per_crop.c.checkpoint,
+            best_per_crop.c.dataset,
+            best_per_crop.c.crop_group,
+        )
+        .subquery()
+    )
+
+    # Stage 3: voxel-weighted macro per (label, checkpoint), counting groups.
+    stmt = (
+        select(
+            per_group.c.label,
+            per_group.c.checkpoint,
+            (func.sum(per_group.c.sw) / func.sum(per_group.c.w)).label("avg_score"),
+            func.count().label("num_groups"),
+        )
+        .group_by(per_group.c.label, per_group.c.checkpoint)
+        .order_by(per_group.c.label, per_group.c.checkpoint)
     )
 
     with engine.connect() as conn:

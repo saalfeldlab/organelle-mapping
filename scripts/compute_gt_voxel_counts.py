@@ -38,18 +38,22 @@ def main(data_config, db_url, log_level):
             yaml.safe_load(f), context={"base_dir": Path(data_config).parent}
         )
 
-    engine = init_database(db_url)
+    # Generous timeout so we can run in parallel with long-running evals on the same DB.
+    engine = init_database(db_url, timeout=60)
 
     for ds_name, ds_info in data_cfg.datasets.items():
         logger.info(f"Processing dataset: {ds_name}")
         labels_base = f"{ds_info.labels.data}/{ds_info.labels.group}"
 
-        # Iterate crops
-        for crop_group in ds_info.labels.crops:
-            for crop_raw in crop_group.split(","):
-                crop_name = crop_raw.strip()
+        # Iterate crops. A yaml entry may be comma-separated (e.g. "crop173,crop185"):
+        # those sub-crops form one logical block. Canonicalize the group string by
+        # stripping whitespace and sorting, so e.g. "crop185,crop173" → "crop173,crop185".
+        for crop_group_raw in ds_info.labels.crops:
+            crop_names = [c.strip() for c in crop_group_raw.split(",")]
+            crop_group_canonical = ",".join(sorted(crop_names))
+            for crop_name in crop_names:
                 crop_path = f"{labels_base}/{crop_name}"
-                logger.info(f"  Crop: {crop_name}")
+                logger.info(f"  Crop: {crop_name}  (group: {crop_group_canonical})")
 
                 try:
                     crop_grp = zarr.open(crop_path, mode="r")
@@ -116,6 +120,7 @@ def main(data_config, db_url, log_level):
                                 present=present,
                                 absent=absent,
                                 unknown=unknown,
+                                crop_group=crop_group_canonical,
                             )
                             logger.debug(
                                 f"    {label_name}/{scale_level}: "

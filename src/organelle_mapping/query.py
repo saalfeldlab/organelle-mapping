@@ -94,12 +94,19 @@ def format_output(rows: list[dict], columns: list[str], fmt: str) -> str:
     default="table",
     help="Output format (default: table)",
 )
+@click.option(
+    "--min-present",
+    default=100,
+    type=int,
+    help="Drop crops where the (dataset, crop, label) GT has present <= this. Default 100; set to 0 to disable.",
+)
 @click.pass_context
-def query(ctx, db_url: str, output_format: str):
+def query(ctx, db_url: str, output_format: str, min_present: int):
     """Query evaluation results database."""
     ctx.ensure_object(dict)
     ctx.obj["engine"] = init_database(db_url, read_only=True)
     ctx.obj["format"] = output_format
+    ctx.obj["min_present"] = min_present
 
 
 @query.command()
@@ -126,7 +133,9 @@ def best(
     if checkpoint:
         filters["checkpoint"] = checkpoint
 
-    rows = query_best_per_label(engine, metric=metric, filters=filters or None)
+    rows = query_best_per_label(
+        engine, metric=metric, filters=filters or None, min_present=ctx.obj["min_present"]
+    )
     columns = ["label", "channel", "score", "checkpoint", "postprocessing_type", "threshold", "dataset", "crop", "run"]
     click.echo(format_output(rows, columns, fmt))
 
@@ -150,8 +159,10 @@ def compare(ctx, metric: str, run_name: Optional[str], label: Optional[str], dat
     if dataset:
         filters["dataset"] = dataset
 
-    rows = query_checkpoint_comparison(engine, metric=metric, filters=filters or None)
-    columns = ["label", "checkpoint", "avg_score", "num_crops"]
+    rows = query_checkpoint_comparison(
+        engine, metric=metric, filters=filters or None, min_present=ctx.obj["min_present"]
+    )
+    columns = ["label", "checkpoint", "avg_score", "num_groups"]
     click.echo(format_output(rows, columns, fmt))
 
 
