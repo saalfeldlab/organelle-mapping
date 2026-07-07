@@ -52,6 +52,11 @@ dependencies = [
   "corditea@git+https://github.com/saalfeldlab/corditea.git"
 ]
 
+[project.optional-dependencies]
+# Opt-in "lsd-jax" LSD backend. Pulls corditea's jax extra, which installs the
+# (private) lsd-jax fork. Requires SSH access to the source and a working jax.
+jax = ["corditea[jax]"]
+
 [project.urls]
 Documentation = "https://github.com/saalfeldlab/organelle-mapping#readme"
 Issues = "https://github.com/saalfeldlab/organelle-mapping/issues"
@@ -184,10 +189,20 @@ xarray-datatree = "*"
 
 [tool.pixi.pypi-dependencies]
 organelle-mapping = { path = ".", editable = true }
-jax = { version = "*", extras = ["cuda13"] }
 
+# The override replaces corditea's requirement wholesale, so the `[jax]` extra
+# must be named HERE — a bare `corditea[jax]` request elsewhere gets stripped by
+# the override. This is what pulls the local corditea's lsd-jax into the dev env.
 [tool.pixi.feature.local-deps.pypi-options]
-dependency-overrides = { corditea = { path = "../corditea", editable = true } }
+dependency-overrides = { corditea = { path = "../corditea", editable = true, extras = ["jax"] } }
+
+# Opt-in lsd-jax backend: activate organelle-mapping's own `jax` extra (which
+# pulls corditea[jax] -> the private lsd-jax fork) and the CUDA jax build it
+# runs on. Combine with local-deps so corditea[jax] resolves from the local
+# checkout rather than public git.
+[tool.pixi.feature.jax-backend.pypi-dependencies]
+organelle-mapping = { path = ".", editable = true, extras = ["jax"] }
+jax = { version = "*", extras = ["cuda13"] }
 
 [tool.pixi.feature.dev.dependencies]
 pytest = ">=7.3"
@@ -207,4 +222,4 @@ ipykernel = ">=6.23"
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
-dev = { features = ["dev", "notebooks", "local-deps"], solve-group = "dev" }
+dev = { features = ["dev", "notebooks", "local-deps", "jax-backend"], solve-group = "dev" }
